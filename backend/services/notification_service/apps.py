@@ -1,0 +1,9 @@
+from django.apps import AppConfig
+
+
+class NotificationServiceConfig(AppConfig):
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "services.notification_service"
+    label = "notification_service"
+    verbose_name = "Notifications"
+

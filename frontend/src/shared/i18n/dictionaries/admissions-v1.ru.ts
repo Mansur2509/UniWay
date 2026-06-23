@@ -1,0 +1,29 @@
+import { admissionsV1En } from "./admissions-v1.en";
+
+export const admissionsV1Ru = {
+  ...admissionsV1En,
+  "admissions.proposals.title": "Актуальные предложения по поступлению",
+  "admissions.proposals.description": "Рекомендации по правилам обновляются по мере уточнения академического направления.",
+  "admissions.classes.add": "Добавить курс",
+  "admissions.classes.added": "Добавлено",
+  "admissions.assessment.title": "Тест интересов по специальностям и профессиям",
+  "admissions.assessment.description": "Сорок недиагностических вопросов помогают сгруппировать интересы в широкие академические направления.",
+  "admissions.assessment.next": "Следующий раздел",
+  "admissions.assessment.previous": "Предыдущий раздел",
+  "admissions.assessment.results": "Показать рекомендации",
+  "admissions.assessment.use": "Использовать выбранные рекомендации",
+  "admissions.country.title": "Целевые страны",
+  "admissions.country.description": "Выберите все направления, которые серьёзно рассматриваете.",
+  "admissions.readiness.title": "Готовность заявки",
+  "admissions.readiness.description": "Структурированная оценка имеющихся данных, а не вероятность поступления.",
+  "admissions.readiness.officialNeeded": "Для сравнения с конкретным университетом нужны официальные данные.",
+  "admissions.readiness.published": "Сравнение основано на доступных опубликованных требованиях.",
+  "admissions.readiness.disclaimer": "EduVerse не гарантирует поступление. Готовность — это информационное сравнение доступных данных профиля и опубликованных диапазонов, когда они имеются.",
+  "dashboard.learning.title": "Рекомендуемая учебная траектория",
+  "dashboard.learning.description": "Выбранные курсы связывают специальности, экзамены и приоритеты академического плана.",
+  "events.map.title": "Карта возможностей",
+  "events.map.description": "Смотрите расположение проверенных событий и переключайтесь между картой и каталогом.",
+  "events.actions.manageOrganizer": "Управлять событиями организатора",
+  "events.actions.moderationQueue": "Открыть очередь модерации",
+  "organizer.statusSummary.title": "Статусы событий"
+} satisfies Record<keyof typeof admissionsV1En, string>;

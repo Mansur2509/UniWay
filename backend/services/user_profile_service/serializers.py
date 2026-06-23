@@ -1,0 +1,461 @@
+import re
+from datetime import date, datetime
+from decimal import Decimal
+
+from django.db import transaction
+from rest_framework import serializers
+
+from .models import StudentProfile
+from .readiness import calculate_application_readiness
+from .services import (
+    REQUIRED_ONBOARDING_SECTIONS,
+    calculate_profile_completion,
+    ensure_profile_records,
+)
+
+TELEGRAM_PATTERN = re.compile(r"^@?[A-Za-z0-9_]{5,32}$")
+PHONE_PATTERN = re.compile(r"^\+?[0-9 ()-]{7,24}$")
+ACTIVITY_KEYS = {
+    "extracurriculars",
+    "honors",
+    "sports",
+    "olympiads",
+    "research_projects",
+    "mun_debate",
+    "volunteering",
+    "leadership",
+    "work_internships",
+}
+
+
+def validate_string_list(value, *, field_name: str, max_items: int = 20) -> list[str]:
+    if not isinstance(value, list):
+        raise serializers.ValidationError(f"{field_name} must be a list.")
+    if len(value) > max_items:
+        raise serializers.ValidationError(f"{field_name} may contain at most {max_items} items.")
+
+    normalized_items = []
+    for item in value:
+        if not isinstance(item, str):
+            raise serializers.ValidationError(f"Every {field_name} item must be text.")
+        normalized_item = item.strip()
+        if not normalized_item:
+            continue
+        if len(normalized_item) > 120:
+            raise serializers.ValidationError(f"Each {field_name} item must be 120 characters or fewer.")
+        if normalized_item not in normalized_items:
+            normalized_items.append(normalized_item)
+    return normalized_items
+
+
+class ProfileSerializer(serializers.Serializer):
+    id = serializers.IntegerField(source="user.id", read_only=True)
+    email = serializers.EmailField(source="user.email", read_only=True)
+    role = serializers.CharField(source="user.role", read_only=True)
+    full_name = serializers.CharField(required=False, allow_blank=True, max_length=180)
+    birth_date = serializers.DateField(required=False, allow_null=True)
+    country = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    city = serializers.CharField(required=False, allow_blank=True, max_length=120)
+    school_or_university = serializers.CharField(required=False, allow_blank=True, max_length=240)
+    grade = serializers.CharField(required=False, allow_blank=True, max_length=50)
+    expected_graduation_year = serializers.IntegerField(required=False, allow_null=True)
+    education_status = serializers.CharField(required=False, allow_blank=True, max_length=120)
+    gpa = serializers.DecimalField(
+        required=False,
+        allow_null=True,
+        max_digits=5,
+        decimal_places=2,
+    )
+    gpa_scale = serializers.DecimalField(
+        required=False,
+        allow_null=True,
+        max_digits=5,
+        decimal_places=2,
+    )
+    intended_degree = serializers.CharField(required=False, allow_blank=True, max_length=120)
+    target_countries = serializers.ListField(
+        child=serializers.CharField(max_length=120),
+        required=False,
+    )
+    intended_majors = serializers.ListField(
+        child=serializers.CharField(max_length=120),
+        required=False,
+    )
+    target_universities = serializers.ListField(
+        child=serializers.CharField(max_length=180),
+        required=False,
+    )
+    university_unsure = serializers.BooleanField(required=False)
+    major_unsure = serializers.BooleanField(required=False)
+    scholarship_need = serializers.ChoiceField(
+        choices=StudentProfile.ScholarshipNeed.choices,
+        required=False,
+    )
+    interests = serializers.ListField(
+        child=serializers.CharField(max_length=120),
+        required=False,
+    )
+    languages = serializers.ListField(
+        child=serializers.CharField(max_length=120),
+        required=False,
+    )
+    test_scores = serializers.JSONField(required=False)
+    exam_plans = serializers.JSONField(required=False)
+    preparation_needs = serializers.ListField(
+        child=serializers.CharField(max_length=120),
+        required=False,
+    )
+    activities = serializers.JSONField(required=False)
+    essay_status = serializers.ChoiceField(
+        choices=StudentProfile.EssayStatus.choices,
+        required=False,
+    )
+    essay_stage = serializers.CharField(required=False, allow_blank=True, max_length=120)
+    support_priorities = serializers.ListField(
+        child=serializers.CharField(max_length=120),
+        required=False,
+    )
+    interested_classes = serializers.ListField(
+        child=serializers.CharField(max_length=120),
+        required=False,
+    )
+    ap_interests = serializers.ListField(
+        child=serializers.CharField(max_length=120),
+        required=False,
+    )
+    career_interests = serializers.ListField(
+        child=serializers.CharField(max_length=120),
+        required=False,
+    )
+    mun_debate_interest = serializers.BooleanField(required=False)
+    research_interest = serializers.BooleanField(required=False)
+    finance_literacy_interest = serializers.BooleanField(required=False)
+    onboarding_sections = serializers.ListField(
+        child=serializers.ChoiceField(choices=REQUIRED_ONBOARDING_SECTIONS),
+        required=False,
+    )
+    onboarding_version = serializers.IntegerField(read_only=True)
+    onboarding_completed_at = serializers.DateTimeField(read_only=True)
+    telegram_username = serializers.CharField(required=False, allow_blank=True, max_length=33)
+    phone = serializers.CharField(required=False, allow_blank=True, max_length=32)
+    updated_at = serializers.DateTimeField(read_only=True)
+
+    def to_representation(self, instance):
+        profile = instance
+        _, preferences = ensure_profile_records(profile.user)
+        exam_plans = profile.exam_plans if isinstance(profile.exam_plans, dict) else {}
+        return {
+            "id": profile.user_id,
+            "email": profile.user.email,
+            "role": profile.user.role,
+            "full_name": profile.full_name,
+            "birth_date": profile.birth_date,
+            "country": profile.country,
+            "city": profile.city,
+            "school_or_university": profile.school_or_university,
+            "grade": profile.grade,
+            "expected_graduation_year": profile.expected_graduation_year,
+            "education_status": profile.education_status,
+            "gpa": profile.gpa,
+            "gpa_scale": profile.gpa_scale,
+            "intended_degree": profile.intended_degree,
+            "target_countries": profile.target_countries,
+            "intended_majors": profile.intended_majors,
+            "target_universities": profile.target_universities,
+            "university_unsure": profile.university_unsure,
+            "major_unsure": profile.major_unsure,
+            "scholarship_need": profile.scholarship_need,
+            "interests": preferences.interests,
+            "languages": profile.languages,
+            "test_scores": profile.test_scores,
+            "exam_plans": {
+                "taken": exam_plans.get("taken", []),
+                "planned": exam_plans.get("planned", []),
+            },
+            "preparation_needs": profile.preparation_needs,
+            "activities": profile.activities,
+            "essay_status": profile.essay_status,
+            "essay_stage": profile.essay_stage,
+            "support_priorities": profile.support_priorities,
+            "interested_classes": preferences.interested_classes,
+            "ap_interests": preferences.ap_interests,
+            "career_interests": preferences.career_interests,
+            "mun_debate_interest": preferences.mun_debate_interest,
+            "research_interest": preferences.research_interest,
+            "finance_literacy_interest": preferences.finance_literacy_interest,
+            "onboarding_sections": profile.onboarding_sections,
+            "onboarding_version": profile.onboarding_version,
+            "onboarding_completed_at": profile.onboarding_completed_at,
+            "telegram_username": profile.telegram_username,
+            "phone": profile.phone,
+            "updated_at": profile.updated_at,
+        }
+
+    def validate_birth_date(self, value):
+        if value is None:
+            return value
+        if value > date.today():
+            raise serializers.ValidationError("Birth date cannot be in the future.")
+        today = date.today()
+        age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
+        if age < 10 or age > 100:
+            raise serializers.ValidationError("Birth date is outside the supported range.")
+        return value
+
+    def validate_expected_graduation_year(self, value):
+        if value is None:
+            return value
+        current_year = date.today().year
+        if value < current_year - 1 or value > current_year + 15:
+            raise serializers.ValidationError("Graduation year is outside the supported range.")
+        return value
+
+    def validate_target_countries(self, value):
+        return validate_string_list(value, field_name="target countries")
+
+    def validate_intended_majors(self, value):
+        return validate_string_list(value, field_name="intended majors")
+
+    def validate_target_universities(self, value):
+        return validate_string_list(value, field_name="target universities", max_items=30)
+
+    def validate_interests(self, value):
+        return validate_string_list(value, field_name="interests", max_items=30)
+
+    def validate_languages(self, value):
+        return validate_string_list(value, field_name="languages")
+
+    def validate_test_scores(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Test scores must be an object.")
+        if len(value) > 20:
+            raise serializers.ValidationError("Test scores may contain at most 20 entries.")
+
+        normalized_scores = {}
+        for key, score in value.items():
+            if not isinstance(key, str) or not key.strip() or len(key.strip()) > 40:
+                raise serializers.ValidationError("Test score names must be short text values.")
+            normalized_key = key.strip().lower()
+            if isinstance(score, str):
+                normalized_score = score.strip()
+                if len(normalized_score) > 120:
+                    raise serializers.ValidationError("Test score values must be 120 characters or fewer.")
+            elif isinstance(score, int | float) and not isinstance(score, bool):
+                normalized_score = score
+            elif isinstance(score, list):
+                normalized_score = validate_string_list(
+                    score,
+                    field_name=f"{normalized_key} scores",
+                    max_items=20,
+                )
+            else:
+                raise serializers.ValidationError(
+                    "Test score values must be text, a number, or a list of text values."
+                )
+            normalized_scores[normalized_key] = normalized_score
+
+        numeric_ranges = {
+            "sat": (400, 1600),
+            "ielts": (0, 9),
+            "toefl": (0, 120),
+        }
+        for key, (minimum, maximum) in numeric_ranges.items():
+            score = normalized_scores.get(key)
+            if isinstance(score, str):
+                try:
+                    numeric_score = float(score)
+                except ValueError as error:
+                    raise serializers.ValidationError(
+                        {key: f"{key.upper()} score must be numeric."}
+                    ) from error
+                score = int(numeric_score) if numeric_score.is_integer() else numeric_score
+                normalized_scores[key] = score
+            if isinstance(score, int | float) and not minimum <= score <= maximum:
+                raise serializers.ValidationError(
+                    {key: f"{key.upper()} score must be between {minimum} and {maximum}."}
+                )
+        return normalized_scores
+
+    def validate_exam_plans(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Exam plans must be an object.")
+        unknown_keys = set(value) - {"taken", "planned"}
+        if unknown_keys:
+            raise serializers.ValidationError("Exam plans contain unsupported fields.")
+
+        taken = validate_string_list(value.get("taken", []), field_name="taken exams")
+        planned = value.get("planned", [])
+        if not isinstance(planned, list) or len(planned) > 12:
+            raise serializers.ValidationError("Planned exams must be a list with at most 12 items.")
+
+        normalized_plans = []
+        for plan in planned:
+            if not isinstance(plan, dict):
+                raise serializers.ValidationError("Every planned exam must be an object.")
+            name = str(plan.get("name", "")).strip()
+            exam_date = str(plan.get("date", "")).strip()
+            target_score = str(plan.get("target_score", "")).strip()
+            if not name or len(name) > 80:
+                raise serializers.ValidationError("Every planned exam needs a short name.")
+            if exam_date:
+                try:
+                    parsed_date = datetime.strptime(exam_date, "%Y-%m-%d").date()
+                except ValueError as error:
+                    raise serializers.ValidationError("Exam dates must use YYYY-MM-DD.") from error
+                if parsed_date < date.today() or parsed_date.year > date.today().year + 5:
+                    raise serializers.ValidationError("Exam date is outside the supported range.")
+            if len(target_score) > 40:
+                raise serializers.ValidationError("Target scores must be 40 characters or fewer.")
+            normalized_plans.append(
+                {"name": name, "date": exam_date, "target_score": target_score}
+            )
+        return {"taken": taken, "planned": normalized_plans}
+
+    def validate_preparation_needs(self, value):
+        return validate_string_list(value, field_name="preparation needs", max_items=20)
+
+    def validate_support_priorities(self, value):
+        return validate_string_list(value, field_name="support priorities", max_items=20)
+
+    def validate_interested_classes(self, value):
+        return validate_string_list(value, field_name="interested classes", max_items=30)
+
+    def validate_ap_interests(self, value):
+        return validate_string_list(value, field_name="AP interests", max_items=20)
+
+    def validate_career_interests(self, value):
+        return validate_string_list(value, field_name="career interests", max_items=30)
+
+    def validate_activities(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Activities must be an object.")
+        if set(value) - ACTIVITY_KEYS:
+            raise serializers.ValidationError("Activities contain unsupported fields.")
+        return {
+            key: validate_string_list(
+                value.get(key, []),
+                field_name=key.replace("_", " "),
+                max_items=20,
+            )
+            for key in ACTIVITY_KEYS
+        }
+
+    def validate_onboarding_sections(self, value):
+        return list(dict.fromkeys(value))
+
+    def validate_telegram_username(self, value):
+        normalized_value = value.strip()
+        if normalized_value and not TELEGRAM_PATTERN.fullmatch(normalized_value):
+            raise serializers.ValidationError("Enter a valid Telegram username.")
+        if normalized_value and not normalized_value.startswith("@"):
+            normalized_value = f"@{normalized_value}"
+        return normalized_value
+
+    def validate_phone(self, value):
+        normalized_value = value.strip()
+        if normalized_value and not PHONE_PATTERN.fullmatch(normalized_value):
+            raise serializers.ValidationError("Enter a valid phone number.")
+        return normalized_value
+
+    def validate(self, attrs):
+        profile = self.instance
+        gpa = attrs.get("gpa", profile.gpa if profile else None)
+        gpa_scale = attrs.get("gpa_scale", profile.gpa_scale if profile else None)
+        if (gpa is None) != (gpa_scale is None):
+            raise serializers.ValidationError(
+                {"gpa": "GPA and GPA scale must be provided together."}
+            )
+        if gpa is not None:
+            if gpa <= Decimal("0") or gpa_scale <= Decimal("0") or gpa_scale > Decimal("100"):
+                raise serializers.ValidationError({"gpa": "GPA values are outside the supported range."})
+            if gpa > gpa_scale:
+                raise serializers.ValidationError({"gpa": "GPA cannot exceed its scale."})
+        return attrs
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        profile, preferences = ensure_profile_records(instance.user)
+        interests = validated_data.pop("interests", None)
+        preference_fields = {
+            field: validated_data.pop(field)
+            for field in (
+                "interested_classes",
+                "ap_interests",
+                "career_interests",
+                "mun_debate_interest",
+                "research_interest",
+                "finance_literacy_interest",
+            )
+            if field in validated_data
+        }
+        for field, value in validated_data.items():
+            setattr(profile, field, value)
+
+        if "intended_majors" in validated_data:
+            profile.intended_major = (
+                validated_data["intended_majors"][0] if validated_data["intended_majors"] else ""
+            )
+        if "test_scores" in validated_data:
+            sat_score = validated_data["test_scores"].get("sat", "")
+            ielts_score = validated_data["test_scores"].get("ielts", "")
+            profile.sat_level = str(sat_score) if sat_score != "" else ""
+            profile.ielts_level = str(ielts_score) if ielts_score != "" else ""
+
+        profile.save()
+        if interests is not None:
+            preferences.interests = interests
+        for field, value in preference_fields.items():
+            setattr(preferences, field, value)
+        if interests is not None or preference_fields:
+            preferences.save()
+        return profile
+
+
+class ProfileCompletionSerializer(serializers.Serializer):
+    percentage = serializers.IntegerField(read_only=True)
+    completed_fields = serializers.IntegerField(read_only=True)
+    total_fields = serializers.IntegerField(read_only=True)
+    missing_fields = serializers.ListField(
+        child=serializers.CharField(),
+        read_only=True,
+    )
+    missing_sections = serializers.ListField(child=serializers.CharField(), read_only=True)
+    required_fields = serializers.ListField(child=serializers.CharField(), read_only=True)
+    is_complete = serializers.BooleanField(read_only=True)
+    can_complete = serializers.BooleanField(read_only=True)
+
+    @classmethod
+    def for_profile(cls, profile):
+        _, preferences = ensure_profile_records(profile.user)
+        completion = calculate_profile_completion(profile, preferences)
+        return cls(completion)
+
+
+class ApplicationReadinessSerializer(serializers.Serializer):
+    stars = serializers.IntegerField(read_only=True)
+    level = serializers.CharField(read_only=True)
+    score_components = serializers.DictField(
+        child=serializers.IntegerField(),
+        read_only=True,
+    )
+    strengths = serializers.ListField(child=serializers.CharField(), read_only=True)
+    improvements = serializers.ListField(child=serializers.CharField(), read_only=True)
+    comparison_status = serializers.CharField(read_only=True)
+    compared_universities = serializers.ListField(
+        child=serializers.CharField(),
+        read_only=True,
+    )
+    official_sources = serializers.ListField(
+        child=serializers.DictField(),
+        read_only=True,
+    )
+
+    @classmethod
+    def for_profile(cls, profile):
+        _, preferences = ensure_profile_records(profile.user)
+        readiness = calculate_application_readiness(profile, preferences)
+        return cls(readiness)
+
+
+# Legacy router serializer retained for compatibility with `/api/v1/profiles/me/`.
+StudentProfileSerializer = ProfileSerializer

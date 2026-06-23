@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --background: 42 40% 96%;
+  --surface: 42 33% 98%;
+  --card: 0 0% 100%;
+  --elevated: 40 27% 92%;
+  --border: 37 18% 80%;
+  --text: 218 35% 14%;
+  --foreground: 218 35% 14%;
+  --muted: 40 25% 91%;
+  --muted-foreground: 218 12% 38%;
+  --primary: 348 74% 31%;
+  --primary-hover: 348 77% 25%;
+  --primary-foreground: 42 40% 97%;
+  --navy: 218 46% 17%;
+  --navy-foreground: 42 40% 96%;
+  --accent: 39 64% 43%;
+  --accent-foreground: 218 46% 14%;
+  --success: 151 45% 29%;
+  --warning: 35 76% 34%;
+  --danger: 0 63% 42%;
+  --focus-ring: 348 74% 31%;
+  --radius: 0.125rem;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --background: 220 38% 9%;
+  --surface: 219 34% 12%;
+  --card: 218 29% 15%;
+  --elevated: 217 25% 19%;
+  --border: 216 19% 28%;
+  --text: 42 31% 92%;
+  --foreground: 42 31% 92%;
+  --muted: 217 23% 19%;
+  --muted-foreground: 216 13% 68%;
+  --primary: 348 66% 48%;
+  --primary-hover: 348 72% 57%;
+  --primary-foreground: 0 0% 100%;
+  --navy: 220 45% 7%;
+  --navy-foreground: 42 31% 94%;
+  --accent: 39 63% 54%;
+  --accent-foreground: 220 38% 9%;
+  --success: 148 43% 47%;
+  --warning: 38 75% 55%;
+  --danger: 0 64% 58%;
+  --focus-ring: 39 72% 58%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html {
+  background: hsl(var(--background));
+}
+
+body {
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: Georgia, Cambria, "Times New Roman", serif;
+  text-wrap: balance;
+  letter-spacing: -0.015em;
+}
+
+a,
+button,
+input,
+select,
+textarea {
+  outline-color: hsl(var(--focus-ring));
+}
+
+input,
+select,
+textarea {
+  color: hsl(var(--foreground));
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.4);
+  color: hsl(var(--foreground));
+}
+
+.scrollbar-quiet {
+  scrollbar-color: hsl(var(--border) / 0.55) transparent;
+  scrollbar-width: thin;
+}
+
+.scrollbar-quiet::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-quiet::-webkit-scrollbar-thumb {
+  background: hsl(var(--border) / 0.55);
+}
+
+.scrollbar-quiet::-webkit-scrollbar-track {
+  background: transparent;
+}

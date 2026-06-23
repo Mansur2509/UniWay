@@ -1,0 +1,66 @@
+# Tasks
+
+## Phase 0 — Foundation
+
+- [x] P0-001 Create repository rules and core documentation.
+- [x] P0-002 Create monorepo and local environment structure.
+- [x] P0-003 Create Next.js, TypeScript, Tailwind, and FSD skeleton.
+- [x] P0-004 Create academic design tokens and placeholder product routes.
+- [x] P0-005 Create Django/DRF modular service skeleton.
+- [x] P0-006 Add initial user, profile, subscription, university, event, and exam models.
+- [x] P0-007 Add API routing, serializers, permissions, and admin foundations.
+- [x] P0-008 Add PostgreSQL and Docker Compose configuration.
+- [x] P0-009 Add environment examples and demo seed command.
+- [ ] P0-010 Run frontend dependency install, lint, and type checks. Blocked on 2026-06-22 by npm registry TLS/network errors (`ECONNRESET` and `UNABLE_TO_VERIFY_LEAF_SIGNATURE`).
+- [x] P0-011 Generate backend migrations; run Django checks, migrations, seed, Ruff, and tests.
+- [ ] P0-012 Validate Docker Compose startup.
+
+P0-012 requires Docker, which was not installed in the local environment on 2026-06-22. See the latest status in the Phase 0 handoff.
+
+## Phase 1 — Core vertical slices
+
+- [x] **AUTH-001** Implement basic JWT registration, login, refresh, blacklist logout, current-user/profile API, frontend auth state, protected pages, and auth tests.
+- [x] **UI-SYSTEM-001** Add semantic dark-first theme tokens and migrate shared/auth/profile/dashboard UI.
+- [x] **I18N-001** Add dependency-free typed dictionaries, locale persistence, four locales, and a language switcher.
+- [ ] **AUTH-002** Add email verification, password reset, HttpOnly refresh cookies, session/device management, and production auth hardening.
+- [x] **PROFILE-001** Implement the self-only student profile aggregate, academic/contact fields, computed completion, localized responsive UI, migration, and tests.
+- [x] **EVENTS-001** Implement event lifecycle, public catalog/detail, profile-snapshot registration, cancellation, my events, localized UI, seed data, migration, and tests.
+- [ ] **EVENTS-002** Build Leaflet map/calendar views, save action, and richer eligibility/recommendation filters.
+- [ ] **UNI-001** Implement university catalog ingestion, official source records, filters, and detail UI.
+- [ ] **ROAD-001** Implement roadmap, milestones, deadlines, and add-event-to-roadmap workflow.
+- [ ] **ESSAY-001** Implement private essay submission and feedback contracts with strict no-ghostwriting controls.
+- [ ] **AI-001** Implement backend OpenRouter adapter, quotas, usage logs, safety policy, prompt-injection defenses, and provider fallback.
+- [ ] **EXAM-001** Implement original question authoring/admin, practice sessions, answers, explanations, and scoring foundations.
+- [ ] **FIN-001** Implement educational finance modules and quizzes with mandatory advice disclaimer.
+- [ ] **SUB-001** Implement plan definitions, feature access rules, atomic usage counters, and monthly reset job.
+
+## Recommended order
+
+`FORMS-001 -> TICKETS-001 -> EVENTS-002 -> UNI-001 -> SUB-001 -> ROAD-001 -> ESSAY-001 -> AI-001 -> EXAM-001 -> FIN-001`
+
+`AUTH-002` is required before production launch and may run alongside later product slices.
+
+## Next recommended product tasks
+
+Recommended sequence:
+
+`FORMS-001 -> TICKETS-001 -> TELEGRAM-001 -> EXPORT-001 -> ANTIABUSE-001 -> PAYMENTS-001 -> AUTH-002`
+
+- [x] **ORGANIZER-001** Add organizer draft creation, ownership, submission, moderation, status logs, participant access, and localized role-aware UI.
+- [x] **BETA-PREVIEW-001** Connect completed modules into a coherent beta shell, command-center dashboard, complete navigation, and localized preview pages.
+- [x] **LOCAL-RUN-001** Add a founder-friendly SQLite backend launcher, frontend environment preparation, preview diagnostics, and a local troubleshooting guide.
+- [x] **BETA-QA-001** Complete founder visual QA, remove duplicate navigation, improve role-guard recovery, and polish mobile overflow behavior.
+- [x] **AUTH-GUARD-001** Require a backend-confirmed session before mounting any product shell or content, protect catalog reads, and distinguish offline from logout.
+- [x] **V1-UI-REDESIGN-001** Consolidate the beta into a coherent V1 shell, dashboard, event-first workflow, honest preview modules, and real plan comparison.
+- [x] **V1-BRAND-REDESIGN-002** Apply the ivory/navy/crimson academic identity, crisp geometry, restrained typography, and EduVerse favicon across the frontend.
+- [x] **ONBOARDING-GATE-001** Require backend-confirmed onboarding, add the six-step profile foundation, rule-based major exploration, exam countdowns, layout polish, and clean preview build isolation.
+- [x] **V1-ADMISSIONS-ONBOARDING-FINAL-001** Add the expanded major catalog, 40-question assessment, admissions proposals, recommended classes, target countries, and evidence-based readiness.
+- [x] **V1-FINAL-POLISH-CONTINUE-001** Finish independent shell scrolling, compact profile layout, event map/filter hybrid, role navigation, organizer status summary, documentation, and final local checks.
+- [x] **V1-DEMO-STABILIZATION-001** Stabilize founder demo auth/onboarding, normalize fresh profile payloads, seed role-specific local demo accounts, and document the founder review checklist.
+- [x] **V1-FREEZE-HANDOFF-001** Freeze the current V1 beta state in `docs/V1_HANDOFF.md`; do not start a new feature before founder visual review.
+- [ ] **FORMS-001** Standardize accessible form fields, validation summaries, and translated backend error mapping.
+- [ ] **TICKETS-001** Model event registration/ticket intent without introducing payment processing.
+- [ ] **TELEGRAM-001** Design an opt-in Telegram notification integration with privacy and rate-limit controls.
+- [ ] **EXPORT-001** Add privacy-aware user data and roadmap exports.
+- [ ] **ANTIABUSE-001** Add layered abuse controls for auth, event submissions, AI usage, and public forms.
+- [ ] **PAYMENTS-001** Define provider-neutral payment intents and reconciliation after ticketing and abuse controls are ready.

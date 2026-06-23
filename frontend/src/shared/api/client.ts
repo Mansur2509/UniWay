@@ -1,0 +1,164 @@
+import { env } from "@/shared/config/env";
+import {
+  authStorage,
+  notifyAuthInvalid,
+  type AuthTokens
+} from "@/shared/lib/auth-storage";
+
+type ApiOptions = Omit<RequestInit, "body"> & {
+  body?: unknown;
+  auth?: boolean;
+  base?: "api" | "auth" | "profile" | "events" | "organizer" | "moderation";
+  retryOnUnauthorized?: boolean;
+};
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly data: unknown
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+let refreshPromise: Promise<AuthTokens | null> | null = null;
+
+function getErrorMessage(data: unknown, fallback: string) {
+  if (typeof data === "object" && data !== null) {
+    const detail = Reflect.get(data, "detail");
+    if (typeof detail === "string") {
+      return detail;
+    }
+
+    const nonFieldErrors = Reflect.get(data, "non_field_errors");
+    if (
+      Array.isArray(nonFieldErrors) &&
+      typeof nonFieldErrors[0] === "string"
+    ) {
+      return nonFieldErrors[0];
+    }
+  }
+  return fallback;
+}
+
+async function parseResponse(response: Response): Promise<unknown> {
+  if (response.status === 204) {
+    return undefined;
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+  return response.text();
+}
+
+async function refreshTokens(): Promise<AuthTokens | null> {
+  const currentTokens = authStorage.get();
+  if (!currentTokens) {
+    return null;
+  }
+
+  const response = await fetch(`${env.authApiBaseUrl}/token/refresh/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh: currentTokens.refresh })
+  });
+
+  if (!response.ok) {
+    authStorage.clear();
+    notifyAuthInvalid();
+    return null;
+  }
+
+  const data = (await response.json()) as {
+    access: string;
+    refresh?: string;
+  };
+  const tokens = {
+    access: data.access,
+    refresh: data.refresh ?? currentTokens.refresh
+  };
+  authStorage.set(tokens);
+  return tokens;
+}
+
+export async function apiRequest<T>(path: string, options: ApiOptions = {}): Promise<T> {
+  const {
+    auth = true,
+    base = "api",
+    retryOnUnauthorized = true,
+    body,
+    ...requestOptions
+  } = options;
+  const tokens = auth ? authStorage.get() : null;
+  const baseUrl =
+    base === "auth"
+      ? env.authApiBaseUrl
+      : base === "profile"
+        ? env.profileApiBaseUrl
+        : base === "events"
+          ? env.eventsApiBaseUrl
+          : base === "organizer"
+            ? env.organizerApiBaseUrl
+            : base === "moderation"
+              ? env.eventModerationApiBaseUrl
+              : env.apiBaseUrl;
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...requestOptions,
+    body: body === undefined ? undefined : JSON.stringify(body),
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(tokens ? { Authorization: `Bearer ${tokens.access}` } : {}),
+      ...requestOptions.headers
+    }
+  });
+
+  if (response.status === 401 && auth && retryOnUnauthorized) {
+    refreshPromise ??= refreshTokens().finally(() => {
+      refreshPromise = null;
+    });
+    const refreshedTokens = await refreshPromise;
+    if (refreshedTokens) {
+      return apiRequest<T>(path, {
+        ...options,
+        retryOnUnauthorized: false
+      });
+    }
+  }
+
+  const data = await parseResponse(response);
+  if (!response.ok) {
+    if (response.status === 401 && auth) {
+      authStorage.clear();
+      notifyAuthInvalid();
+    }
+    throw new ApiError(
+      getErrorMessage(data, `EduVerse API request failed with status ${response.status}.`),
+      response.status,
+      data
+    );
+  }
+
+  return data as T;
+}
+
+export function getApiErrorMessage(
+  error: unknown,
+  fallback = "Something went wrong. Please try again."
+) {
+  if (error instanceof ApiError) {
+    if (typeof error.data === "object" && error.data !== null) {
+      for (const value of Object.values(error.data)) {
+        if (Array.isArray(value) && typeof value[0] === "string") {
+          return value[0];
+        }
+      }
+    }
+    return error.message;
+  }
+  return fallback;
+}

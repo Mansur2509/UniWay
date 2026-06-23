@@ -1,0 +1,42 @@
+# Environment and secrets
+.env
+.env.local
+.env.*
+!.env.example
+**/.env
+**/.env.local
+**/.env.*
+!**/.env.example
+
+# JavaScript
+node_modules/
+.next/
+.next-dev/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+bun.lockb
+*.log
+
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.deps/
+staticfiles/
+media/
+*.sqlite3
+db.sqlite3
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

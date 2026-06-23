@@ -1,0 +1,87 @@
+"use client";
+
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState
+} from "react";
+
+import {
+  defaultLocale,
+  isLocaleCode,
+  localeMetadata,
+  type LocaleCode
+} from "./config";
+import { dictionaries } from "./dictionaries";
+import type { TranslationKey, TranslationValues } from "./types";
+
+const LOCALE_STORAGE_KEY = "eduverse.locale";
+
+type I18nContextValue = {
+  locale: LocaleCode;
+  setLocale: (locale: LocaleCode) => void;
+  t: (key: TranslationKey, values?: TranslationValues) => string;
+};
+
+const I18nContext = createContext<I18nContextValue | null>(null);
+
+function interpolate(message: string, values?: TranslationValues) {
+  if (!values) {
+    return message;
+  }
+
+  return message.replace(/\{\{(\w+)\}\}/g, (placeholder, key: string) => {
+    const value = values[key];
+    return value === undefined ? placeholder : String(value);
+  });
+}
+
+export function I18nProvider({ children }: { children: ReactNode }) {
+  const [locale, setLocaleState] = useState<LocaleCode>(defaultLocale);
+
+  useEffect(() => {
+    const storedLocale = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+    if (storedLocale && isLocaleCode(storedLocale)) {
+      setLocaleState(storedLocale);
+    }
+  }, []);
+
+  useEffect(() => {
+    const metadata = localeMetadata[locale];
+    document.documentElement.lang = locale;
+    document.documentElement.dir = metadata.direction;
+  }, [locale]);
+
+  const setLocale = useCallback((nextLocale: LocaleCode) => {
+    setLocaleState(nextLocale);
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, nextLocale);
+  }, []);
+
+  const t = useCallback(
+    (key: TranslationKey, values?: TranslationValues) =>
+      interpolate(dictionaries[locale][key], values),
+    [locale]
+  );
+
+  const contextValue = useMemo(
+    () => ({ locale, setLocale, t }),
+    [locale, setLocale, t]
+  );
+
+  return (
+    <I18nContext.Provider value={contextValue}>{children}</I18nContext.Provider>
+  );
+}
+
+export function useI18n() {
+  const context = useContext(I18nContext);
+  if (!context) {
+    throw new Error("useI18n must be used within I18nProvider.");
+  }
+  return context;
+}
+

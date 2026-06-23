@@ -1,0 +1,541 @@
+# API Contracts
+
+Product API base URL: `/api/v1`
+
+Authentication API base URL: `/api/auth`
+
+Profile API base URL: `/api/profile`
+
+Events API base URL: `/api/events`
+
+Organizer API base URL: `/api/organizer`
+
+Event moderation API base URL: `/api/admin/events`
+
+This document is an evolving Phase 1 contract. Breaking changes must update this file and the affected client types.
+
+## Authentication
+
+Browser API requests use JWT bearer authentication. Access tokens expire after 15 minutes; refresh tokens expire after 7 days. Refresh rotation and blacklist-after-rotation are enabled.
+
+Send an access token as:
+
+```http
+Authorization: Bearer <access-token>
+```
+
+The Phase 1 web client stores tokens through one isolated local-storage helper. This is an MVP compromise, not the final production design. A future hardening task should move refresh credentials to Secure, HttpOnly, SameSite cookies.
+
+### POST `/api/auth/register/`
+
+Public. Creates a student user, `StudentProfile`, `UserPreference`, and Free `Subscription` atomically.
+
+Request:
+
+```json
+{
+  "email": "student@example.com",
+  "full_name": "Student Example",
+  "password": "strong password",
+  "password_confirm": "strong password"
+}
+```
+
+Returns HTTP 201 with `access`, `refresh`, and `user`.
+
+### POST `/api/auth/login/`
+
+Public. Accepts `email` and `password`. Returns `access`, `refresh`, and `user`.
+
+### POST `/api/auth/token/refresh/`
+
+Public to clients holding a valid refresh token. Rotates the refresh token and returns a new access token plus a new refresh token.
+
+### POST `/api/auth/logout/`
+
+Authenticated. Accepts a refresh token and blacklists it. The access token must be supplied in the `Authorization` header.
+
+```json
+{
+  "refresh": "<refresh-token>"
+}
+```
+
+Returns HTTP 204.
+
+### GET `/api/auth/me/`
+
+Authenticated. Returns:
+
+```json
+{
+  "id": 1,
+  "email": "student@example.com",
+  "full_name": "Student Example",
+  "role": "student",
+  "profile": {
+    "country": "Uzbekistan",
+    "city": "Tashkent",
+    "grade": "11",
+    "education_status": "school student",
+    "intended_major": "Computer Science",
+    "scholarship_need": "unsure"
+  },
+  "subscription": {
+    "tier": "free",
+    "period_started_at": "2026-06-22T00:00:00Z",
+    "ai_message_count": 0,
+    "essay_review_count": 0,
+    "saved_events_count": 0
+  }
+}
+```
+
+### PATCH `/api/auth/me/`
+
+Authenticated. Updates `full_name` and supplied basic `profile` fields. `email`, `role`, subscription tier, and usage counters are read-only through this endpoint.
+
+## Student profile
+
+The profile API is self-only. It does not accept a user identifier in the URL and always resolves the profile from the authenticated request user.
+
+### GET `/api/profile/me/`
+
+Authenticated. Returns the student/applicant profile aggregate:
+
+```json
+{
+  "id": 1,
+  "email": "student@example.com",
+  "role": "student",
+  "full_name": "Student Example",
+  "birth_date": "2008-04-12",
+  "country": "Uzbekistan",
+  "city": "Tashkent",
+  "school_or_university": "Example Academic School",
+  "grade": "11",
+  "expected_graduation_year": 2027,
+  "education_status": "school_student",
+  "gpa": 4.5,
+  "gpa_scale": 5,
+  "intended_degree": "bachelor",
+  "target_countries": ["United States", "Germany"],
+  "intended_majors": ["Computer Science", "Economics"],
+  "target_universities": ["Example University"],
+  "university_unsure": false,
+  "major_unsure": false,
+  "scholarship_need": "yes",
+  "interests": ["Research", "Debate"],
+  "languages": ["Uzbek", "English", "Russian"],
+  "test_scores": {
+    "sat": 1450,
+    "ielts": 7.5,
+    "ap": ["Calculus BC: 5"]
+  },
+  "exam_plans": {
+    "taken": ["IELTS"],
+    "planned": [
+      {
+        "name": "SAT",
+        "date": "2027-03-13",
+        "target_score": "1450"
+      }
+    ]
+  },
+  "preparation_needs": ["SAT preparation"],
+  "activities": {
+    "extracurriculars": ["Coding club"],
+    "honors": [],
+    "sports": [],
+    "olympiads": [],
+    "research_projects": [],
+    "mun_debate": [],
+    "volunteering": [],
+    "leadership": [],
+    "work_internships": []
+  },
+  "essay_status": "not_yet",
+  "essay_stage": "planning",
+  "support_priorities": ["University research"],
+  "interested_classes": ["Mathematics"],
+  "ap_interests": ["Calculus"],
+  "career_interests": ["Technology"],
+  "research_interest": true,
+  "finance_literacy_interest": true,
+  "mun_debate_interest": false,
+  "onboarding_sections": ["identity", "academic", "exams", "activities", "support"],
+  "onboarding_version": 1,
+  "onboarding_completed_at": null,
+  "telegram_username": "@student_example",
+  "phone": "+998 90 123 45 67",
+  "updated_at": "2026-06-22T10:30:00Z"
+}
+```
+
+`id`, `email`, `role`, and `updated_at` are read-only.
+
+### PATCH `/api/profile/me/`
+
+Authenticated. Accepts any writable subset of the profile response. Arrays must contain short text values. `test_scores` is a bounded object supporting text, numeric, or text-list values. Known numeric ranges are validated for SAT, IELTS, and TOEFL.
+
+Example:
+
+```json
+{
+  "country": "Uzbekistan",
+  "city": "Tashkent",
+  "intended_degree": "bachelor",
+  "target_countries": ["United States"],
+  "intended_majors": ["Computer Science"],
+  "interests": ["Research"],
+  "languages": ["Uzbek", "English"],
+  "test_scores": {
+    "sat": 1450
+  }
+}
+```
+
+Supplying `role`, `email`, or another user identifier cannot modify identity or authorization data.
+
+### GET `/api/profile/completion/`
+
+Authenticated. Returns a computed completion summary:
+
+```json
+{
+  "percentage": 62,
+  "completed_fields": 8,
+  "total_fields": 13,
+  "missing_fields": [
+    "birth_date",
+    "test_scores",
+    "contact"
+  ]
+}
+```
+
+Completion is computed from profile data and is not stored as an authoritative score. It indicates data readiness, not admission readiness or student quality.
+
+The response also includes mandatory onboarding state:
+
+```json
+{
+  "percentage": 100,
+  "completed_fields": 22,
+  "total_fields": 22,
+  "missing_fields": [],
+  "missing_sections": [],
+  "required_fields": ["full_name", "birth_date", "country"],
+  "can_complete": true,
+  "is_complete": false
+}
+```
+
+`can_complete` means all required fields and reviewed sections are present. `is_complete` additionally requires a successful final completion action and a persisted `onboarding_completed_at`.
+
+### GET `/api/profile/readiness/`
+
+Authenticated. Returns a computed evidence summary, never an admission chance:
+
+```json
+{
+  "stars": 4,
+  "level": "strong",
+  "score_components": {
+    "profile": 5,
+    "academics": 5,
+    "exams": 4,
+    "activities": 3,
+    "essays": 2,
+    "timeline": 4
+  },
+  "strengths": ["profile", "academics", "exams", "timeline"],
+  "improvements": ["essays"],
+  "comparison_status": "official_data_needed",
+  "compared_universities": [],
+  "official_sources": []
+}
+```
+
+`comparison_status=published_ranges` is returned only when matching published university requirements can be compared with available profile evidence. Clients must retain the no-guarantee disclaimer and link any returned official sources.
+
+### POST `/api/profile/complete-onboarding/`
+
+Authenticated. Marks onboarding complete only when `can_complete=true`. Returns the updated completion response. Incomplete submissions return HTTP 400 with `missing_fields` and `missing_sections`.
+
+## Common behavior
+
+- JSON fields use `snake_case`.
+- Timestamps use ISO 8601 UTC.
+- List endpoints use `count`, `next`, `previous`, and `results`.
+- Product reads require authentication, including published universities, events, exams, and questions.
+- Writes are denied unless the endpoint and role explicitly allow them.
+
+## Events and registration
+
+Authenticated student event reads return only events with `status=published` and `visibility=public`. Organizer/admin workflows use the stable `/api/organizer/` and `/api/admin/events/` contracts; the legacy management router is compatibility-only.
+
+### GET `/api/events/`
+
+Authenticated. Returns a paginated event catalog ordered by start time. Each event may include the current user's `registration_status`.
+
+Supported query parameters:
+
+- `search`
+- `category` — category slug
+- `country`
+- `city`
+- `price_type`
+- `format`
+- `is_online`
+
+Example item:
+
+```json
+{
+  "id": 1,
+  "title": "EduVerse Demo Planning Workshop",
+  "slug": "eduverse-demo-planning-workshop",
+  "short_description": "A fictional workshop for testing event discovery and registration.",
+  "description": "Fictional local development event...",
+  "category": {
+    "name": "Workshop",
+    "slug": "workshop"
+  },
+  "organizer_name": "EduVerse Demo Organizer",
+  "location": {
+    "country": "Uzbekistan",
+    "city": "Tashkent",
+    "venue": "Demo Academic Center",
+    "latitude": null,
+    "longitude": null
+  },
+  "is_online": true,
+  "online_url": "https://example.com/eduverse-demo-planning-workshop",
+  "format": "hybrid",
+  "start_at": "2026-08-06T10:00:00Z",
+  "end_at": "2026-08-06T12:00:00Z",
+  "registration_deadline": "2026-07-22T10:00:00Z",
+  "capacity": 40,
+  "registration_count": 3,
+  "spots_left": 37,
+  "price_type": "free",
+  "price_amount": null,
+  "currency": "",
+  "status": "published",
+  "visibility": "public",
+  "language": "English",
+  "eligibility": "Demonstration only",
+  "source": {
+    "source_title": "Fictional demonstration source",
+    "source_url": "https://example.com/eduverse-demo-planning-workshop",
+    "is_official": false,
+    "retrieved_at": "2026-06-22T10:00:00Z"
+  },
+  "registration_status": null
+}
+```
+
+### GET `/api/events/{slug}/`
+
+Authenticated. Returns one published public event or HTTP 404.
+
+### POST `/api/events/{slug}/register/`
+
+Authenticated and scoped-throttled. Creates an active registration and snapshots the user's current profile/contact data. Rejects duplicate active registration, unpublished/private/cancelled events, passed deadlines, started events, and full capacity.
+
+No request body is required.
+
+Returns HTTP 201 for a new registration or HTTP 200 when a previously cancelled registration is reactivated.
+
+```json
+{
+  "id": 10,
+  "event": {},
+  "status": "registered",
+  "payment_status": "not_required",
+  "registration_data": {
+    "full_name": "Student Example",
+    "country": "Uzbekistan",
+    "intended_majors": ["Computer Science"]
+  },
+  "contact_snapshot": {
+    "email": "student@example.com",
+    "telegram_username": "@student_example",
+    "phone": "+998 90 123 45 67"
+  },
+  "created_at": "2026-06-22T10:00:00Z",
+  "updated_at": "2026-06-22T10:00:00Z"
+}
+```
+
+Registration and contact snapshots are private and are returned only to the owning authenticated user through registration endpoints.
+
+### POST or DELETE `/api/events/{slug}/cancel-registration/`
+
+Authenticated and scoped-throttled. Changes the current user's active `registered` or `waitlisted` registration to `cancelled`.
+
+### GET `/api/events/my-registrations/`
+
+Authenticated. Returns the current user's active registered, waitlisted, or attended events.
+
+## Organizer event management
+
+Organizer endpoints require an authenticated `organizer` or `admin` role. Organizers only receive their own events; administrators may manage any event. Creating an event always creates a `draft`. Public publication is impossible through organizer endpoints.
+
+Lifecycle:
+
+```text
+draft -> pending_review -> published
+                    `----> rejected -> pending_review
+published -> cancelled
+draft/pending_review/rejected -> archived
+admin may archive any non-archived event
+```
+
+### GET/POST `/api/organizer/events/`
+
+GET returns organizer-owned events with moderation capabilities. POST creates a draft. The write payload uses canonical timestamps and nested location/source records:
+
+```json
+{
+  "title": "Student Research Workshop",
+  "short_description": "A practical research planning workshop.",
+  "description": "Complete event description.",
+  "category_slug": "workshop",
+  "organizer_name": "Example Academic Center",
+  "format": "hybrid",
+  "is_online": true,
+  "online_url": "https://example.com/live",
+  "start_at": "2026-09-10T09:00:00Z",
+  "end_at": "2026-09-10T12:00:00Z",
+  "registration_deadline": "2026-09-08T18:00:00Z",
+  "capacity": 50,
+  "price_type": "free",
+  "price_amount": null,
+  "currency": "",
+  "visibility": "public",
+  "cover_image_url": "",
+  "language": "English",
+  "eligibility": "Secondary school and university students",
+  "location": {
+    "country": "Uzbekistan",
+    "city": "Tashkent",
+    "venue": "Example Academic Center",
+    "latitude": null,
+    "longitude": null
+  },
+  "source": {
+    "source_title": "Official organizer page",
+    "source_url": "https://example.com/research-workshop",
+    "is_official": true
+  }
+}
+```
+
+Responses include `status`, `moderation_note`, `can_edit`, `can_submit`, and `can_view_participants`. Slugs and ownership are server-controlled.
+
+### GET/PATCH `/api/organizer/events/{slug}/`
+
+Returns or updates an organizer-owned event. Organizers may edit `draft`, `pending_review`, and `rejected` events. `organizer`, slug, lifecycle status, and moderation data are read-only.
+
+### POST `/api/organizer/events/{slug}/submit/`
+
+Transitions `draft` or `rejected` to `pending_review`, creates or refreshes `EventSubmission`, and writes a moderation log.
+
+### POST `/api/organizer/events/{slug}/cancel/`
+
+Cancels an organizer-owned published event. Cancelled events immediately leave the public catalog.
+
+### POST `/api/organizer/events/{slug}/archive/`
+
+Archives an organizer-owned draft, pending, or rejected event.
+
+### GET `/api/organizer/events/{slug}/registrations/`
+
+Available only for organizer-owned published events. Returns privacy-limited participant records:
+
+```json
+{
+  "id": 12,
+  "full_name": "Student Example",
+  "email": "student@example.com",
+  "telegram_username": "@student_example",
+  "status": "registered",
+  "payment_status": "not_required",
+  "created_at": "2026-06-22T10:00:00Z"
+}
+```
+
+Phone, academic profile data, raw `registration_data`, and raw `contact_snapshot` are not returned.
+
+### GET `/api/organizer/event-categories/`
+
+Returns available category names and slugs for the organizer event form.
+
+## Event moderation
+
+All moderation endpoints require an admin role. A moderator cannot approve or reject an event they own.
+
+- `GET /api/admin/events/pending/` lists pending submissions.
+- `POST /api/admin/events/{slug}/approve/` publishes a pending event.
+- `POST /api/admin/events/{slug}/reject/` rejects a pending event and requires `{"reason": "..."}`.
+- `POST /api/admin/events/{slug}/archive/` archives an event.
+- `GET /api/admin/events/{slug}/logs/` returns status history, actor email, note, and timestamp.
+
+## Endpoints
+
+| Method | Path | Access | Purpose |
+| --- | --- | --- | --- |
+| POST | `/api/auth/register/` | Public | Register student and issue JWT pair |
+| POST | `/api/auth/login/` | Public | Login with email/password |
+| POST | `/api/auth/logout/` | Authenticated | Blacklist refresh token |
+| POST | `/api/auth/token/refresh/` | Refresh token holder | Rotate JWT pair |
+| GET/PATCH | `/api/auth/me/` | Authenticated | Current user, basic profile, and plan |
+| GET/PATCH | `/api/profile/me/` | Authenticated | Current user's full student profile |
+| GET | `/api/profile/completion/` | Authenticated | Computed profile data completion |
+| GET | `/api/profile/readiness/` | Authenticated | Evidence-based 1–5 readiness summary; never an admission probability |
+| POST | `/api/profile/complete-onboarding/` | Authenticated | Finalize mandatory onboarding when requirements are satisfied |
+| GET | `/api/events/` | Authenticated | Published public event catalog |
+| GET | `/api/events/{slug}/` | Authenticated | Published public event detail |
+| POST | `/api/events/{slug}/register/` | Authenticated | Register using a profile/contact snapshot |
+| POST/DELETE | `/api/events/{slug}/cancel-registration/` | Authenticated | Cancel own active registration |
+| GET | `/api/events/my-registrations/` | Authenticated | List own active registrations |
+| GET/POST | `/api/organizer/events/` | Organizer/admin | List managed events or create a draft |
+| GET/PATCH | `/api/organizer/events/{slug}/` | Owner/admin | Read or update an editable event |
+| POST | `/api/organizer/events/{slug}/submit/` | Owner/admin | Submit draft or rejected event |
+| GET | `/api/organizer/events/{slug}/registrations/` | Owner/admin | Privacy-limited participant list |
+| POST | `/api/organizer/events/{slug}/cancel/` | Owner/admin | Cancel a published event |
+| POST | `/api/organizer/events/{slug}/archive/` | Owner/admin | Archive an unpublished event |
+| GET | `/api/admin/events/pending/` | Admin | Moderation queue |
+| POST | `/api/admin/events/{slug}/approve/` | Admin, not owner | Publish pending event |
+| POST | `/api/admin/events/{slug}/reject/` | Admin, not owner | Reject with required reason |
+| POST | `/api/admin/events/{slug}/archive/` | Admin | Archive event |
+| GET | `/api/admin/events/{slug}/logs/` | Admin | Read moderation history |
+| GET | `/health/` | Public | Service health |
+| GET | `/universities/` | Authenticated | University catalog |
+| GET | `/universities/{id}/` | Authenticated | University details and sources |
+| GET/PATCH/POST | `/api/v1/events/...` | Role-dependent | Legacy organizer/admin management router |
+| GET/PATCH | `/profiles/me/` | Student | Legacy compatibility route under `/api/v1`; prefer `/api/profile/me/` |
+| GET | `/subscriptions/me/` | Authenticated | Current plan and counters |
+| GET | `/exams/` | Authenticated | Published exam catalog |
+| GET | `/questions/` | Authenticated | Published original demo questions |
+| POST | `/ai/mentor/` | Authenticated | Placeholder; provider integration deferred |
+
+## University source fields
+
+Every data-backed requirement should be traceable through:
+
+- `source_url`
+- `source_title`
+- `published_at` when known
+- `retrieved_at`
+- `is_official`
+
+## Error behavior
+
+Validation errors return HTTP 400 with field-level details. Permission failures return 403, missing authentication returns 401/403 depending on authentication mechanism, missing resources return 404, and throttling returns 429.
+
+## Required disclaimers
+
+Clients must show module-specific admissions, event, essay, finance, and AI disclaimers defined in `docs/PRODUCT_SPEC.md`. The backend should return disclaimer identifiers or text for generated guidance in Phase 1.

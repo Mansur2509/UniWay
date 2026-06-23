@@ -1,0 +1,681 @@
+"use client";
+
+import {
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useState
+} from "react";
+
+import type {
+  ProfileCompletion,
+  ScholarshipNeed,
+  StudentProfileDetails,
+  TestScores
+} from "@/entities/profile";
+import { useAuth } from "@/features/auth/model/auth-context";
+import {
+  getProfileCompletionRequest,
+  getProfileRequest,
+  updateProfileRequest
+} from "@/features/profile";
+import { useI18n } from "@/shared/i18n";
+import { Badge } from "@/shared/ui/badge";
+import { Button } from "@/shared/ui/button";
+import { Card } from "@/shared/ui/card";
+import { fieldClassName } from "@/shared/ui/field";
+
+type ProfileFormState = {
+  fullName: string;
+  birthDate: string;
+  country: string;
+  city: string;
+  schoolOrUniversity: string;
+  grade: string;
+  expectedGraduationYear: string;
+  gpa: string;
+  gpaScale: string;
+  educationStatus: string;
+  intendedDegree: string;
+  targetCountries: string;
+  intendedMajors: string;
+  targetUniversities: string;
+  scholarshipNeed: ScholarshipNeed;
+  interests: string;
+  languages: string;
+  sat: string;
+  ielts: string;
+  toefl: string;
+  ap: string;
+  satDate: string;
+  satTarget: string;
+  ieltsDate: string;
+  ieltsTarget: string;
+  apDate: string;
+  apTarget: string;
+  telegramUsername: string;
+  phone: string;
+};
+
+const emptyForm: ProfileFormState = {
+  fullName: "",
+  birthDate: "",
+  country: "",
+  city: "",
+  schoolOrUniversity: "",
+  grade: "",
+  expectedGraduationYear: "",
+  gpa: "",
+  gpaScale: "",
+  educationStatus: "",
+  intendedDegree: "",
+  targetCountries: "",
+  intendedMajors: "",
+  targetUniversities: "",
+  scholarshipNeed: "unsure",
+  interests: "",
+  languages: "",
+  sat: "",
+  ielts: "",
+  toefl: "",
+  ap: "",
+  satDate: "",
+  satTarget: "",
+  ieltsDate: "",
+  ieltsTarget: "",
+  apDate: "",
+  apTarget: "",
+  telegramUsername: "",
+  phone: ""
+};
+
+function listToText(values: string[]) {
+  return values.join(", ");
+}
+
+function textToList(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function scoreToText(value: TestScores[string]) {
+  if (Array.isArray(value)) {
+    return listToText(value);
+  }
+  return value === undefined ? "" : String(value);
+}
+
+function profileToForm(profile: StudentProfileDetails): ProfileFormState {
+  const plannedExams = profile.exam_plans.planned ?? [];
+  const satPlan = plannedExams.find((exam) => exam.name === "SAT");
+  const ieltsPlan = plannedExams.find((exam) => exam.name === "IELTS");
+  const apPlan = plannedExams.find((exam) => exam.name === "AP");
+  return {
+    fullName: profile.full_name,
+    birthDate: profile.birth_date ?? "",
+    country: profile.country,
+    city: profile.city,
+    schoolOrUniversity: profile.school_or_university,
+    grade: profile.grade,
+    expectedGraduationYear: profile.expected_graduation_year?.toString() ?? "",
+    gpa: profile.gpa === null ? "" : String(profile.gpa),
+    gpaScale: profile.gpa_scale === null ? "" : String(profile.gpa_scale),
+    educationStatus: profile.education_status,
+    intendedDegree: profile.intended_degree,
+    targetCountries: listToText(profile.target_countries),
+    intendedMajors: listToText(profile.intended_majors),
+    targetUniversities: listToText(profile.target_universities),
+    scholarshipNeed: profile.scholarship_need,
+    interests: listToText(profile.interests),
+    languages: listToText(profile.languages),
+    sat: scoreToText(profile.test_scores.sat),
+    ielts: scoreToText(profile.test_scores.ielts),
+    toefl: scoreToText(profile.test_scores.toefl),
+    ap: scoreToText(profile.test_scores.ap),
+    satDate: satPlan?.date ?? "",
+    satTarget: satPlan?.target_score ?? "",
+    ieltsDate: ieltsPlan?.date ?? "",
+    ieltsTarget: ieltsPlan?.target_score ?? "",
+    apDate: apPlan?.date ?? "",
+    apTarget: apPlan?.target_score ?? "",
+    telegramUsername: profile.telegram_username,
+    phone: profile.phone
+  };
+}
+
+function numericScore(value: string) {
+  if (!value.trim()) {
+    return undefined;
+  }
+  const score = Number(value);
+  return Number.isFinite(score) ? score : value.trim();
+}
+
+function Field({
+  label,
+  helper,
+  children,
+  wide = false
+}: {
+  label: string;
+  helper?: string;
+  children: ReactNode;
+  wide?: boolean;
+}) {
+  return (
+    <label className={wide ? "block sm:col-span-2" : "block"}>
+      <span className="text-sm font-semibold">{label}</span>
+      {children}
+      {helper ? (
+        <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">
+          {helper}
+        </span>
+      ) : null}
+    </label>
+  );
+}
+
+function ProfileSection({
+  title,
+  description,
+  children
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card className="p-5 sm:p-7">
+      <h2 className="text-2xl font-semibold">{title}</h2>
+      <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+        {description}
+      </p>
+      <div className="mt-5 grid gap-x-5 gap-y-4 sm:grid-cols-2">
+        {children}
+      </div>
+    </Card>
+  );
+}
+
+export function ProfileScreen() {
+  const { refreshUser } = useAuth();
+  const { t } = useI18n();
+  const [profile, setProfile] = useState<StudentProfileDetails | null>(null);
+  const [completion, setCompletion] = useState<ProfileCompletion | null>(null);
+  const [form, setForm] = useState<ProfileFormState>(emptyForm);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const loadProfile = useCallback(async () => {
+    setIsLoading(true);
+    setLoadFailed(false);
+    try {
+      const [profileResponse, completionResponse] = await Promise.all([
+        getProfileRequest(),
+        getProfileCompletionRequest()
+      ]);
+      setProfile(profileResponse);
+      setCompletion(completionResponse);
+      setForm(profileToForm(profileResponse));
+    } catch {
+      setLoadFailed(true);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
+
+  function updateField<Key extends keyof ProfileFormState>(
+    field: Key,
+    value: ProfileFormState[Key]
+  ) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSaving(true);
+    setSaveFailed(false);
+    setSaved(false);
+
+    const testScores: TestScores = {};
+    const sat = numericScore(form.sat);
+    const ielts = numericScore(form.ielts);
+    const toefl = numericScore(form.toefl);
+    const ap = textToList(form.ap);
+    if (sat !== undefined) testScores.sat = sat;
+    if (ielts !== undefined) testScores.ielts = ielts;
+    if (toefl !== undefined) testScores.toefl = toefl;
+    if (ap.length > 0) testScores.ap = ap;
+
+    try {
+      const updatedProfile = await updateProfileRequest({
+        full_name: form.fullName,
+        birth_date: form.birthDate || null,
+        country: form.country,
+        city: form.city,
+        school_or_university: form.schoolOrUniversity,
+        grade: form.grade,
+        expected_graduation_year: form.expectedGraduationYear
+          ? Number(form.expectedGraduationYear)
+          : null,
+        gpa: form.gpa || null,
+        gpa_scale: form.gpaScale || null,
+        education_status: form.educationStatus,
+        intended_degree: form.intendedDegree,
+        target_countries: textToList(form.targetCountries),
+        intended_majors: textToList(form.intendedMajors),
+        target_universities: textToList(form.targetUniversities),
+        scholarship_need: form.scholarshipNeed,
+        interests: textToList(form.interests),
+        languages: textToList(form.languages),
+        test_scores: testScores,
+        exam_plans: {
+          taken: profile?.exam_plans.taken ?? [],
+          planned: [
+            { name: "SAT", date: form.satDate, target_score: form.satTarget },
+            { name: "IELTS", date: form.ieltsDate, target_score: form.ieltsTarget },
+            { name: "AP", date: form.apDate, target_score: form.apTarget }
+          ].filter((exam) => exam.date || exam.target_score)
+        },
+        telegram_username: form.telegramUsername,
+        phone: form.phone
+      });
+      const updatedCompletion = await getProfileCompletionRequest();
+      setProfile(updatedProfile);
+      setCompletion(updatedCompletion);
+      setForm(profileToForm(updatedProfile));
+      setSaved(true);
+      await refreshUser();
+    } catch {
+      setSaveFailed(true);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <Card>
+        <p className="text-sm text-muted-foreground">{t("profile.loading")}</p>
+      </Card>
+    );
+  }
+
+  if (loadFailed || !profile || !completion) {
+    return (
+      <Card>
+        <p className="text-sm text-danger" role="alert">
+          {t("profile.loadError")}
+        </p>
+        <Button className="mt-4" onClick={() => void loadProfile()} type="button">
+          {t("profile.retry")}
+        </Button>
+      </Card>
+    );
+  }
+
+  return (
+    <form className="mx-auto max-w-6xl space-y-5" onSubmit={handleSubmit}>
+      <section className="grid gap-6 rounded-sm border bg-card p-5 shadow-card sm:p-7 lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start">
+        <div>
+          <Badge>{t("profile.eyebrow")}</Badge>
+          <h1 className="mt-5 text-3xl font-semibold sm:text-5xl">{t("profile.title")}</h1>
+          <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
+            {t("profile.description")}
+          </p>
+        </div>
+        <div className="border bg-elevated/55 p-4">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold">{t("profile.completion.title")}</h2>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                {t("profile.completion.description")}
+              </p>
+            </div>
+            <span className="font-serif text-3xl font-semibold text-accent">
+              {completion.percentage}%
+            </span>
+          </div>
+          <div
+            aria-label={t("a11y.profileCompletion", {
+              percentage: completion.percentage
+            })}
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={completion.percentage}
+            className="mt-5 h-2 overflow-hidden rounded-sm bg-muted"
+            role="progressbar"
+          >
+            <div
+              className="h-full bg-primary transition-[width]"
+              style={{ width: `${completion.percentage}%` }}
+            />
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            {t("profile.completion.summary", {
+              completed: completion.completed_fields,
+              total: completion.total_fields
+            })}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("profile.completion.remaining", {
+              count: completion.missing_fields.length
+            })}
+          </p>
+        </div>
+      </section>
+
+      <ProfileSection
+        description={t("profile.sections.personalHelp")}
+        title={t("profile.sections.personal")}
+      >
+        <Field label={t("auth.fullName")}>
+          <input
+            className={fieldClassName}
+            maxLength={180}
+            onChange={(event) => updateField("fullName", event.target.value)}
+            required
+            value={form.fullName}
+          />
+        </Field>
+        <Field label={t("auth.email")}>
+          <input className={fieldClassName} disabled type="email" value={profile.email} />
+        </Field>
+        <Field label={t("profile.birthDate")}>
+          <input
+            className={fieldClassName}
+            onChange={(event) => updateField("birthDate", event.target.value)}
+            type="date"
+            value={form.birthDate}
+          />
+        </Field>
+        <Field label={t("profile.country")}>
+          <input
+            className={fieldClassName}
+            maxLength={100}
+            onChange={(event) => updateField("country", event.target.value)}
+            value={form.country}
+          />
+        </Field>
+        <Field label={t("profile.city")}>
+          <input
+            className={fieldClassName}
+            maxLength={120}
+            onChange={(event) => updateField("city", event.target.value)}
+            value={form.city}
+          />
+        </Field>
+      </ProfileSection>
+
+      <ProfileSection
+        description={t("profile.sections.educationHelp")}
+        title={t("profile.sections.education")}
+      >
+        <Field label={t("profile.schoolOrUniversity")} wide>
+          <input
+            className={fieldClassName}
+            maxLength={240}
+            onChange={(event) => updateField("schoolOrUniversity", event.target.value)}
+            value={form.schoolOrUniversity}
+          />
+        </Field>
+        <Field label={t("profile.grade")}>
+          <input
+            className={fieldClassName}
+            maxLength={50}
+            onChange={(event) => updateField("grade", event.target.value)}
+            value={form.grade}
+          />
+        </Field>
+        <Field label={t("profile.educationStatus")}>
+          <select
+            className={fieldClassName}
+            onChange={(event) => updateField("educationStatus", event.target.value)}
+            value={form.educationStatus}
+          >
+            <option value="">{t("profile.options.select")}</option>
+            <option value="school_student">{t("profile.options.education.school")}</option>
+            <option value="university_student">{t("profile.options.education.university")}</option>
+            <option value="gap_year">{t("profile.options.education.gapYear")}</option>
+            <option value="graduate">{t("profile.options.education.graduate")}</option>
+            <option value="other">{t("profile.options.education.other")}</option>
+          </select>
+        </Field>
+        <Field label={t("onboarding.field.graduationYear")}>
+          <input
+            className={fieldClassName}
+            onChange={(event) => updateField("expectedGraduationYear", event.target.value)}
+            type="number"
+            value={form.expectedGraduationYear}
+          />
+        </Field>
+        <Field label={t("onboarding.field.gpa")}>
+          <input
+            className={fieldClassName}
+            onChange={(event) => updateField("gpa", event.target.value)}
+            step="0.01"
+            type="number"
+            value={form.gpa}
+          />
+        </Field>
+        <Field label={t("onboarding.field.gpaScale")}>
+          <input
+            className={fieldClassName}
+            onChange={(event) => updateField("gpaScale", event.target.value)}
+            step="0.01"
+            type="number"
+            value={form.gpaScale}
+          />
+        </Field>
+      </ProfileSection>
+
+      <ProfileSection
+        description={t("profile.sections.admissionsHelp")}
+        title={t("profile.sections.admissions")}
+      >
+        <Field label={t("profile.intendedDegree")}>
+          <select
+            className={fieldClassName}
+            onChange={(event) => updateField("intendedDegree", event.target.value)}
+            value={form.intendedDegree}
+          >
+            <option value="">{t("profile.options.select")}</option>
+            <option value="bachelor">{t("profile.options.degree.bachelor")}</option>
+            <option value="master">{t("profile.options.degree.master")}</option>
+            <option value="undecided">{t("profile.options.degree.undecided")}</option>
+            <option value="other">{t("profile.options.degree.other")}</option>
+          </select>
+        </Field>
+        <Field label={t("profile.scholarshipNeed")}>
+          <select
+            className={fieldClassName}
+            onChange={(event) =>
+              updateField("scholarshipNeed", event.target.value as ScholarshipNeed)
+            }
+            value={form.scholarshipNeed}
+          >
+            <option value="yes">{t("profile.options.scholarship.yes")}</option>
+            <option value="no">{t("profile.options.scholarship.no")}</option>
+            <option value="unsure">{t("profile.options.scholarship.unsure")}</option>
+          </select>
+        </Field>
+        <Field
+          helper={t("profile.targetCountriesHelp")}
+          label={t("profile.targetCountries")}
+        >
+          <input
+            className={fieldClassName}
+            onChange={(event) => updateField("targetCountries", event.target.value)}
+            value={form.targetCountries}
+          />
+        </Field>
+        <Field
+          helper={t("profile.intendedMajorsHelp")}
+          label={t("profile.intendedMajors")}
+        >
+          <input
+            className={fieldClassName}
+            onChange={(event) => updateField("intendedMajors", event.target.value)}
+            value={form.intendedMajors}
+          />
+        </Field>
+        <Field
+          helper={t("profile.targetUniversitiesHelp")}
+          label={t("profile.targetUniversities")}
+          wide
+        >
+          <input
+            className={fieldClassName}
+            onChange={(event) => updateField("targetUniversities", event.target.value)}
+            value={form.targetUniversities}
+          />
+        </Field>
+      </ProfileSection>
+
+      <ProfileSection
+        description={t("profile.sections.testsHelp")}
+        title={t("profile.sections.tests")}
+      >
+        <Field label={t("profile.test.sat")}>
+          <input
+            className={fieldClassName}
+            max={1600}
+            min={400}
+            onChange={(event) => updateField("sat", event.target.value)}
+            type="number"
+            value={form.sat}
+          />
+        </Field>
+        <Field label={t("profile.test.ielts")}>
+          <input
+            className={fieldClassName}
+            max={9}
+            min={0}
+            onChange={(event) => updateField("ielts", event.target.value)}
+            step={0.5}
+            type="number"
+            value={form.ielts}
+          />
+        </Field>
+        <Field label={t("profile.test.toefl")}>
+          <input
+            className={fieldClassName}
+            max={120}
+            min={0}
+            onChange={(event) => updateField("toefl", event.target.value)}
+            type="number"
+            value={form.toefl}
+          />
+        </Field>
+        <Field helper={t("profile.test.apHelp")} label={t("profile.test.ap")}>
+          <input
+            className={fieldClassName}
+            onChange={(event) => updateField("ap", event.target.value)}
+            value={form.ap}
+          />
+        </Field>
+        <Field label={t("dashboard.examCountdown.title")} wide>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {([
+              ["SAT", "satDate", "satTarget"],
+              ["IELTS", "ieltsDate", "ieltsTarget"],
+              ["AP", "apDate", "apTarget"]
+            ] as const).map(([exam, dateField, targetField]) => (
+              <div className="border bg-surface p-3" key={exam}>
+                <p className="font-semibold">{exam}</p>
+                <input
+                  aria-label={t("onboarding.field.examDate")}
+                  className={fieldClassName}
+                  onChange={(event) => updateField(dateField, event.target.value)}
+                  type="date"
+                  value={form[dateField]}
+                />
+                <input
+                  aria-label={t("onboarding.field.targetScore")}
+                  className={fieldClassName}
+                  onChange={(event) => updateField(targetField, event.target.value)}
+                  placeholder={t("onboarding.field.targetScore")}
+                  value={form[targetField]}
+                />
+              </div>
+            ))}
+          </div>
+        </Field>
+      </ProfileSection>
+
+      <ProfileSection
+        description={t("profile.sections.preferencesHelp")}
+        title={t("profile.sections.preferences")}
+      >
+        <Field helper={t("profile.languagesHelp")} label={t("profile.languages")}>
+          <input
+            className={fieldClassName}
+            onChange={(event) => updateField("languages", event.target.value)}
+            value={form.languages}
+          />
+        </Field>
+        <Field helper={t("profile.interestsHelp")} label={t("profile.interests")}>
+          <input
+            className={fieldClassName}
+            onChange={(event) => updateField("interests", event.target.value)}
+            value={form.interests}
+          />
+        </Field>
+      </ProfileSection>
+
+      <ProfileSection
+        description={t("profile.sections.contactHelp")}
+        title={t("profile.sections.contact")}
+      >
+        <Field helper={t("profile.telegramHelp")} label={t("profile.telegram")}>
+          <input
+            className={fieldClassName}
+            maxLength={33}
+            onChange={(event) => updateField("telegramUsername", event.target.value)}
+            value={form.telegramUsername}
+          />
+        </Field>
+        <Field helper={t("profile.phoneHelp")} label={t("profile.phone")}>
+          <input
+            className={fieldClassName}
+            maxLength={32}
+            onChange={(event) => updateField("phone", event.target.value)}
+            type="tel"
+            value={form.phone}
+          />
+        </Field>
+      </ProfileSection>
+
+      {saveFailed ? (
+        <Card className="border-danger/35 bg-danger/10">
+          <p className="text-sm text-danger" role="alert">
+            {t("profile.saveError")}
+          </p>
+        </Card>
+      ) : null}
+      {saved ? (
+        <Card className="border-success/35 bg-success/10">
+          <p className="text-sm text-success" role="status">
+            {t("profile.saved")}
+          </p>
+        </Card>
+      ) : null}
+
+      <div className="sticky bottom-20 z-10 flex justify-end rounded-sm border bg-surface p-3 shadow-card lg:bottom-4">
+        <Button disabled={isSaving} type="submit">
+          {isSaving ? t("profile.saving") : t("profile.save")}
+        </Button>
+      </div>
+    </form>
+  );
+}
