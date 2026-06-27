@@ -9,8 +9,15 @@ import {
 } from "react";
 
 import type {
+  Activity,
+  EssayDraft,
+  Honor,
+  Olympiad,
+  PortfolioProject,
   ProfileCompletion,
+  ResearchProject,
   ScholarshipNeed,
+  Sport,
   StudentProfileDetails,
   TestScores
 } from "@/entities/profile";
@@ -18,8 +25,29 @@ import { useAuth } from "@/features/auth/model/auth-context";
 import {
   getProfileCompletionRequest,
   getProfileRequest,
-  updateProfileRequest
+  updateProfileRequest,
+  getProfileItemsRequest,
+  createProfileItemRequest,
+  updateProfileItemRequest,
+  deleteProfileItemRequest
 } from "@/features/profile";
+import {
+  activityFields,
+  activityDisplay,
+  honorFields,
+  honorDisplay,
+  olympiadFields,
+  olympiadDisplay,
+  sportFields,
+  sportDisplay,
+  researchFields,
+  researchDisplay,
+  essayFields,
+  essayDisplay,
+  portfolioFields,
+  portfolioDisplay
+} from "@/features/profile/lib/profile-items-config";
+import { ProfileItemSection } from "@/features/profile/ui/profile-item-section";
 import { useI18n } from "@/shared/i18n";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -167,10 +195,10 @@ function Field({
 }) {
   return (
     <label className={wide ? "block sm:col-span-2" : "block"}>
-      <span className="text-sm font-semibold">{label}</span>
+      <span className="text-xs font-semibold">{label}</span>
       {children}
       {helper ? (
-        <span className="mt-1.5 block text-xs leading-5 text-muted-foreground">
+        <span className="mt-1 block text-xs leading-4 text-muted-foreground">
           {helper}
         </span>
       ) : null}
@@ -188,12 +216,12 @@ function ProfileSection({
   children: ReactNode;
 }) {
   return (
-    <Card className="p-5 sm:p-7">
-      <h2 className="text-2xl font-semibold">{title}</h2>
-      <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+    <Card className="p-5">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
         {description}
       </p>
-      <div className="mt-5 grid gap-x-5 gap-y-4 sm:grid-cols-2">
+      <div className="mt-4 grid gap-x-4 gap-y-3 sm:grid-cols-2">
         {children}
       </div>
     </Card>
@@ -211,6 +239,16 @@ export function ProfileScreen() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // Structured profile items
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [honors, setHonors] = useState<Honor[]>([]);
+  const [olympiads, setOlympiads] = useState<Olympiad[]>([]);
+  const [sports, setSports] = useState<Sport[]>([]);
+  const [research, setResearch] = useState<ResearchProject[]>([]);
+  const [essays, setEssays] = useState<EssayDraft[]>([]);
+  const [portfolio, setPortfolio] = useState<PortfolioProject[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
 
   const loadProfile = useCallback(async () => {
     setIsLoading(true);
@@ -230,9 +268,37 @@ export function ProfileScreen() {
     }
   }, []);
 
+  const loadItems = useCallback(async () => {
+    setItemsLoading(true);
+    try {
+      const [activitiesRes, honorsRes, olympiadsRes, sportsRes, researchRes, essaysRes, portfolioRes] =
+        await Promise.allSettled([
+          getProfileItemsRequest<Activity>("activities"),
+          getProfileItemsRequest<Honor>("honors"),
+          getProfileItemsRequest<Olympiad>("olympiads"),
+          getProfileItemsRequest<Sport>("sports"),
+          getProfileItemsRequest<ResearchProject>("research-projects"),
+          getProfileItemsRequest<EssayDraft>("essays"),
+          getProfileItemsRequest<PortfolioProject>("portfolio-projects")
+        ]);
+      if (activitiesRes.status === "fulfilled") setActivities(activitiesRes.value.results);
+      if (honorsRes.status === "fulfilled") setHonors(honorsRes.value.results);
+      if (olympiadsRes.status === "fulfilled") setOlympiads(olympiadsRes.value.results);
+      if (sportsRes.status === "fulfilled") setSports(sportsRes.value.results);
+      if (researchRes.status === "fulfilled") setResearch(researchRes.value.results);
+      if (essaysRes.status === "fulfilled") setEssays(essaysRes.value.results);
+      if (portfolioRes.status === "fulfilled") setPortfolio(portfolioRes.value.results);
+    } catch {
+      // Silent fail for items load
+    } finally {
+      setItemsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadProfile();
-  }, [loadProfile]);
+    void loadItems();
+  }, [loadProfile, loadItems]);
 
   function updateField<Key extends keyof ProfileFormState>(
     field: Key,
@@ -303,6 +369,37 @@ export function ProfileScreen() {
     }
   }
 
+  // Item CRUD handlers
+  const createItem = <T extends { id: number }>(
+    type: "activities" | "honors" | "olympiads" | "sports" | "research-projects" | "essays" | "portfolio-projects",
+    setter: (updater: (prev: T[]) => T[]) => void
+  ) =>
+    async (data: Record<string, unknown>) => {
+      const result = await createProfileItemRequest(type, data);
+      setter((prev: T[]) => [result as T, ...prev]);
+      await getProfileCompletionRequest().then(setCompletion);
+    };
+
+  const updateItem = <T extends { id: number }>(
+    type: "activities" | "honors" | "olympiads" | "sports" | "research-projects" | "essays" | "portfolio-projects",
+    setter: (updater: (prev: T[]) => T[]) => void
+  ) =>
+    async (id: number, data: Record<string, unknown>) => {
+      const result = await updateProfileItemRequest(type, id, data);
+      setter((prev: T[]) => prev.map((item) => (item.id === id ? (result as T) : item)));
+      await getProfileCompletionRequest().then(setCompletion);
+    };
+
+  const deleteItem = <T extends { id: number }>(
+    type: "activities" | "honors" | "olympiads" | "sports" | "research-projects" | "essays" | "portfolio-projects",
+    setter: (updater: (prev: T[]) => T[]) => void
+  ) =>
+    async (id: number) => {
+      await deleteProfileItemRequest(type, id);
+      setter((prev: T[]) => prev.filter((item) => item.id !== id));
+      await getProfileCompletionRequest().then(setCompletion);
+    };
+
   if (isLoading) {
     return (
       <Card>
@@ -325,24 +422,24 @@ export function ProfileScreen() {
   }
 
   return (
-    <form className="mx-auto max-w-6xl space-y-5" onSubmit={handleSubmit}>
-      <section className="grid gap-6 rounded-sm border bg-card p-5 shadow-card sm:p-7 lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start">
+    <form className="mx-auto max-w-6xl space-y-4" onSubmit={handleSubmit}>
+      <section className="grid gap-4 rounded-sm border bg-card p-5 shadow-card lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start">
         <div>
           <Badge>{t("profile.eyebrow")}</Badge>
-          <h1 className="mt-5 text-3xl font-semibold sm:text-5xl">{t("profile.title")}</h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
+          <h1 className="mt-3 text-2xl font-semibold sm:text-3xl">{t("profile.title")}</h1>
+          <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
             {t("profile.description")}
           </p>
         </div>
         <div className="border bg-elevated/55 p-4">
-          <div className="flex items-end justify-between gap-4">
+          <div className="flex items-end justify-between gap-3">
             <div>
-              <h2 className="text-xl font-semibold">{t("profile.completion.title")}</h2>
-              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+              <h2 className="text-base font-semibold">{t("profile.completion.title")}</h2>
+              <p className="mt-1 text-xs leading-4 text-muted-foreground">
                 {t("profile.completion.description")}
               </p>
             </div>
-            <span className="font-serif text-3xl font-semibold text-accent">
+            <span className="font-serif text-2xl font-semibold text-accent">
               {completion.percentage}%
             </span>
           </div>
@@ -353,7 +450,7 @@ export function ProfileScreen() {
             aria-valuemax={100}
             aria-valuemin={0}
             aria-valuenow={completion.percentage}
-            className="mt-5 h-2 overflow-hidden rounded-sm bg-muted"
+            className="mt-3 h-2 overflow-hidden rounded-sm bg-muted"
             role="progressbar"
           >
             <div
@@ -361,13 +458,13 @@ export function ProfileScreen() {
               style={{ width: `${completion.percentage}%` }}
             />
           </div>
-          <p className="mt-3 text-xs text-muted-foreground">
+          <p className="mt-2 text-xs text-muted-foreground">
             {t("profile.completion.summary", {
               completed: completion.completed_fields,
               total: completion.total_fields
             })}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {t("profile.completion.remaining", {
               count: completion.missing_fields.length
             })}
@@ -655,6 +752,87 @@ export function ProfileScreen() {
           />
         </Field>
       </ProfileSection>
+
+      {/* Structured Profile Items */}
+      <div className="space-y-4 border-t pt-4">
+        <ProfileItemSection
+          description="profile.sections.activitiesHelp"
+          items={activities}
+          fields={activityFields}
+          onAdd={createItem("activities", setActivities)}
+          onUpdate={updateItem("activities", setActivities)}
+          onDelete={deleteItem("activities", setActivities)}
+          itemDisplay={activityDisplay}
+          title="profile.sections.activities"
+          isLoading={itemsLoading}
+        />
+        <ProfileItemSection
+          description="profile.sections.honorsHelp"
+          items={honors}
+          fields={honorFields}
+          onAdd={createItem("honors", setHonors)}
+          onUpdate={updateItem("honors", setHonors)}
+          onDelete={deleteItem("honors", setHonors)}
+          itemDisplay={honorDisplay}
+          title="profile.sections.honors"
+          isLoading={itemsLoading}
+        />
+        <ProfileItemSection
+          description="profile.sections.olympiadsHelp"
+          items={olympiads}
+          fields={olympiadFields}
+          onAdd={createItem("olympiads", setOlympiads)}
+          onUpdate={updateItem("olympiads", setOlympiads)}
+          onDelete={deleteItem("olympiads", setOlympiads)}
+          itemDisplay={olympiadDisplay}
+          title="profile.sections.olympiads"
+          isLoading={itemsLoading}
+        />
+        <ProfileItemSection
+          description="profile.sections.sportsHelp"
+          items={sports}
+          fields={sportFields}
+          onAdd={createItem("sports", setSports)}
+          onUpdate={updateItem("sports", setSports)}
+          onDelete={deleteItem("sports", setSports)}
+          itemDisplay={sportDisplay}
+          title="profile.sections.sports"
+          isLoading={itemsLoading}
+        />
+        <ProfileItemSection
+          description="profile.sections.researchHelp"
+          items={research}
+          fields={researchFields}
+          onAdd={createItem("research-projects", setResearch)}
+          onUpdate={updateItem("research-projects", setResearch)}
+          onDelete={deleteItem("research-projects", setResearch)}
+          itemDisplay={researchDisplay}
+          title="profile.sections.research"
+          isLoading={itemsLoading}
+        />
+        <ProfileItemSection
+          description="profile.sections.essaysHelp"
+          items={essays}
+          fields={essayFields}
+          onAdd={createItem("essays", setEssays)}
+          onUpdate={updateItem("essays", setEssays)}
+          onDelete={deleteItem("essays", setEssays)}
+          itemDisplay={essayDisplay}
+          title="profile.sections.essays"
+          isLoading={itemsLoading}
+        />
+        <ProfileItemSection
+          description="profile.sections.portfolioHelp"
+          items={portfolio}
+          fields={portfolioFields}
+          onAdd={createItem("portfolio-projects", setPortfolio)}
+          onUpdate={updateItem("portfolio-projects", setPortfolio)}
+          onDelete={deleteItem("portfolio-projects", setPortfolio)}
+          itemDisplay={portfolioDisplay}
+          title="profile.sections.portfolio"
+          isLoading={itemsLoading}
+        />
+      </div>
 
       {saveFailed ? (
         <Card className="border-danger/35 bg-danger/10">

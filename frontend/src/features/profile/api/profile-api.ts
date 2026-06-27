@@ -38,3 +38,41 @@ export function getApplicationReadinessRequest() {
     base: "profile"
   });
 }
+
+// Profile item CRUD endpoints
+type ItemType = "activities" | "honors" | "olympiads" | "sports" | "research-projects" | "essays" | "portfolio-projects";
+
+interface ProfileItem {
+  id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export function getProfileItemsRequest<T extends ProfileItem>(itemType: ItemType) {
+  return apiRequest<{ results: T[] }>(`/${itemType}/`, {
+    base: "profile"
+  });
+}
+
+export function createProfileItemRequest<T extends Partial<ProfileItem>>(itemType: ItemType, data: T) {
+  return apiRequest<T & ProfileItem>(`/${itemType}/`, {
+    base: "profile",
+    method: "POST",
+    body: data
+  });
+}
+
+export function updateProfileItemRequest<T extends Partial<ProfileItem>>(itemType: ItemType, id: number, data: T) {
+  return apiRequest<T & ProfileItem>(`/${itemType}/${id}/`, {
+    base: "profile",
+    method: "PATCH",
+    body: data
+  });
+}
+
+export function deleteProfileItemRequest(itemType: ItemType, id: number) {
+  return apiRequest<void>(`/${itemType}/${id}/`, {
+    base: "profile",
+    method: "DELETE"
+  });
+}

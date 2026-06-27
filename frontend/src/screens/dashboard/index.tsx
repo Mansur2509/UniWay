@@ -110,44 +110,44 @@ export function DashboardScreen() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <section className="overflow-hidden rounded-sm border bg-card shadow-card">
         <div className="grid lg:grid-cols-[1.35fr_0.65fr]">
-          <div className="p-6 sm:p-9">
+          <div className="p-5 sm:p-7">
             <Badge>{t("dashboard.betaBadge")}</Badge>
-            <p className="mt-5 text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
+            <p className="mt-4 text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
               {t("dashboard.eyebrow")}
             </p>
-            <h1 className="mt-2 max-w-3xl text-3xl font-semibold sm:text-5xl">
+            <h1 className="mt-2 max-w-3xl text-2xl font-semibold sm:text-4xl">
               {t("dashboard.welcome", { name: firstName })}
             </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
               {t("dashboard.commandCenterDescription")}
             </p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <Button asChild>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Button asChild size="sm">
                 <Link href="/events">
                   <Map aria-hidden className="mr-2 size-4" />
                   {t("dashboard.openEventMap")}
                 </Link>
               </Button>
-              <Button asChild variant="secondary">
+              <Button asChild variant="secondary" size="sm">
                 <Link href="/profile">{t("dashboard.reviewProfile")}</Link>
               </Button>
             </div>
           </div>
-          <div className="border-t bg-surface p-6 lg:border-l lg:border-t-0 lg:p-8">
+          <div className="border-t bg-surface p-5 lg:border-l lg:border-t-0 lg:p-6">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
               {t("dashboard.nextAction.label")}
             </p>
-            <h2 className="mt-3 text-2xl font-semibold">
+            <h2 className="mt-2 text-xl font-semibold">
               {completionPercentage < 70
                 ? t("dashboard.nextAction.profile")
                 : registrations.length === 0
                   ? t("dashboard.nextAction.event")
                   : t("dashboard.nextAction.roadmap")}
             </h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
               {t("dashboard.nextAction.description")}
             </p>
           </div>
@@ -163,18 +163,18 @@ export function DashboardScreen() {
         </Card>
       ) : null}
 
-      <section className="grid gap-5 xl:grid-cols-[0.75fr_1.25fr]">
-        <Card>
+      <section className="grid gap-4 xl:grid-cols-[0.75fr_1.25fr]">
+        <Card className="p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
                 {t("dashboard.profile.eyebrow")}
               </p>
-              <h2 className="mt-2 text-2xl font-semibold">
+              <h2 className="mt-1 text-lg font-semibold">
                 {t("dashboard.profile.title")}
               </h2>
             </div>
-            <span className="text-2xl font-semibold text-accent">
+            <span className="text-xl font-semibold text-accent">
               {isLoading ? "—" : `${completionPercentage}%`}
             </span>
           </div>
@@ -185,7 +185,7 @@ export function DashboardScreen() {
             aria-valuemax={100}
             aria-valuemin={0}
             aria-valuenow={completionPercentage}
-            className="mt-6 h-2 overflow-hidden rounded-sm bg-elevated"
+            className="mt-4 h-2 overflow-hidden rounded-sm bg-elevated"
             role="progressbar"
           >
             <div
@@ -193,7 +193,7 @@ export function DashboardScreen() {
               style={{ width: `${completionPercentage}%` }}
             />
           </div>
-          <p className="mt-4 text-sm leading-6 text-muted-foreground">
+          <p className="mt-3 text-xs leading-5 text-muted-foreground">
             {completion
               ? t("dashboard.profile.summary", {
                   completed: completion.completed_fields,
@@ -201,47 +201,47 @@ export function DashboardScreen() {
                 })
               : t("dashboard.profile.loading")}
           </p>
-          <Button asChild className="mt-5" variant="secondary">
+          <Button asChild className="mt-4" size="sm" variant="secondary">
             <Link href="/profile">
               {t("dashboard.profile.action")}
-              <ArrowRight aria-hidden className="ml-2 size-4" />
+              <ArrowRight aria-hidden className="ml-2 size-3" />
             </Link>
           </Button>
         </Card>
 
-        <Card>
-          <div className="flex flex-wrap items-end justify-between gap-4">
+        <Card className="p-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
                 {t("dashboard.events.eyebrow")}
               </p>
-              <h2 className="mt-2 text-2xl font-semibold">
+              <h2 className="mt-1 text-lg font-semibold">
                 {t("dashboard.events.title")}
               </h2>
             </div>
-            <Button asChild variant="ghost">
+            <Button asChild size="sm" variant="ghost">
               <Link href="/events/my">{t("dashboard.events.viewAll")}</Link>
             </Button>
           </div>
           {isLoading ? (
-            <p className="mt-6 text-sm text-muted-foreground">
+            <p className="mt-4 text-xs text-muted-foreground">
               {t("dashboard.events.loading")}
             </p>
           ) : registrations.length === 0 ? (
-            <div className="mt-6 rounded-sm border border-dashed bg-elevated/35 p-5">
-              <p className="font-semibold">{t("dashboard.events.emptyTitle")}</p>
-              <p className="mt-2 text-sm text-muted-foreground">
+            <div className="mt-4 rounded-sm border border-dashed bg-elevated/35 p-4">
+              <p className="text-sm font-semibold">{t("dashboard.events.emptyTitle")}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
                 {t("dashboard.events.emptyDescription")}
               </p>
-              <Button asChild className="mt-4">
+              <Button asChild className="mt-3" size="sm">
                 <Link href="/events">{t("dashboard.openEventMap")}</Link>
               </Button>
             </div>
           ) : (
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {registrations.slice(0, 2).map((registration) => (
                 <Link
-                  className="rounded-sm border bg-elevated/45 p-4 transition-colors hover:bg-elevated"
+                  className="rounded-sm border bg-elevated/45 p-3 text-sm transition-colors hover:bg-elevated"
                   href={`/events/${registration.event.slug}`}
                   key={registration.id}
                 >
@@ -250,8 +250,8 @@ export function DashboardScreen() {
                       `events.registration.status.${registration.status}` as TranslationKey
                     )}
                   </p>
-                  <h3 className="mt-2 font-semibold">{registration.event.title}</h3>
-                  <p className="mt-2 text-xs text-muted-foreground">
+                  <h3 className="mt-1 font-semibold">{registration.event.title}</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {formatDateTime(registration.event.start_at, locale)}
                   </p>
                 </Link>
@@ -261,86 +261,86 @@ export function DashboardScreen() {
         </Card>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         {readiness ? (
           <ReadinessCard compact readiness={readiness} />
         ) : (
-          <Card>
-            <p className="text-sm text-muted-foreground">
+          <Card className="p-5">
+            <p className="text-xs text-muted-foreground">
               {t("profile.loading")}
             </p>
           </Card>
         )}
-        <Card>
+        <Card className="p-5">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
             {t("dashboard.learning.title")}
           </p>
-          <h2 className="mt-2 text-2xl font-semibold">
+          <h2 className="mt-1 text-lg font-semibold">
             {nextClass ? t(nextClass.labelKey) : t("dashboard.learning.empty")}
           </h2>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
             {t("dashboard.learning.description")}
           </p>
           {selectedClasses.length ? (
-            <div className="mt-5 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               {selectedClasses.slice(0, 6).map((value) => {
                 const catalogItem = classCatalog.find(
                   (item) => item.value === value
                 );
                 return (
-                  <Badge key={value}>
+                  <Badge key={value} className="text-xs">
                     {catalogItem ? t(catalogItem.labelKey) : value}
                   </Badge>
                 );
               })}
             </div>
           ) : null}
-          <Button asChild className="mt-5" variant="secondary">
+          <Button asChild className="mt-4" size="sm" variant="secondary">
             <Link href="/profile">
               {t("dashboard.readiness.action")}
-              <ArrowRight aria-hidden className="ml-2 size-4" />
+              <ArrowRight aria-hidden className="ml-2 size-3" />
             </Link>
           </Button>
         </Card>
       </section>
 
-      <Card>
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+      <Card className="p-5">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
               {t("dashboard.examCountdown.eyebrow")}
             </p>
-            <h2 className="mt-2 text-2xl font-semibold">
+            <h2 className="mt-1 text-lg font-semibold">
               {t("dashboard.examCountdown.title")}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
               {t("dashboard.examCountdown.description")}
             </p>
           </div>
-          <Button asChild variant="secondary">
+          <Button asChild size="sm" variant="secondary">
             <Link href="/profile">{t("dashboard.examCountdown.manage")}</Link>
           </Button>
         </div>
         {plannedExams.length ? (
-          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {plannedExams.slice(0, 3).map((exam) => (
-              <div className="border-l-4 border-primary bg-surface p-4" key={`${exam.name}-${exam.date}`}>
-                <div className="flex items-start justify-between gap-3">
+              <div className="border-l-4 border-primary bg-surface p-3" key={`${exam.name}-${exam.date}`}>
+                <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-serif text-xl font-semibold">{exam.name}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{exam.date}</p>
+                    <p className="font-serif text-base font-semibold">{exam.name}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{exam.date}</p>
                   </div>
-                  <CalendarClock aria-hidden className="size-5 text-accent" />
+                  <CalendarClock aria-hidden className="size-4 text-accent shrink-0" />
                 </div>
-                <p className="mt-5 text-3xl font-semibold text-primary-hover">
+                <p className="mt-3 text-2xl font-semibold text-primary-hover">
                   {t("dashboard.examCountdown.days", { count: exam.daysLeft })}
                 </p>
                 {exam.target_score ? (
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {t("dashboard.examCountdown.target", { score: exam.target_score })}
                   </p>
                 ) : null}
-                <p className="mt-4 border-t pt-3 text-xs leading-5 text-muted-foreground">
+                <p className="mt-2 border-t pt-2 text-xs leading-4 text-muted-foreground">
                   {nextClass
                     ? `${t("dashboard.learning.next")}: ${t(nextClass.labelKey)}`
                     : t("dashboard.examCountdown.nextAction")}
@@ -349,9 +349,9 @@ export function DashboardScreen() {
             ))}
           </div>
         ) : (
-          <div className="mt-6 border border-dashed bg-elevated/35 p-5">
-            <p className="font-semibold">{t("dashboard.examCountdown.emptyTitle")}</p>
-            <p className="mt-2 text-sm text-muted-foreground">
+          <div className="mt-4 border border-dashed bg-elevated/35 p-4">
+            <p className="text-sm font-semibold">{t("dashboard.examCountdown.emptyTitle")}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
               {t("dashboard.examCountdown.emptyDescription")}
             </p>
           </div>
@@ -359,20 +359,20 @@ export function DashboardScreen() {
       </Card>
 
       <section aria-labelledby="dashboard-workspace">
-        <div className="mb-4 flex items-end justify-between gap-4">
+        <div className="mb-3 flex items-end justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
               {t("dashboard.workspace.eyebrow")}
             </p>
-            <h2 className="mt-1 text-2xl font-semibold" id="dashboard-workspace">
+            <h2 className="mt-1 text-lg font-semibold" id="dashboard-workspace">
               {t("dashboard.workspace.title")}
             </h2>
           </div>
-          <span className="hidden text-sm text-muted-foreground sm:block">
+          <span className="hidden text-xs text-muted-foreground sm:block">
             {t("dashboard.workspace.betaNote")}
           </span>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <DashboardModuleCard
             detail={t("dashboard.roadmap.detail")}
             href="/roadmap"
@@ -417,36 +417,36 @@ export function DashboardScreen() {
         </div>
       </section>
 
-      <section className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-        <Card>
-          <div className="flex items-start gap-4">
-            <Sparkles aria-hidden className="mt-1 size-5 shrink-0 text-accent" />
+      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <Card className="p-5">
+          <div className="flex items-start gap-3">
+            <Sparkles aria-hidden className="mt-0.5 size-4 shrink-0 text-accent" />
             <div>
-              <Badge>{t("dashboard.assistant.badge")}</Badge>
-              <h2 className="mt-3 text-xl font-semibold">
+              <Badge className="text-xs">{t("dashboard.assistant.badge")}</Badge>
+              <h2 className="mt-2 text-base font-semibold">
                 {t("dashboard.assistant.title")}
               </h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
                 {t("dashboard.assistant.description")}
               </p>
             </div>
           </div>
         </Card>
 
-        <Card>
+        <Card className="p-5">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
             {t("dashboard.subscription.eyebrow")}
           </p>
-          <div className="mt-3 flex items-center justify-between gap-4">
-            <h2 className="text-2xl font-semibold">{t(planKey)}</h2>
-            <Badge>{t("dashboard.subscription.mock")}</Badge>
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">{t(planKey)}</h2>
+            <Badge className="text-xs">{t("dashboard.subscription.mock")}</Badge>
           </div>
-          <dl className="mt-5 grid grid-cols-2 gap-4 text-sm">
+          <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
             <div>
               <dt className="text-muted-foreground">
                 {t("dashboard.subscription.aiUsage")}
               </dt>
-              <dd className="mt-1 font-semibold">
+              <dd className="mt-0.5 font-semibold">
                 {user?.subscription.ai_message_count ?? 0}
               </dd>
             </div>
@@ -454,18 +454,18 @@ export function DashboardScreen() {
               <dt className="text-muted-foreground">
                 {t("dashboard.subscription.essayUsage")}
               </dt>
-              <dd className="mt-1 font-semibold">
+              <dd className="mt-0.5 font-semibold">
                 {user?.subscription.essay_review_count ?? 0}
               </dd>
             </div>
           </dl>
-          <Button asChild className="mt-5" variant="secondary">
+          <Button asChild className="mt-4" size="sm" variant="secondary">
             <Link href="/pricing">{t("dashboard.subscription.action")}</Link>
           </Button>
         </Card>
       </section>
 
-      <p className="text-xs leading-5 text-muted-foreground">
+      <p className="text-xs leading-4 text-muted-foreground">
         {t("dashboard.disclaimer")}
       </p>
     </div>
@@ -488,19 +488,19 @@ function DashboardModuleCard({
   const { t } = useI18n();
 
   return (
-    <Card className="flex flex-col">
-      <Icon aria-hidden className="size-5 text-accent" />
-      <h3 className="mt-4 text-lg font-semibold">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">{detail}</p>
+    <Card className="flex flex-col p-5">
+      <Icon aria-hidden className="size-4 text-accent" />
+      <h3 className="mt-2 text-base font-semibold">{title}</h3>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
       {disclaimer ? (
-        <p className="mt-3 text-xs leading-5 text-muted-foreground">{disclaimer}</p>
+        <p className="mt-2 text-xs leading-4 text-muted-foreground">{disclaimer}</p>
       ) : null}
       <Link
-        className="mt-auto inline-flex items-center gap-2 pt-5 text-sm font-semibold text-primary-hover hover:underline"
+        className="mt-auto inline-flex items-center gap-2 pt-3 text-xs font-semibold text-primary-hover hover:underline"
         href={href}
       >
         {t("dashboard.workspace.openModule")}
-        <ArrowRight aria-hidden className="size-4" />
+        <ArrowRight aria-hidden className="size-3" />
       </Link>
     </Card>
   );

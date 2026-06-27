@@ -3,5 +3,9 @@ export {
   getApplicationReadinessRequest,
   getProfileCompletionRequest,
   getProfileRequest,
-  updateProfileRequest
+  updateProfileRequest,
+  getProfileItemsRequest,
+  createProfileItemRequest,
+  updateProfileItemRequest,
+  deleteProfileItemRequest
 } from "./api/profile-api";

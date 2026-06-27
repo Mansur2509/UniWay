@@ -2,7 +2,10 @@ from dataclasses import dataclass
 
 from django.db import transaction
 
-from .models import StudentProfile, UserPreference
+from .models import (
+    StudentProfile,
+    UserPreference,
+)
 
 
 @dataclass(frozen=True)
@@ -57,6 +60,7 @@ def calculate_profile_completion(
         "essay_status": bool(profile.essay_status),
         "support_priorities": bool(profile.support_priorities),
     }
+
     completed_sections = set(profile.onboarding_sections)
     section_checks = {
         section: section in completed_sections for section in REQUIRED_ONBOARDING_SECTIONS

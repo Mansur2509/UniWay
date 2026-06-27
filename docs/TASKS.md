@@ -24,6 +24,7 @@ P0-012 requires Docker, which was not installed in the local environment on 2026
 - [x] **I18N-001** Add dependency-free typed dictionaries, locale persistence, four locales, and a language switcher.
 - [ ] **AUTH-002** Add email verification, password reset, HttpOnly refresh cookies, session/device management, and production auth hardening.
 - [x] **PROFILE-001** Implement the self-only student profile aggregate, academic/contact fields, computed completion, localized responsive UI, migration, and tests.
+- [x] **PROFILE-STRUCTURED-001** Implement 7 structured admissions profile item types (Activities, Honors, Olympiads, Sports, Research Projects, Essay Drafts, Portfolio Projects) with full CRUD APIs, permission-based access control, reusable frontend components, 4-language i18n, and comprehensive test coverage. All verifications passed: 53/53 backend tests, TypeScript type checks, ESLint linting, Next.js production build, and i18n parity (984 keys across 4 locales).
 - [x] **EVENTS-001** Implement event lifecycle, public catalog/detail, profile-snapshot registration, cancellation, my events, localized UI, seed data, migration, and tests.
 - [ ] **EVENTS-002** Build Leaflet map/calendar views, save action, and richer eligibility/recommendation filters.
 - [ ] **UNI-001** Implement university catalog ingestion, official source records, filters, and detail UI.

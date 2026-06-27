@@ -79,3 +79,180 @@ class UserPreference(models.Model):
     research_interest = models.BooleanField(default=False)
     finance_literacy_interest = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class Activity(models.Model):
+    class Scale(models.TextChoices):
+        SCHOOL = "school", "School-level"
+        CITY = "city", "City-level"
+        REGIONAL = "regional", "Regional-level"
+        NATIONAL = "national", "National-level"
+        INTERNATIONAL = "international", "International-level"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile_activities",
+    )
+    title = models.CharField(max_length=150)
+    role = models.CharField(max_length=150, blank=True)
+    organization = models.CharField(max_length=150, blank=True)
+    category = models.CharField(max_length=100, blank=True)
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    year = models.PositiveSmallIntegerField(null=True, blank=True)
+    hours_per_week = models.DecimalField(
+        max_digits=5, decimal_places=1, null=True, blank=True
+    )
+    weeks_per_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    scale = models.CharField(
+        max_length=20, choices=Scale.choices, default=Scale.SCHOOL, blank=True
+    )
+    impact_number = models.CharField(max_length=100, blank=True)
+    description = models.TextField(max_length=1500, blank=True)
+    proof_link = models.URLField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class Honor(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile_honors",
+    )
+    title = models.CharField(max_length=150)
+    issuing_organization = models.CharField(max_length=150, blank=True)
+    level = models.CharField(max_length=100, blank=True)
+    year = models.PositiveSmallIntegerField(null=True, blank=True)
+    result_rank = models.CharField(max_length=100, blank=True)
+    description = models.TextField(max_length=1500, blank=True)
+    proof_link = models.URLField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class Olympiad(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile_olympiads",
+    )
+    name = models.CharField(max_length=150)
+    subject = models.CharField(max_length=100, blank=True)
+    level = models.CharField(max_length=100, blank=True)
+    year = models.PositiveSmallIntegerField(null=True, blank=True)
+    result = models.CharField(max_length=100, blank=True)
+    rank_percentile = models.CharField(max_length=50, blank=True)
+    description = models.TextField(max_length=1500, blank=True)
+    proof_link = models.URLField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class Sport(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile_sports",
+    )
+    sport_name = models.CharField(max_length=150)
+    level = models.CharField(max_length=100, blank=True)
+    years_trained = models.CharField(max_length=100, blank=True)
+    peak_result = models.CharField(max_length=150, blank=True)
+    competition_name = models.CharField(max_length=150, blank=True)
+    description = models.TextField(max_length=1500, blank=True)
+    proof_link = models.URLField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class ResearchProject(models.Model):
+    class Stage(models.TextChoices):
+        PLANNING = "planning", "Planning"
+        ACTIVE = "active", "Active"
+        COMPLETED = "completed", "Completed"
+        PUBLISHED = "published", "Published"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile_research_projects",
+    )
+    title = models.CharField(max_length=150)
+    field = models.CharField(max_length=150, blank=True)
+    research_question = models.TextField(max_length=500, blank=True)
+    sample_size = models.CharField(max_length=100, blank=True)
+    countries_region = models.CharField(max_length=150, blank=True)
+    methods_used = models.CharField(max_length=150, blank=True)
+    current_stage = models.CharField(
+        max_length=20, choices=Stage.choices, default=Stage.ACTIVE, blank=True
+    )
+    manuscript_link = models.URLField(blank=True)
+    publication_status = models.CharField(max_length=100, blank=True)
+    description = models.TextField(max_length=1500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class EssayDraft(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        IN_PROGRESS = "in_progress", "In Progress"
+        SUBMITTED = "submitted", "Submitted"
+        REVIEWED = "reviewed", "Reviewed"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile_essays",
+    )
+    essay_type = models.CharField(max_length=100, blank=True)
+    school_program = models.CharField(max_length=150, blank=True)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.DRAFT
+    )
+    word_limit = models.PositiveSmallIntegerField(null=True, blank=True)
+    draft_status = models.CharField(max_length=100, blank=True)
+    last_reviewed_date = models.DateField(null=True, blank=True)
+    notes = models.TextField(max_length=1000, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class PortfolioProject(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile_portfolio_projects",
+    )
+    title = models.CharField(max_length=150)
+    project_type = models.CharField(max_length=100, blank=True)
+    link = models.URLField(blank=True)
+    tech_stack = models.CharField(max_length=150, blank=True)
+    users_impact = models.CharField(max_length=150, blank=True)
+    status = models.CharField(max_length=100, blank=True)
+    description = models.TextField(max_length=1500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]

@@ -5,11 +5,27 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import StudentProfile
+from .models import (
+    Activity,
+    EssayDraft,
+    Honor,
+    Olympiad,
+    PortfolioProject,
+    ResearchProject,
+    Sport,
+    StudentProfile,
+)
 from .serializers import (
+    ActivitySerializer,
     ApplicationReadinessSerializer,
+    EssayDraftSerializer,
+    HonorSerializer,
+    OlympiadSerializer,
+    PortfolioProjectSerializer,
     ProfileCompletionSerializer,
     ProfileSerializer,
+    ResearchProjectSerializer,
+    SportSerializer,
 )
 from .services import calculate_profile_completion, ensure_profile_records
 
@@ -86,3 +102,56 @@ class ProfileViewSet(
             serializer.is_valid(raise_exception=True)
             profile = serializer.save()
         return Response(self.get_serializer(profile).data)
+
+
+# Base class for profile item viewsets (self-only access)
+class ProfileItemViewSet(
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    mixins.ListModelMixin,
+    viewsets.GenericViewSet,
+):
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return self.queryset.filter(user=self.request.user).order_by("-created_at")
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class ActivityViewSet(ProfileItemViewSet):
+    serializer_class = ActivitySerializer
+    queryset = Activity.objects.all()
+
+
+class HonorViewSet(ProfileItemViewSet):
+    serializer_class = HonorSerializer
+    queryset = Honor.objects.all()
+
+
+class OlympiadViewSet(ProfileItemViewSet):
+    serializer_class = OlympiadSerializer
+    queryset = Olympiad.objects.all()
+
+
+class SportViewSet(ProfileItemViewSet):
+    serializer_class = SportSerializer
+    queryset = Sport.objects.all()
+
+
+class ResearchProjectViewSet(ProfileItemViewSet):
+    serializer_class = ResearchProjectSerializer
+    queryset = ResearchProject.objects.all()
+
+
+class EssayDraftViewSet(ProfileItemViewSet):
+    serializer_class = EssayDraftSerializer
+    queryset = EssayDraft.objects.all()
+
+
+class PortfolioProjectViewSet(ProfileItemViewSet):
+    serializer_class = PortfolioProjectSerializer
+    queryset = PortfolioProject.objects.all()

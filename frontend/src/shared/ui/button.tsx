@@ -5,17 +5,22 @@ import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/shared/lib/cn";
 
 const buttonVariants = cva(
-  "inline-flex min-h-11 items-center justify-center rounded-sm px-4 text-sm font-semibold tracking-[0.01em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center rounded-sm font-semibold tracking-[0.01em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
         primary: "bg-primary text-primary-foreground hover:bg-primary-hover",
         secondary: "border border-border bg-surface text-foreground hover:border-navy/35 hover:bg-elevated",
         ghost: "text-muted-foreground hover:bg-elevated hover:text-foreground"
+      },
+      size: {
+        default: "min-h-11 px-4 text-sm",
+        sm: "min-h-9 px-3 text-xs"
       }
     },
     defaultVariants: {
-      variant: "primary"
+      variant: "primary",
+      size: "default"
     }
   }
 );
@@ -25,7 +30,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
     asChild?: boolean;
   };
 
-export function Button({ asChild, className, variant, ...props }: ButtonProps) {
+export function Button({ asChild, className, variant, size, ...props }: ButtonProps) {
   const Component = asChild ? Slot : "button";
-  return <Component className={cn(buttonVariants({ variant }), className)} {...props} />;
+  return <Component className={cn(buttonVariants({ variant, size }), className)} {...props} />;
 }

@@ -5,7 +5,16 @@ from decimal import Decimal
 from django.db import transaction
 from rest_framework import serializers
 
-from .models import StudentProfile
+from .models import (
+    Activity,
+    EssayDraft,
+    Honor,
+    Olympiad,
+    PortfolioProject,
+    ResearchProject,
+    Sport,
+    StudentProfile,
+)
 from .readiness import calculate_application_readiness
 from .services import (
     REQUIRED_ONBOARDING_SECTIONS,
@@ -459,3 +468,142 @@ class ApplicationReadinessSerializer(serializers.Serializer):
 
 # Legacy router serializer retained for compatibility with `/api/v1/profiles/me/`.
 StudentProfileSerializer = ProfileSerializer
+
+
+# Serializers for structured profile items
+
+
+class ActivitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Activity
+        fields = [
+            "id",
+            "title",
+            "role",
+            "organization",
+            "category",
+            "start_date",
+            "end_date",
+            "year",
+            "hours_per_week",
+            "weeks_per_year",
+            "scale",
+            "impact_number",
+            "description",
+            "proof_link",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class HonorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Honor
+        fields = [
+            "id",
+            "title",
+            "issuing_organization",
+            "level",
+            "year",
+            "result_rank",
+            "description",
+            "proof_link",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class OlympiadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Olympiad
+        fields = [
+            "id",
+            "name",
+            "subject",
+            "level",
+            "year",
+            "result",
+            "rank_percentile",
+            "description",
+            "proof_link",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class SportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Sport
+        fields = [
+            "id",
+            "sport_name",
+            "level",
+            "years_trained",
+            "peak_result",
+            "competition_name",
+            "description",
+            "proof_link",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class ResearchProjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ResearchProject
+        fields = [
+            "id",
+            "title",
+            "field",
+            "research_question",
+            "sample_size",
+            "countries_region",
+            "methods_used",
+            "current_stage",
+            "manuscript_link",
+            "publication_status",
+            "description",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class EssayDraftSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EssayDraft
+        fields = [
+            "id",
+            "essay_type",
+            "school_program",
+            "status",
+            "word_limit",
+            "draft_status",
+            "last_reviewed_date",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class PortfolioProjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PortfolioProject
+        fields = [
+            "id",
+            "title",
+            "project_type",
+            "link",
+            "tech_stack",
+            "users_impact",
+            "status",
+            "description",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]

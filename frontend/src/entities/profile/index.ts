@@ -109,6 +109,108 @@ export type ApplicationReadiness = {
   }>;
 };
 
+// Structured profile items
+export type Activity = {
+  id: number;
+  title: string;
+  role: string;
+  organization: string;
+  category: string;
+  start_date: string | null;
+  end_date: string | null;
+  year: number | null;
+  hours_per_week: number | null;
+  weeks_per_year: number | null;
+  scale: "school" | "city" | "regional" | "national" | "international";
+  impact_number: string;
+  description: string;
+  proof_link: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Honor = {
+  id: number;
+  title: string;
+  issuing_organization: string;
+  level: string;
+  year: number | null;
+  result_rank: string;
+  description: string;
+  proof_link: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Olympiad = {
+  id: number;
+  name: string;
+  subject: string;
+  level: string;
+  year: number | null;
+  result: string;
+  rank_percentile: string;
+  description: string;
+  proof_link: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Sport = {
+  id: number;
+  sport_name: string;
+  level: string;
+  years_trained: string;
+  peak_result: string;
+  competition_name: string;
+  description: string;
+  proof_link: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ResearchProject = {
+  id: number;
+  title: string;
+  field: string;
+  research_question: string;
+  sample_size: string;
+  countries_region: string;
+  methods_used: string;
+  current_stage: "planning" | "active" | "completed" | "published";
+  manuscript_link: string;
+  publication_status: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EssayDraft = {
+  id: number;
+  essay_type: string;
+  school_program: string;
+  status: "draft" | "in_progress" | "submitted" | "reviewed";
+  word_limit: number | null;
+  draft_status: string;
+  last_reviewed_date: string | null;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PortfolioProject = {
+  id: number;
+  title: string;
+  project_type: string;
+  link: string;
+  tech_stack: string;
+  users_impact: string;
+  status: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export {
   majorCatalog,
   recommendationSignals,

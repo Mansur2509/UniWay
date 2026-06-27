@@ -45,10 +45,23 @@ export function AuthForm({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+
+    // Validate form before submission
+    if (!email || !password) {
+      setError(t("common.error.requiredFields"));
+      return;
+    }
+
     if (isRegister && password !== passwordConfirm) {
       setError(t("auth.passwordMismatch"));
       return;
     }
+
+    if (isRegister && password.length < 8) {
+      setError(t("auth.passwordTooShort"));
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -68,7 +81,26 @@ export function AuthForm({
         router.replace("/dashboard");
       }
     } catch (submitError) {
-      setError(getApiErrorMessage(submitError, t("common.error.generic")));
+      let errorMessage = t("common.error.generic");
+
+      // Handle network errors
+      if (submitError instanceof TypeError) {
+        errorMessage = t("common.error.network");
+      } else {
+        errorMessage = getApiErrorMessage(submitError, errorMessage);
+      }
+
+      // Map common backend errors to user-friendly messages
+      if (typeof submitError === "object" && submitError !== null) {
+        const errorData = Reflect.get(submitError, "data");
+        if (typeof errorData === "object" && errorData !== null) {
+          if (Reflect.has(errorData, "email") && isRegister) {
+            errorMessage = t("auth.emailAlreadyExists");
+          }
+        }
+      }
+
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
