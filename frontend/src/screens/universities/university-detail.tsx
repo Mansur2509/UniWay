@@ -6,6 +6,7 @@ import {
   ExternalLink,
   HelpCircle,
   ListChecks,
+  Route,
   Star
 } from "lucide-react";
 import Link from "next/link";
@@ -186,22 +187,31 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
             </a>
           ) : null}
         </div>
-        <Button
-          className="mt-5"
-          disabled={isShortlistPending}
-          onClick={() => void toggleShortlist()}
-          type="button"
-          variant={university.is_shortlisted ? "secondary" : "primary"}
-        >
-          <Star
-            aria-hidden
-            className="mr-2 size-4"
-            fill={university.is_shortlisted ? "currentColor" : "none"}
-          />
-          {university.is_shortlisted
-            ? t("universities.actions.shortlisted")
-            : t("universities.actions.shortlist")}
-        </Button>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Button
+            disabled={isShortlistPending}
+            onClick={() => void toggleShortlist()}
+            type="button"
+            variant={university.is_shortlisted ? "secondary" : "primary"}
+          >
+            <Star
+              aria-hidden
+              className="mr-2 size-4"
+              fill={university.is_shortlisted ? "currentColor" : "none"}
+            />
+            {university.is_shortlisted
+              ? t("universities.actions.shortlisted")
+              : t("universities.actions.shortlist")}
+          </Button>
+          {university.is_shortlisted ? (
+            <Button asChild variant="ghost">
+              <Link href="/roadmap">
+                <Route aria-hidden className="mr-2 size-4" />
+                {t("universities.actions.viewInRoadmap")}
+              </Link>
+            </Button>
+          ) : null}
+        </div>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">

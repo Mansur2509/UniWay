@@ -22,6 +22,7 @@ urlpatterns = [
     path("api/auth/", include("services.auth_service.urls")),
     path("api/profile/", include("services.user_profile_service.urls")),
     path("api/events/", include("services.event_service.urls")),
+    path("api/roadmap/", include("services.roadmap_service.urls")),
     path("api/organizer/", include("services.event_service.organizer_urls")),
     path("api/admin/events/", include("services.event_service.moderation_urls")),
     path("api/v1/health/", HealthView.as_view(), name="health"),

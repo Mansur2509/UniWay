@@ -519,6 +519,12 @@ All moderation endpoints require an admin role. A moderator cannot approve or re
 | POST/DELETE | `/api/v1/universities/{slug}/shortlist/` | Authenticated | Add/remove this university from the caller's shortlist |
 | GET | `/api/v1/universities/shortlist/` | Authenticated | List the caller's shortlisted universities |
 | GET | `/api/v1/universities/compare/?ids=1,2,3` | Authenticated | Side-by-side detail for 2-4 universities by id |
+| GET | `/api/roadmap/` | Authenticated | Caller's active roadmap plan and tasks, or `{"plan": null}` if none generated yet |
+| POST | `/api/roadmap/generate/` | Authenticated | Generate or refresh the caller's roadmap from current profile/shortlist/exam data |
+| GET/POST | `/api/roadmap/tasks/` | Authenticated | List caller's tasks (filters: `status`, `category`, `priority`, `linked_university`, `due_before`, `due_after`) or create a manual task |
+| GET/PATCH/DELETE | `/api/roadmap/tasks/{id}/` | Authenticated, self-only | Read/update any own task; delete only `source_type=manual` tasks (others return 400 — skip instead) |
+| POST | `/api/roadmap/tasks/{id}/complete/` | Authenticated, self-only | Mark a task completed and stamp `completed_at` |
+| POST | `/api/roadmap/tasks/{id}/skip/` | Authenticated, self-only | Mark a task skipped without deleting it |
 | GET/PATCH/POST | `/api/v1/events/...` | Role-dependent | Legacy organizer/admin management router |
 | GET/PATCH | `/profiles/me/` | Student | Legacy compatibility route under `/api/v1`; prefer `/api/profile/me/` |
 | GET | `/subscriptions/me/` | Authenticated | Current plan and counters |
@@ -536,6 +542,15 @@ University records carry two complementary sourcing mechanisms:
 Any University field with no confirmed source is left `null`/blank and rendered client-side as "Not verified yet" — it is never displayed as zero or guessed. `is_demo: true` marks clearly-fictional development records (see `docs/DECISIONS.md`); the default catalog list excludes them.
 
 The admissions fit analysis (`/api/v1/universities/{slug}/fit/`) only ever compares `acceptance_rate`, `gpa_average`, and `sat_average` against the caller's profile. It returns `category: null` when none of those three are verified for either side, and adds a `limited_data_for_category` next-action when a category is assigned from only one of the three. It never uses the words "probability", "chance", or "percentage"; response keys and UI copy use "fit", "category" (`reach`/`competitive`/`target`/`safety`), "strengths", "risks", "missing_fields", and "next_actions" instead.
+
+## Roadmap response shapes
+
+`GET /api/roadmap/` and `POST /api/roadmap/generate/` both nest the plan under a `plan` key (`{"plan": {...} | null, ...}`) rather than returning a flat plan object, so the frontend has one consistent shape to check regardless of whether a roadmap exists yet:
+
+- `GET /api/roadmap/` → `{"detail": "...", "plan": RoadmapPlan | null}`.
+- `POST /api/roadmap/generate/` → `{"plan": RoadmapPlan, "missing_data_warnings": string[]}`. The warnings (e.g. `no_graduation_year`, `no_shortlisted_universities`) are also persisted on `plan.readiness_snapshot.missing_data_warnings` so they reappear on the next plain `GET` without needing to regenerate.
+
+Each `RoadmapTask` always reports `generated_reason`, `evidence_note`, and `source_url` (empty string when no official source backs the task) so the UI can show why a task exists and where its claim comes from without a second request. `source_type` distinguishes a real verified deadline (`university_deadline`) from a generated/estimated one (`generated`) — never both implied at once.
 
 ## Error behavior
 

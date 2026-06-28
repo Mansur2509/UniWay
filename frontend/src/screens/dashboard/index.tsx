@@ -9,7 +9,6 @@ import {
   FilePenLine,
   GraduationCap,
   Map,
-  Route,
   Sparkles,
   type LucideIcon
 } from "lucide-react";
@@ -24,6 +23,7 @@ import {
   type ProfileCompletion,
   type StudentProfileDetails
 } from "@/entities/profile";
+import type { RoadmapPlan } from "@/entities/roadmap";
 import { useAuth } from "@/features/auth";
 import { getMyEventRegistrationsRequest } from "@/features/events";
 import {
@@ -31,8 +31,9 @@ import {
   getProfileCompletionRequest,
   getProfileRequest
 } from "@/features/profile";
+import { generateRoadmapRequest, getRoadmapRequest } from "@/features/roadmap";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
-import { formatDateTime } from "@/shared/lib/date-time";
+import { formatDate, formatDateTime } from "@/shared/lib/date-time";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
@@ -44,7 +45,9 @@ export function DashboardScreen() {
   const [profile, setProfile] = useState<StudentProfileDetails | null>(null);
   const [readiness, setReadiness] = useState<ApplicationReadiness | null>(null);
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
+  const [roadmapPlan, setRoadmapPlan] = useState<RoadmapPlan | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isGeneratingRoadmap, setIsGeneratingRoadmap] = useState(false);
   const [hasPartialError, setHasPartialError] = useState(false);
 
   const loadDashboard = useCallback(async () => {
@@ -54,12 +57,14 @@ export function DashboardScreen() {
       completionResult,
       profileResult,
       registrationsResult,
-      readinessResult
+      readinessResult,
+      roadmapResult
     ] = await Promise.allSettled([
       getProfileCompletionRequest(),
       getProfileRequest(),
       getMyEventRegistrationsRequest(),
-      getApplicationReadinessRequest()
+      getApplicationReadinessRequest(),
+      getRoadmapRequest()
     ]);
 
     if (completionResult.status === "fulfilled") {
@@ -82,12 +87,29 @@ export function DashboardScreen() {
     } else {
       setHasPartialError(true);
     }
+    if (roadmapResult.status === "fulfilled") {
+      setRoadmapPlan(roadmapResult.value.plan);
+    } else {
+      setHasPartialError(true);
+    }
     setIsLoading(false);
   }, []);
 
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
+
+  async function handleGenerateRoadmap() {
+    setIsGeneratingRoadmap(true);
+    try {
+      const response = await generateRoadmapRequest();
+      setRoadmapPlan(response.plan);
+    } catch {
+      setHasPartialError(true);
+    } finally {
+      setIsGeneratingRoadmap(false);
+    }
+  }
 
   const firstName = user?.full_name.trim().split(/\s+/)[0] || t("dashboard.student");
   const planKey = user
@@ -108,6 +130,19 @@ export function DashboardScreen() {
   const nextClass = classCatalog.find((item) =>
     selectedClasses.includes(item.value)
   );
+  const roadmapTasks = roadmapPlan?.tasks ?? [];
+  const nextRoadmapTasks = roadmapTasks
+    .filter((task) => task.status === "todo")
+    .sort((left, right) => {
+      if (!left.due_date && !right.due_date) return 0;
+      if (!left.due_date) return 1;
+      if (!right.due_date) return -1;
+      return left.due_date.localeCompare(right.due_date);
+    })
+    .slice(0, 3);
+  const urgentRoadmapCount = roadmapTasks.filter(
+    (task) => task.priority === "urgent" && task.status === "todo"
+  ).length;
 
   return (
     <div className="space-y-4">
@@ -261,6 +296,71 @@ export function DashboardScreen() {
         </Card>
       </section>
 
+      <Card className="p-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+              {t("dashboard.roadmapWidget.eyebrow")}
+            </p>
+            <h2 className="mt-1 text-lg font-semibold">{t("dashboard.roadmapWidget.title")}</h2>
+          </div>
+          <div className="flex items-center gap-3">
+            {roadmapPlan ? (
+              <span className="text-xs text-muted-foreground">
+                {t("dashboard.roadmapWidget.urgentCount", { count: urgentRoadmapCount })}
+              </span>
+            ) : null}
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/roadmap">{t("dashboard.roadmapWidget.openRoadmap")}</Link>
+            </Button>
+          </div>
+        </div>
+        {isLoading ? (
+          <p className="mt-4 text-xs text-muted-foreground">
+            {t("dashboard.roadmapWidget.loading")}
+          </p>
+        ) : !roadmapPlan || nextRoadmapTasks.length === 0 ? (
+          <div className="mt-4 rounded-sm border border-dashed bg-elevated/35 p-4">
+            <p className="text-sm font-semibold">
+              {roadmapPlan
+                ? t("dashboard.roadmapWidget.allCaughtUpTitle")
+                : t("dashboard.roadmapWidget.emptyTitle")}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {roadmapPlan
+                ? t("dashboard.roadmapWidget.allCaughtUpDescription")
+                : t("dashboard.roadmapWidget.emptyDescription")}
+            </p>
+            <Button
+              className="mt-3"
+              disabled={isGeneratingRoadmap}
+              onClick={() => void handleGenerateRoadmap()}
+              size="sm"
+            >
+              {isGeneratingRoadmap
+                ? t("roadmap.actions.generating")
+                : t("dashboard.roadmapWidget.generate")}
+            </Button>
+          </div>
+        ) : (
+          <ul className="mt-4 space-y-2">
+            {nextRoadmapTasks.map((task) => (
+              <li
+                className="flex items-center justify-between gap-3 rounded-sm border bg-elevated/45 p-3 text-sm"
+                key={task.id}
+              >
+                <span className="font-semibold">{task.title}</span>
+                {task.due_date ? (
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {formatDate(task.due_date, locale)}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
       <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         {readiness ? (
           <ReadinessCard compact readiness={readiness} />
@@ -373,12 +473,6 @@ export function DashboardScreen() {
           </span>
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <DashboardModuleCard
-            detail={t("dashboard.roadmap.detail")}
-            href="/roadmap"
-            icon={Route}
-            title={t("dashboard.roadmap.title")}
-          />
           <DashboardModuleCard
             detail={t("dashboard.universities.detail")}
             disclaimer={t("beta.disclaimer.admissions")}

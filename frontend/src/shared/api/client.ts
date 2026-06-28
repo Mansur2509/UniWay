@@ -8,7 +8,7 @@ import {
 type ApiOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
   auth?: boolean;
-  base?: "api" | "auth" | "profile" | "events" | "organizer" | "moderation";
+  base?: "api" | "auth" | "profile" | "events" | "organizer" | "moderation" | "roadmap";
   retryOnUnauthorized?: boolean;
 };
 
@@ -105,7 +105,9 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
             ? env.organizerApiBaseUrl
             : base === "moderation"
               ? env.eventModerationApiBaseUrl
-              : env.apiBaseUrl;
+              : base === "roadmap"
+                ? env.roadmapApiBaseUrl
+                : env.apiBaseUrl;
   const response = await fetch(`${baseUrl}${path}`, {
     ...requestOptions,
     body: body === undefined ? undefined : JSON.stringify(body),

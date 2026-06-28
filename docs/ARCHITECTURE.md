@@ -137,6 +137,18 @@ Organizer participant reads are a privacy projection, not raw registration seria
 
 Frontend ownership follows FSD: `features/organizer-events` owns organizer/moderation API actions; `screens/organizer-events` and `screens/event-moderation` compose role-protected routes. Role-aware navigation is a convenience only; backend permissions and object-scoped querysets remain authoritative.
 
+## Roadmap boundary
+
+`roadmap_service` owns the personalized admissions roadmap under `/api/roadmap/`. It is a synthesis layer: it reads from `user_profile_service` (structured profile items, exam plans, scholarship need), `university_service` (shortlist, verified statistics, fit analysis), and `event_service` (a student's own event registrations), but owns no data those services already own — only the `RoadmapPlan`/`RoadmapTask` records it generates.
+
+`services/roadmap_service/roadmap_generator.py` is the deterministic, rule-based generation engine. It contains no AI call and produces no task without a concrete trigger: a missing structured-profile item, a verified university statistic (or its absence), the student's own planned exam date, a verified application/scholarship deadline, or a fit-analysis signal. Generation is idempotent — each task carries a stable `dedup_key` so re-running generation only adds tasks for newly-detected gaps and never duplicates or deletes existing ones (including completed/skipped tasks, which are preserved as a history, not removed).
+
+Dates follow the same no-invention discipline as `university_service`: a task's `due_date` is either a real verified deadline (with `source_url` populated from the matching `UniversityFieldVerification` when one exists) or the student's own profile data (a planned exam date), or it is left null. The one exception is a small set of profile-gap tasks (research/portfolio project suggestions) that may get a *computed planning anchor* derived from the student's expected graduation year; those are explicitly labeled in `evidence_note` as an estimated planning window and use `source_type=generated`, never `university_deadline`, so the frontend can never mistake an estimate for an official date.
+
+Every `RoadmapTask` is self-only (filtered by `user` in the viewset queryset, mirroring the `ProfileItemViewSet`/`SavedUniversity` pattern). Manual tasks (`source_type=manual`) are fully user-owned: editable on every field and deletable. Generated tasks are editable on title/description/due date/priority/status but not category, and cannot be deleted — only completed or skipped — so the generation history and its sourcing remain intact.
+
+The frontend roadmap feature owns `/api/roadmap/` calls and typed roadmap data. The roadmap screen buckets the already-loaded task list into This week / This month / Later / Completed client-side rather than issuing separate paginated requests per bucket; the dedicated `/api/roadmap/tasks/` endpoint with `status`/`category`/`priority`/`linked_university`/`due_before`/`due_after` filters exists for API consumers and tests, not as the screen's primary data path.
+
 ## Data ownership
 
 The V1 event catalog includes an offline-safe map-preview/list hybrid built from stored coordinates. It does not require a network tile provider, and events without coordinates remain accessible in the catalog. Full Leaflet tile interaction remains an EVENTS-002 enhancement.
