@@ -54,5 +54,8 @@ export const env = {
     `${new URL(apiBaseUrl).origin}/api/applications`,
   suggestionsApiBaseUrl:
     process.env.NEXT_PUBLIC_SUGGESTIONS_API_BASE_URL ??
-    `${new URL(apiBaseUrl).origin}/api/suggestions`
+    `${new URL(apiBaseUrl).origin}/api/suggestions`,
+  universityImportApiBaseUrl:
+    process.env.NEXT_PUBLIC_UNIVERSITY_IMPORT_API_BASE_URL ??
+    `${new URL(apiBaseUrl).origin}/api/admin/university-import`
 } as const;

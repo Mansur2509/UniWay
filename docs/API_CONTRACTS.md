@@ -12,6 +12,8 @@ Organizer API base URL: `/api/organizer`
 
 Event moderation API base URL: `/api/admin/events`
 
+University import API base URL: `/api/admin/university-import`
+
 Suggestions API base URL: `/api/suggestions`
 
 This document is an evolving Phase 1 contract. Breaking changes must update this file and the affected client types.
@@ -514,6 +516,9 @@ All moderation endpoints require an admin role. A moderator cannot approve or re
 | POST | `/api/admin/events/{slug}/reject/` | Admin, not owner | Reject with required reason |
 | POST | `/api/admin/events/{slug}/archive/` | Admin | Archive event |
 | GET | `/api/admin/events/{slug}/logs/` | Admin | Read moderation history |
+| POST | `/api/admin/university-import/dry-run/` | Admin/staff | Upload `.xlsx`, create an import job, parse through the existing importer, and roll back writes |
+| POST | `/api/admin/university-import/execute/` | Admin/staff | Upload `.xlsx`, create an import job, and run the idempotent real import |
+| GET | `/api/admin/university-import/jobs/{id}/` | Admin/staff | Read import job status, counters, report JSON, or error message |
 | GET | `/health/` | Public | Service health |
 | GET | `/api/v1/universities/` | Authenticated | University catalog, search/filter; excludes `is_demo=true` records unless `?include_demo=true` |
 | GET | `/api/v1/universities/{slug}/` | Authenticated | University detail: stats, programs, scholarships, sources, `field_verifications` |
@@ -561,6 +566,45 @@ Any University field with no confirmed source is left `null`/blank and rendered 
 The university detail object also carries `ielts_competitive` (nullable decimal) and six raw-text fields populated by the XLSX importer (`docs/DATA_SOURCES.md`): `application_requirements`, `ap_recommendations`, `deadlines_text`, `financial_aid_notes`, `scholarships_text`, and `data_quality_notes`. These hold source text preserved verbatim when it is too unstructured to split safely; each is an empty string when not provided and is rendered as a labelled block in the Requirements/Deadlines/Financial Aid/Sources tabs. `data_quality_notes` surfaces importer caveats (placeholder SAT, textual GPA, USD-equivalent tuition) so questionable values are transparent rather than silently trusted.
 
 The admissions fit analysis (`/api/v1/universities/{slug}/fit/`) only ever compares `acceptance_rate`, `gpa_average`, and `sat_average` against the caller's profile. It returns `category: null` when none of those three are verified for either side, and adds a `limited_data_for_category` next-action when a category is assigned from only one of the three. Response keys and UI copy use "fit", "category" (`reach`/`competitive`/`target`/`safety`), "strengths", "risks", "missing_fields", and "next_actions" instead of admissions-odds language.
+
+## University import response shapes
+
+Admin/staff users can upload a workbook through `/api/admin/university-import/`; students, organizers, and anonymous users cannot. The endpoints accept `multipart/form-data` with a single `file` field. Only `.xlsx` files up to 10 MB are accepted.
+
+Both `dry-run` and `execute` create a `UniversityImportJob`:
+
+```json
+{
+  "id": 12,
+  "uploaded_by": 1,
+  "uploaded_by_email": "admin@example.com",
+  "status": "completed",
+  "mode": "dry_run",
+  "original_filename": "Universities Data.xlsx",
+  "row_count": 80,
+  "created_count": 66,
+  "updated_count": 14,
+  "skipped_count": 0,
+  "warning_count": 3,
+  "source_url_count": 160,
+  "field_verification_count": 420,
+  "parsed_deadline_count": 75,
+  "parsed_essay_count": 40,
+  "questionable_sat_count": 2,
+  "summary_json": {
+    "summary": {},
+    "rows": []
+  },
+  "error_message": "",
+  "created_at": "2026-06-30T10:00:00Z",
+  "started_at": "2026-06-30T10:00:01Z",
+  "finished_at": "2026-06-30T10:00:05Z"
+}
+```
+
+`status` is `pending`, `running`, `completed`, or `failed`; `mode` is `dry_run` or `execute`. The job runner currently uses a beta-only daemon thread because there is no production queue yet. This keeps imports out of web-service startup and avoids blocking gunicorn port readiness. If the process exits mid-import, an admin should re-run the upload.
+
+Dry-run behavior uses the same `xlsx_import.py` parser/upsert logic as execute, inside a transaction that is rolled back before the job summary is persisted. Execute uses the same importer inside an atomic transaction and performs the existing idempotent upsert by slug/name. It does not delete existing universities and does not overwrite curated verified rows unless the importer policy is changed deliberately.
 
 ## Roadmap response shapes
 

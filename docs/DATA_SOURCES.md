@@ -29,9 +29,17 @@ Do not infer missing data. A field with no confirmed source is left `null`/blank
 
 Fictional demonstration universities (`is_demo: true`, seeded via `seed_university()` in `common/management/commands/seed_demo.py`) remain available for UI/infrastructure testing but are excluded from the default catalog list and never carry `UniversityFieldVerification` records — see `docs/DECISIONS.md` for the demo-vs-real policy.
 
-### Bulk dataset import (`import_universities_xlsx`)
+### Bulk dataset import
 
-A larger real dataset (80 institutions) can be imported from an XLSX workbook:
+A larger real dataset (80 institutions) can be imported from an XLSX workbook through the admin UI:
+
+1. Sign in with an admin/staff account.
+2. Open `/admin/university-import`.
+3. Upload `Universities Data.xlsx`.
+4. Run dry-run and review the report.
+5. Run execute only when skipped rows, warnings, questionable SAT placeholders, and source URL counts look safe.
+
+The same importer remains available as a local/ops fallback:
 
 ```
 python manage.py import_universities_xlsx "backend/data/universities/Universities Data.xlsx"
@@ -39,7 +47,7 @@ python manage.py import_universities_xlsx "backend/data/universities/Universitie
 
 Useful flags: `--dry-run` (parse + report, roll back), `--replace-existing` (overwrite instead of filling only blanks), `--include-questionable-stats` (store placeholder-looking SAT values as `estimated` instead of dropping them), `--default-verification {verified|partial|estimated}` (default `partial`), `--source-label "..."`, `--report <path>`.
 
-Parsing/normalization lives in `services/university_service/xlsx_import.py`; the command is a thin wrapper. Data-quality policy enforced by the importer:
+Parsing/normalization lives in `services/university_service/xlsx_import.py`; the admin upload flow and management command are thin wrappers around the same parser. Data-quality policy enforced by the importer:
 
 - **Idempotent upsert.** Universities are matched by a slug derived from the name with any trailing `(...)` stripped, so re-running never duplicates and rows that overlap the curated seed catalog are *enriched* in place. Existing scalar values and curated `UniversityFieldVerification` rows are preserved unless `--replace-existing` is passed.
 - **Never invent data.** Anything that cannot be parsed confidently is preserved as raw text (`deadlines_text`, `application_requirements`, `ap_recommendations`, `financial_aid_notes`, `scholarships_text`, `essay_requirements`) and the row is flagged in the JSON import report. Missing fields stay `null`/blank.
@@ -50,7 +58,7 @@ Parsing/normalization lives in `services/university_service/xlsx_import.py`; the
 - **Textual GPA** (A-Level / IB grade strings) is never forced into the numeric `gpa_average`; it is preserved in `data_quality_notes`.
 - **Per-field verification.** Where a primary source URL and a verified date exist, a `UniversityFieldVerification` row is created (default status `partial`).
 
-Imported universities are `is_published=True, is_demo=False`. A timestamped JSON report (`import_report_*.json`) is written next to the workbook on a real run (git-ignored). To add a future dataset, point the command at the new workbook; the same upsert/verification rules apply.
+Imported universities are `is_published=True, is_demo=False`. Admin uploads create a `UniversityImportJob` with row-level report JSON; uploaded temporary files are deleted after processing when possible and are never committed to the repo. A management-command real run can also write a timestamped JSON report (`import_report_*.json`) next to the workbook (git-ignored). To add a future dataset, upload the new workbook or point the command at it; the same upsert/verification rules apply.
 
 ## Events
 
@@ -73,4 +81,3 @@ Development seed records are fictional or clearly labeled demonstration content.
 ## Refresh policy
 
 Phase 1 should assign freshness intervals by data type. Admissions deadlines and event dates require frequent verification; historical program descriptions may tolerate longer intervals.
-

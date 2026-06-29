@@ -78,6 +78,10 @@ const TABS = [
 
 type Tab = (typeof TABS)[number];
 
+function isTab(value: string | null): value is Tab {
+  return TABS.includes(value as Tab);
+}
+
 export function UniversityDetailScreen({ slug }: { slug: string }) {
   const { locale, t } = useI18n();
   const [university, setUniversity] = useState<UniversityDetails | null>(null);
@@ -97,6 +101,13 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
   );
   const [isStartingApplication, setIsStartingApplication] = useState(false);
   const [isRefreshingSuggestions, setIsRefreshingSuggestions] = useState(false);
+
+  useEffect(() => {
+    const requestedTab = new URLSearchParams(window.location.search).get("tab");
+    if (isTab(requestedTab)) {
+      setActiveTab(requestedTab);
+    }
+  }, []);
 
   const loadUniversity = useCallback(async () => {
     setIsLoading(true);

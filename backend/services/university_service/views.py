@@ -1,15 +1,25 @@
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.generics import RetrieveAPIView
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
-from common.permissions import IsAdminOrReadOnly
+from common.permissions import IsAdminOrReadOnly, IsAdminRole
 from services.user_profile_service.services import ensure_profile_records
 
-from .models import SavedUniversity, University
-from .serializers import SavedUniversitySerializer, UniversitySerializer
+from .import_jobs import enqueue_university_import_job
+from .models import SavedUniversity, University, UniversityImportJob
+from .serializers import (
+    SavedUniversitySerializer,
+    UniversityImportJobSerializer,
+    UniversityImportUploadSerializer,
+    UniversitySerializer,
+)
 from .services import calculate_university_fit
 
 SELF_SERVICE_ACTIONS = {"list", "retrieve", "fit", "shortlist", "shortlisted", "compare"}
@@ -115,3 +125,38 @@ class UniversityViewSet(ModelViewSet):
 
         serializer = self.get_serializer(ordered, many=True)
         return Response(serializer.data)
+
+
+class AdminUniversityImportBaseView(APIView):
+    permission_classes = [IsAdminRole]
+    parser_classes = [MultiPartParser, FormParser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "university_import"
+    mode: str
+
+    def post(self, request):
+        upload_serializer = UniversityImportUploadSerializer(data=request.data)
+        upload_serializer.is_valid(raise_exception=True)
+        job = enqueue_university_import_job(
+            uploaded_by=request.user,
+            mode=self.mode,
+            uploaded_file=upload_serializer.validated_data["file"],
+        )
+        return Response(
+            UniversityImportJobSerializer(job).data,
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+class AdminUniversityImportDryRunView(AdminUniversityImportBaseView):
+    mode = UniversityImportJob.Mode.DRY_RUN
+
+
+class AdminUniversityImportExecuteView(AdminUniversityImportBaseView):
+    mode = UniversityImportJob.Mode.EXECUTE
+
+
+class AdminUniversityImportJobDetailView(RetrieveAPIView):
+    serializer_class = UniversityImportJobSerializer
+    permission_classes = [IsAdminRole]
+    queryset = UniversityImportJob.objects.select_related("uploaded_by")

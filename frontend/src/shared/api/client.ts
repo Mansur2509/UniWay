@@ -36,7 +36,8 @@ type ApiOptions = Omit<RequestInit, "body"> & {
     | "roadmap"
     | "essays"
     | "applications"
-    | "suggestions";
+    | "suggestions"
+    | "universityImport";
   retryOnUnauthorized?: boolean;
   timeoutMs?: number;
 };
@@ -250,13 +251,16 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
                     ? env.applicationsApiBaseUrl
                     : base === "suggestions"
                       ? env.suggestionsApiBaseUrl
+                      : base === "universityImport"
+                        ? env.universityImportApiBaseUrl
                       : env.apiBaseUrl;
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const init: RequestInit = {
     ...requestOptions,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
     credentials: "include",
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(tokens ? { Authorization: `Bearer ${tokens.access}` } : {}),
       ...requestOptions.headers
     }

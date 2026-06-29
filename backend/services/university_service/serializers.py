@@ -1,10 +1,12 @@
 from rest_framework import serializers
 
+from .import_jobs import MAX_IMPORT_UPLOAD_BYTES
 from .models import (
     SavedUniversity,
     University,
     UniversityDataSource,
     UniversityFieldVerification,
+    UniversityImportJob,
     UniversityProgram,
     UniversityRequirement,
     UniversityScholarship,
@@ -72,3 +74,46 @@ class SavedUniversitySerializer(serializers.ModelSerializer):
         model = SavedUniversity
         fields = ("id", "university", "created_at")
         read_only_fields = ("id", "university", "created_at")
+
+
+class UniversityImportUploadSerializer(serializers.Serializer):
+    file = serializers.FileField()
+
+    def validate_file(self, uploaded_file):
+        filename = uploaded_file.name or ""
+        if not filename.lower().endswith(".xlsx"):
+            raise serializers.ValidationError("Only .xlsx files are accepted.")
+        if uploaded_file.size and uploaded_file.size > MAX_IMPORT_UPLOAD_BYTES:
+            raise serializers.ValidationError("The workbook must be 10 MB or smaller.")
+        return uploaded_file
+
+
+class UniversityImportJobSerializer(serializers.ModelSerializer):
+    uploaded_by_email = serializers.EmailField(source="uploaded_by.email", read_only=True)
+
+    class Meta:
+        model = UniversityImportJob
+        fields = (
+            "id",
+            "uploaded_by",
+            "uploaded_by_email",
+            "status",
+            "mode",
+            "original_filename",
+            "row_count",
+            "created_count",
+            "updated_count",
+            "skipped_count",
+            "warning_count",
+            "source_url_count",
+            "field_verification_count",
+            "parsed_deadline_count",
+            "parsed_essay_count",
+            "questionable_sat_count",
+            "summary_json",
+            "error_message",
+            "created_at",
+            "started_at",
+            "finished_at",
+        )
+        read_only_fields = fields

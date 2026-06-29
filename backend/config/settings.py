@@ -143,8 +143,16 @@ REST_FRAMEWORK = {
         "event_registration": "30/hour",
         "event_submission": "60/hour",
         "event_moderation": "120/hour",
+        "university_import": "20/hour",
     },
 }
+
+# Beta-only fallback while no real background queue exists. Production should
+# leave this false so admin uploads return immediately and process in a daemon
+# thread instead of blocking gunicorn startup or the request path.
+UNIVERSITY_IMPORT_RUN_INLINE = (
+    os.getenv("UNIVERSITY_IMPORT_RUN_INLINE", "false").lower() == "true"
+)
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),

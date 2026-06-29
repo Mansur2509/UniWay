@@ -5,6 +5,7 @@ from .models import (
     University,
     UniversityDataSource,
     UniversityFieldVerification,
+    UniversityImportJob,
     UniversityProgram,
     UniversityRequirement,
     UniversityScholarship,
@@ -44,7 +45,44 @@ class SavedUniversityAdmin(admin.ModelAdmin):
     search_fields = ("user__email", "university__name")
 
 
+@admin.register(UniversityImportJob)
+class UniversityImportJobAdmin(admin.ModelAdmin):
+    list_display = (
+        "original_filename",
+        "mode",
+        "status",
+        "uploaded_by",
+        "row_count",
+        "created_count",
+        "updated_count",
+        "skipped_count",
+        "created_at",
+    )
+    list_filter = ("mode", "status", "created_at")
+    search_fields = ("original_filename", "uploaded_by__email")
+    readonly_fields = (
+        "uploaded_by",
+        "status",
+        "mode",
+        "original_filename",
+        "row_count",
+        "created_count",
+        "updated_count",
+        "skipped_count",
+        "warning_count",
+        "source_url_count",
+        "field_verification_count",
+        "parsed_deadline_count",
+        "parsed_essay_count",
+        "questionable_sat_count",
+        "summary_json",
+        "error_message",
+        "created_at",
+        "started_at",
+        "finished_at",
+    )
+
+
 admin.site.register(UniversityProgram)
 admin.site.register(UniversityRequirement)
 admin.site.register(UniversityScholarship)
-

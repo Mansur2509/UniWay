@@ -172,3 +172,53 @@ class SavedUniversity(models.Model):
             models.UniqueConstraint(fields=("user", "university"), name="unique_saved_university")
         ]
 
+
+class UniversityImportJob(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        RUNNING = "running", "Running"
+        COMPLETED = "completed", "Completed"
+        FAILED = "failed", "Failed"
+
+    class Mode(models.TextChoices):
+        DRY_RUN = "dry_run", "Dry run"
+        EXECUTE = "execute", "Execute"
+
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="university_import_jobs",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    mode = models.CharField(max_length=20, choices=Mode.choices, db_index=True)
+    original_filename = models.CharField(max_length=255)
+    row_count = models.PositiveIntegerField(default=0)
+    created_count = models.PositiveIntegerField(default=0)
+    updated_count = models.PositiveIntegerField(default=0)
+    skipped_count = models.PositiveIntegerField(default=0)
+    warning_count = models.PositiveIntegerField(default=0)
+    source_url_count = models.PositiveIntegerField(default=0)
+    field_verification_count = models.PositiveIntegerField(default=0)
+    parsed_deadline_count = models.PositiveIntegerField(default=0)
+    parsed_essay_count = models.PositiveIntegerField(default=0)
+    questionable_sat_count = models.PositiveIntegerField(default=0)
+    summary_json = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=("status", "created_at")),
+            models.Index(fields=("mode", "created_at")),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.original_filename} ({self.mode}, {self.status})"

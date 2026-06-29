@@ -28,6 +28,7 @@ urlpatterns = [
     path("api/suggestions/", include("services.suggestions_service.urls")),
     path("api/organizer/", include("services.event_service.organizer_urls")),
     path("api/admin/events/", include("services.event_service.moderation_urls")),
+    path("api/admin/university-import/", include("services.university_service.import_urls")),
     path("api/v1/health/", HealthView.as_view(), name="health"),
     path("api/v1/ai/", include("services.ai_gateway_service.urls")),
     path("api/v1/", include(router.urls)),

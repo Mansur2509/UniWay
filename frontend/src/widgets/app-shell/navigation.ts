@@ -4,6 +4,7 @@ import {
   CalendarPlus,
   CircleUserRound,
   ClipboardList,
+  Database,
   FlaskConical,
   GraduationCap,
   LayoutDashboard,
@@ -47,6 +48,11 @@ export const organizerNavigation: NavigationItem[] = [
 ];
 
 export const adminNavigation: NavigationItem[] = [
+  {
+    href: "/admin/university-import",
+    labelKey: "navigation.universityImport",
+    icon: Database
+  },
   {
     href: "/admin/events/moderation",
     labelKey: "navigation.eventModeration",

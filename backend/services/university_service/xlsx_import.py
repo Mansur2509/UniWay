@@ -15,6 +15,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 
 from django.utils.text import slugify
 
@@ -50,6 +51,8 @@ EXPECTED_HEADERS = [
     "Source URLs",
     "Last Verified Date",
 ]
+
+DEFAULT_SHEET_NAME = "Database"
 
 VERIFICATION_CHOICES = {"verified", "partial", "estimated"}
 
@@ -96,6 +99,61 @@ _SCHOLARSHIP_TYPES = [
     ("government", "Government/national scholarship"),
     ("national scholarship", "Government/national scholarship"),
 ]
+
+
+class UniversityWorkbookError(ValueError):
+    """Raised when the XLSX workbook cannot be safely parsed for import."""
+
+
+def load_xlsx_rows(path: str | Path, *, sheet_name: str = DEFAULT_SHEET_NAME) -> list[dict]:
+    """Read the expected university workbook into importer row dictionaries."""
+    try:
+        from openpyxl import load_workbook
+    except ImportError as exc:  # pragma: no cover - dependency guard
+        raise UniversityWorkbookError(
+            "openpyxl is required to read university XLSX workbooks."
+        ) from exc
+
+    workbook_path = Path(path)
+    if not workbook_path.exists():
+        raise UniversityWorkbookError(f"Workbook not found: {workbook_path}")
+
+    try:
+        workbook = load_workbook(workbook_path, read_only=True, data_only=True)
+    except Exception as exc:
+        raise UniversityWorkbookError("The uploaded file could not be read as an XLSX workbook.") from exc
+
+    try:
+        if sheet_name not in workbook.sheetnames:
+            raise UniversityWorkbookError(
+                f"Sheet {sheet_name!r} not found. Available: {workbook.sheetnames}"
+            )
+        worksheet = workbook[sheet_name]
+
+        all_rows = list(worksheet.iter_rows(values_only=True))
+        if not all_rows:
+            raise UniversityWorkbookError("The worksheet is empty.")
+
+        header = [(c or "").strip() if isinstance(c, str) else c for c in all_rows[0]]
+        header = [h for h in header if h is not None]
+        missing = [h for h in EXPECTED_HEADERS if h not in header]
+        if missing:
+            raise UniversityWorkbookError(
+                "Workbook headers do not match the expected dataset. "
+                f"Missing columns: {missing}"
+            )
+
+        index_by_header = {h: i for i, h in enumerate(all_rows[0]) if isinstance(h, str)}
+        row_dicts: list[dict] = []
+        for raw in all_rows[1:]:
+            if not raw or all(cell in (None, "") for cell in raw):
+                continue
+            row_dicts.append(
+                {h: (raw[i] if i < len(raw) else None) for h, i in index_by_header.items()}
+            )
+        return row_dicts
+    finally:
+        workbook.close()
 
 
 def clean(value) -> str:

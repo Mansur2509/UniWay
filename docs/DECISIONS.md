@@ -253,4 +253,17 @@ Real university data is imported from an XLSX workbook via a management command 
 - **Questionable data is quarantined, not trusted.** Identical SAT 25/50/75 percentiles are detected as placeholders and, by default, are not stored as statistics (so admissions-fit never uses them); `--include-questionable-stats` stores them only with an `estimated` verification. Textual GPA (A-Level/IB) is preserved as a note instead of being coerced into the numeric `gpa_average`. A `$` tuition figure on a non-US institution keeps the source's USD-equivalent and records a transparency note in `data_quality_notes`.
 - **Acceptance rate** is normalized to the catalog's percentage-number convention; it continues to feed only the Reach/Competitive/Target/Safety fit classification and never an exact admission probability.
 
-The dataset workbook is committed under `backend/data/universities/` so the production import is a one-time, re-runnable `python manage.py import_universities_xlsx ...` in the Render shell (no public upload endpoint, no destructive writes).
+The dataset workbook is committed under `backend/data/universities/` for local/ops fallback, but production imports should use the admin upload workflow from ADR-028 rather than requiring a manual `DATABASE_URL` or Render shell session.
+
+## ADR-028: Admin-only university XLSX import jobs instead of shell imports
+
+- **Status:** Accepted
+- **Date:** 2026-06-30
+
+Manual production imports through local `DATABASE_URL`, Render Shell, or a startup command are too error-prone for EduVerse's current beta operations. A long import inside migrations or web-service startup can also block Render's port scan and fail deploys before gunicorn is ready.
+
+EduVerse therefore exposes a protected admin/staff-only upload workflow under `/api/admin/university-import/` and `/admin/university-import`. It creates a `UniversityImportJob` record, accepts only `.xlsx` files up to 10 MB, stores the upload in a temporary file, and deletes that file after processing when possible. Students, organizers, and anonymous users cannot access the endpoints; UI hiding is not the security boundary.
+
+The workflow reuses `services/university_service/xlsx_import.py` for file reading, parsing, normalization, and upsert behavior. Dry-run uses the same importer inside a transaction that is rolled back before persisting the job summary. Execute uses the same importer in an atomic transaction and preserves the existing safety policy: idempotent upsert by slug/name, no deletes, no invented data, placeholder SAT quarantining, raw text preservation, and curated verification rows preserved unless the importer policy changes deliberately.
+
+Because there is no dedicated production queue yet, job processing uses a beta-only daemon thread after the job row is created. This is intentionally narrow: it avoids startup imports and long blocking requests without adding Celery/RQ/managed queue infrastructure prematurely. If import volume or reliability needs grow, a real queue should replace the thread and this ADR should be amended.

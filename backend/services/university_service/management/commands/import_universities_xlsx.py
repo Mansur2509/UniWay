@@ -20,12 +20,14 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from services.university_service.xlsx_import import (
-    EXPECTED_HEADERS,
+    DEFAULT_SHEET_NAME,
     VERIFICATION_CHOICES,
+    UniversityWorkbookError,
     import_rows,
+    load_xlsx_rows,
 )
 
-SHEET_NAME = "Database"
+SHEET_NAME = DEFAULT_SHEET_NAME
 
 
 class Command(BaseCommand):
@@ -69,46 +71,15 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        try:
-            from openpyxl import load_workbook
-        except ImportError as exc:  # pragma: no cover - dependency guard
-            raise CommandError(
-                "openpyxl is required. Install it with: pip install openpyxl"
-            ) from exc
-
         path = Path(options["path"])
         if not path.exists():
             raise CommandError(f"Workbook not found: {path}")
 
-        workbook = load_workbook(path, read_only=True, data_only=True)
         sheet_name = options["sheet"]
-        if sheet_name not in workbook.sheetnames:
-            raise CommandError(
-                f"Sheet {sheet_name!r} not found. Available: {workbook.sheetnames}"
-            )
-        worksheet = workbook[sheet_name]
-
-        all_rows = list(worksheet.iter_rows(values_only=True))
-        if not all_rows:
-            raise CommandError("The worksheet is empty.")
-
-        header = [(c or "").strip() if isinstance(c, str) else c for c in all_rows[0]]
-        header = [h for h in header if h is not None]
-        missing = [h for h in EXPECTED_HEADERS if h not in header]
-        if missing:
-            raise CommandError(
-                "Workbook headers do not match the expected dataset. "
-                f"Missing columns: {missing}"
-            )
-
-        index_by_header = {h: i for i, h in enumerate(all_rows[0]) if isinstance(h, str)}
-        row_dicts: list[dict] = []
-        for raw in all_rows[1:]:
-            if not raw or all(cell in (None, "") for cell in raw):
-                continue
-            row_dicts.append(
-                {h: (raw[i] if i < len(raw) else None) for h, i in index_by_header.items()}
-            )
+        try:
+            row_dicts = load_xlsx_rows(path, sheet_name=sheet_name)
+        except UniversityWorkbookError as exc:
+            raise CommandError(str(exc)) from exc
 
         self.stdout.write(
             f"Loaded {len(row_dicts)} data rows from {path.name} (sheet {sheet_name!r})."

@@ -62,6 +62,8 @@ Protect student identity and essay content, prevent unauthorized writes and mode
 - Do not expose event registration snapshots through public event endpoints or to other students.
 - Require admin permissions for moderation, content publication, and user management.
 
+University XLSX imports are the first beta upload workflow. They are admin/staff-only, accept only `.xlsx` extensions, enforce a 10 MB limit, store files in temporary runtime storage, and delete the temporary file after processing when possible. The current beta does not perform malware scanning or deep MIME sniffing; add that before broadening upload use cases or allowing non-admin uploads.
+
 ## Event registration anti-abuse
 
 - Registration and cancellation require authentication and use the `event_registration` throttle scope.
