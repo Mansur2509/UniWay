@@ -40,6 +40,26 @@ function interpolate(message: string, values?: TranslationValues) {
   });
 }
 
+// Resolve a translation, falling back to the key itself when it is missing
+// instead of letting `undefined.replace(...)` throw. A render-time throw here
+// is especially dangerous because, with no error boundary, it can unmount the
+// whole route into a blank page with no feedback. Missing or dynamically-built
+// keys must degrade gracefully rather than crash the page.
+function resolve(
+  dictionary: Record<TranslationKey, string>,
+  key: TranslationKey,
+  values?: TranslationValues
+) {
+  const message = dictionary[key];
+  if (typeof message !== "string") {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(`[i18n] Missing translation key: ${String(key)}`);
+    }
+    return String(key);
+  }
+  return interpolate(message, values);
+}
+
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<LocaleCode>(defaultLocale);
 
@@ -63,7 +83,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const t = useCallback(
     (key: TranslationKey, values?: TranslationValues) =>
-      interpolate(dictionaries[locale][key], values),
+      resolve(dictionaries[locale], key, values),
     [locale]
   );
 

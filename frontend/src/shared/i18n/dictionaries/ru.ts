@@ -904,5 +904,10 @@ export const ru = {
   "dashboard.deadlineWidget.open": "Посмотреть план",
   "dashboard.gapsWidget.title": "Пробелы в профиле",
   "dashboard.gapsWidget.empty": "Сейчас серьёзных пробелов не обнаружено.",
-  "dashboard.gapsWidget.strengthenProfile": "Улучшить мой профиль"
+  "dashboard.gapsWidget.strengthenProfile": "Улучшить мой профиль",
+  "common.wakingUp": "Сервер может просыпаться. Первая загрузка после периода неактивности может занять до минуты — спасибо за терпение.",
+  "errorBoundary.title": "На этой странице произошла ошибка",
+  "errorBoundary.description": "EduVerse столкнулся с непредвиденной ошибкой при отображении этой страницы. Обычно это временно — попробуйте снова или перезагрузите страницу.",
+  "errorBoundary.retry": "Попробовать снова",
+  "errorBoundary.reload": "Перезагрузить страницу"
 } satisfies TranslationDictionary;

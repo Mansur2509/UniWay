@@ -16,6 +16,7 @@ import { useI18n } from "@/shared/i18n";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { fieldClassName } from "@/shared/ui/field";
+import { LoadingNotice } from "@/shared/ui/loading-notice";
 
 const emptyFilters: EventFilters = {
   search: "",
@@ -212,9 +213,7 @@ export function EventsScreen() {
       ) : null}
 
       {isLoading ? (
-        <Card>
-          <p className="text-sm text-muted-foreground">{t("events.states.loading")}</p>
-        </Card>
+        <LoadingNotice message={t("events.states.loading")} />
       ) : hasError ? (
         <Card className="border-danger/35 bg-danger/10">
           <p className="text-sm text-danger" role="alert">

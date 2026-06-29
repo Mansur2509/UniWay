@@ -21,6 +21,7 @@ import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { fieldClassName } from "@/shared/ui/field";
+import { LoadingNotice } from "@/shared/ui/loading-notice";
 
 const SCORE_FIELDS: Array<{
   key: "structure_score" | "clarity_score" | "authenticity_score" | "specificity_score" | "grammar_score" | "prompt_fit_score";
@@ -226,11 +227,7 @@ export function EssaysScreen() {
   const liveWordCount = draftText.trim() ? draftText.trim().split(/\s+/).length : 0;
 
   if (isLoading) {
-    return (
-      <Card>
-        <p className="text-sm text-muted-foreground">{t("essays.states.loading")}</p>
-      </Card>
-    );
+    return <LoadingNotice message={t("essays.states.loading")} />;
   }
 
   if (hasError) {

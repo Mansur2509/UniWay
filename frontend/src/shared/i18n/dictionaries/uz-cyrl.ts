@@ -904,5 +904,10 @@ export const uzCyrl = {
   "dashboard.deadlineWidget.open": "Йўл харитасини кўриш",
   "dashboard.gapsWidget.title": "Профилдаги бўшлиқлар",
   "dashboard.gapsWidget.empty": "Ҳозирча жиддий бўшлиқлар топилмади.",
-  "dashboard.gapsWidget.strengthenProfile": "Профилимни кучайтириш"
+  "dashboard.gapsWidget.strengthenProfile": "Профилимни кучайтириш",
+  "common.wakingUp": "Сервер уйғонаётган бўлиши мумкин. Фаолсизликдан кейин биринчи юклаш бир дақиқагача давом этиши мумкин — сабрингиз учун раҳмат.",
+  "errorBoundary.title": "Бу саҳифада хатолик юз берди",
+  "errorBoundary.description": "EduVerse ушбу саҳифани кўрсатишда кутилмаган хатоликка дуч келди. Бу одатда вақтинчалик — қайта уриниб кўринг ёки саҳифани қайта юкланг.",
+  "errorBoundary.retry": "Қайта уриниш",
+  "errorBoundary.reload": "Саҳифани қайта юклаш"
 } satisfies TranslationDictionary;

@@ -8,6 +8,7 @@ import { useAuth } from "@/features/auth";
 import { OnboardingFlow } from "@/features/onboarding";
 import { getProfileCompletionRequest } from "@/features/profile";
 import { useI18n } from "@/shared/i18n";
+import { useSlowLoad } from "@/shared/lib/use-slow-load";
 import { Button } from "@/shared/ui/button";
 import { LanguageSwitcher } from "@/shared/ui/language-switcher";
 import { AppShell } from "@/widgets/app-shell";
@@ -68,6 +69,7 @@ function FullScreenStatus({
   onRetry?: () => void;
 }) {
   const { t } = useI18n();
+  const isSlow = useSlowLoad(!offline);
   const title = offline
     ? t("auth.gateway.offlineTitle")
     : onboarding
@@ -93,13 +95,20 @@ function FullScreenStatus({
             {t("auth.gateway.retry")}
           </Button>
         ) : (
-          <div
-            aria-label={t("auth.checkingSession")}
-            className="mx-auto mt-6 h-1 w-32 overflow-hidden bg-muted"
-            role="status"
-          >
-            <span className="block h-full w-1/2 animate-pulse bg-primary" />
-          </div>
+          <>
+            <div
+              aria-label={t("auth.checkingSession")}
+              className="mx-auto mt-6 h-1 w-32 overflow-hidden bg-muted"
+              role="status"
+            >
+              <span className="block h-full w-1/2 animate-pulse bg-primary" />
+            </div>
+            {isSlow ? (
+              <p className="mt-4 text-xs leading-5 text-muted-foreground" role="status">
+                {t("common.wakingUp")}
+              </p>
+            ) : null}
+          </>
         )}
       </div>
     </main>

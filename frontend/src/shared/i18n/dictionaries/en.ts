@@ -903,5 +903,10 @@ export const en = {
   "dashboard.deadlineWidget.open": "View roadmap",
   "dashboard.gapsWidget.title": "Profile gaps",
   "dashboard.gapsWidget.empty": "No major gaps detected right now.",
-  "dashboard.gapsWidget.strengthenProfile": "Strengthen my profile"
+  "dashboard.gapsWidget.strengthenProfile": "Strengthen my profile",
+  "common.wakingUp": "The server may be waking up. The first load after a period of inactivity can take up to a minute — thanks for your patience.",
+  "errorBoundary.title": "Something went wrong on this page",
+  "errorBoundary.description": "EduVerse hit an unexpected error while displaying this page. This is usually temporary — try again, or reload the page.",
+  "errorBoundary.retry": "Try again",
+  "errorBoundary.reload": "Reload page"
 } as const;

@@ -33,6 +33,7 @@ import { formatDate } from "@/shared/lib/date-time";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { fieldClassName } from "@/shared/ui/field";
+import { LoadingNotice } from "@/shared/ui/loading-notice";
 
 const ESSAYS_STATUSES = ["not_started", "drafting", "needs_revision", "ready", "submitted"];
 const RECOMMENDATIONS_STATUSES: RecommendationsStatus[] = [
@@ -183,11 +184,7 @@ export function ApplicationsScreen() {
   }, [applications]);
 
   if (isLoading) {
-    return (
-      <Card>
-        <p className="text-sm text-muted-foreground">{t("applications.states.loading")}</p>
-      </Card>
-    );
+    return <LoadingNotice message={t("applications.states.loading")} />;
   }
 
   if (hasError) {

@@ -5,6 +5,16 @@ import {
   type AuthTokens
 } from "@/shared/lib/auth-storage";
 
+// The backend runs on Render's free tier, which spins the service down after a
+// period of inactivity. The first request after a spin-down is a "cold start"
+// and can take up to ~60-90s while the container boots. Without a timeout a
+// cold start would leave the browser's fetch pending indefinitely, which is
+// what produced the "infinite spinner that never resolves" bug. We therefore
+// cap every request at REQUEST_TIMEOUT_MS: long enough to let a cold start
+// finish, but bounded so a genuinely unreachable backend surfaces a clear,
+// retryable error instead of hanging forever.
+export const REQUEST_TIMEOUT_MS = 90_000;
+
 type ApiOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
   auth?: boolean;
@@ -19,13 +29,19 @@ type ApiOptions = Omit<RequestInit, "body"> & {
     | "essays"
     | "applications";
   retryOnUnauthorized?: boolean;
+  timeoutMs?: number;
 };
 
 export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
-    public readonly data: unknown
+    public readonly data: unknown,
+    // True when the request never got a response: it either timed out (likely a
+    // Render cold start) or the network/backend was unreachable. Screens use
+    // this to show a "the server may be waking up" message instead of a generic
+    // failure, since this case is usually transient and resolves on retry.
+    public readonly isNetworkError = false
   ) {
     super(message);
     this.name = "ApiError";
@@ -64,17 +80,63 @@ async function parseResponse(response: Response): Promise<unknown> {
   return response.text();
 }
 
+/**
+ * fetch with a hard timeout. Aborts the request after `timeoutMs` and converts
+ * both timeouts and lower-level network failures into a typed ApiError so every
+ * caller gets a consistent, retryable error shape instead of a raw TypeError or
+ * an indefinite hang.
+ */
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError(
+        "The request took too long. The server may be waking up — please try again.",
+        0,
+        null,
+        true
+      );
+    }
+    throw new ApiError(
+      "The service is unreachable. Please check your connection and try again.",
+      0,
+      null,
+      true
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function refreshTokens(): Promise<AuthTokens | null> {
   const currentTokens = authStorage.get();
   if (!currentTokens) {
     return null;
   }
 
-  const response = await fetch(`${env.authApiBaseUrl}/token/refresh/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh: currentTokens.refresh })
-  });
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(
+      `${env.authApiBaseUrl}/token/refresh/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh: currentTokens.refresh })
+      },
+      REQUEST_TIMEOUT_MS
+    );
+  } catch {
+    // A timeout/network failure during refresh should not destroy a possibly
+    // valid session — let the caller surface a retryable error instead.
+    return null;
+  }
 
   if (!response.ok) {
     authStorage.clear();
@@ -99,6 +161,7 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
     auth = true,
     base = "api",
     retryOnUnauthorized = true,
+    timeoutMs = REQUEST_TIMEOUT_MS,
     body,
     ...requestOptions
   } = options;
@@ -121,16 +184,20 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
                   : base === "applications"
                     ? env.applicationsApiBaseUrl
                     : env.apiBaseUrl;
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...requestOptions,
-    body: body === undefined ? undefined : JSON.stringify(body),
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(tokens ? { Authorization: `Bearer ${tokens.access}` } : {}),
-      ...requestOptions.headers
-    }
-  });
+  const response = await fetchWithTimeout(
+    `${baseUrl}${path}`,
+    {
+      ...requestOptions,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...(tokens ? { Authorization: `Bearer ${tokens.access}` } : {}),
+        ...requestOptions.headers
+      }
+    },
+    timeoutMs
+  );
 
   if (response.status === 401 && auth && retryOnUnauthorized) {
     refreshPromise ??= refreshTokens().finally(() => {
@@ -176,4 +243,8 @@ export function getApiErrorMessage(
     return error.message;
   }
   return fallback;
+}
+
+export function isNetworkError(error: unknown): boolean {
+  return error instanceof ApiError && error.isNetworkError;
 }

@@ -904,5 +904,10 @@ export const uzLatn = {
   "dashboard.deadlineWidget.open": "Yo‘l xaritasini ko‘rish",
   "dashboard.gapsWidget.title": "Profildagi bo‘shliqlar",
   "dashboard.gapsWidget.empty": "Hozircha jiddiy bo‘shliqlar topilmadi.",
-  "dashboard.gapsWidget.strengthenProfile": "Profilimni kuchaytirish"
+  "dashboard.gapsWidget.strengthenProfile": "Profilimni kuchaytirish",
+  "common.wakingUp": "Server uyg‘onayotgan bo‘lishi mumkin. Faolsizlikdan keyin birinchi yuklash bir daqiqagacha davom etishi mumkin — sabringiz uchun rahmat.",
+  "errorBoundary.title": "Bu sahifada xatolik yuz berdi",
+  "errorBoundary.description": "EduVerse ushbu sahifani ko‘rsatishda kutilmagan xatolikka duch keldi. Bu odatda vaqtinchalik — qayta urinib ko‘ring yoki sahifani qayta yuklang.",
+  "errorBoundary.retry": "Qayta urinish",
+  "errorBoundary.reload": "Sahifani qayta yuklash"
 } satisfies TranslationDictionary;
