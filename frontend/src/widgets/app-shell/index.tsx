@@ -50,7 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const planKey = `plans.${user.subscription.tier}` as TranslationKey;
 
   return (
-    <div className="min-h-screen lg:flex lg:h-dvh lg:overflow-hidden">
+    <div className="min-h-screen lg:fixed lg:inset-0 lg:flex lg:min-h-0 lg:overflow-hidden">
       <aside className="hidden h-dvh w-[17rem] shrink-0 flex-col border-r border-white/10 bg-navy px-4 py-6 text-navy-foreground lg:flex">
         <Link className="mb-8 flex shrink-0 items-center gap-3 px-2" href="/dashboard">
           <span className="grid size-10 place-items-center rounded-sm border border-white/20 bg-primary font-serif text-xl font-bold text-primary-foreground">

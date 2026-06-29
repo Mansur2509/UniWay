@@ -43,3 +43,6 @@ Thumbs.db
 
 # Local Claude Code preview/tooling config
 .claude/
+
+# Local QA scratch artifacts (screen recordings, extracted frames, headless profiles)
+qa-artifacts/
