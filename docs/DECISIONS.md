@@ -240,3 +240,17 @@ Onboarding exam plans remain in the existing flexible `StudentProfile.exam_plans
 Beta pricing is explicitly inactive. The plans page may show future tiers for positioning, but paid cards are labeled Upcoming/Coming soon/Not active during beta, no checkout or upgrade CTA is shown, and all currently available beta features remain free for beta users. This supersedes any UI copy that implied active paid restrictions during beta.
 
 Demo cleanup is handled by hiding demo universities from normal suggestion/roadmap generation and labeling demo events when seeded demo data is visible. Demo accounts can keep local demo data for founder review, but normal users should see clean empty states, real university data, and source-aware suggestions.
+
+## ADR-027: Bulk university dataset import with data-quality safeguards
+
+- **Status:** Accepted
+- **Date:** 2026-06-30
+
+Real university data is imported from an XLSX workbook via a management command (`import_universities_xlsx`) backed by a pure, unit-tested parsing module, rather than by hand-editing `seed_data.py` or hardcoding values in the frontend. The importer carries the same no-invention discipline as ADR-023 (university data) into bulk loading:
+
+- **Idempotent enrichment, not duplication.** Universities are matched by a slug derived from the name with a trailing `(...)` stripped, so dataset rows that overlap the curated seed (e.g. "MIT (MIT)" vs the seeded "Massachusetts Institute of Technology") upsert into the existing record. By default only blank fields are filled and existing `UniversityFieldVerification` rows are preserved, so curated/manually-verified data is never silently downgraded; `--replace-existing` opts into overwriting.
+- **Preserve, never fabricate.** Content that cannot be parsed confidently (multi-line deadlines, essay prompts, application requirements, AP recommendations, scholarship and financial-aid prose) is kept verbatim in dedicated raw-text fields and shown as labelled blocks. Missing values stay `null`/blank ("Not verified yet").
+- **Questionable data is quarantined, not trusted.** Identical SAT 25/50/75 percentiles are detected as placeholders and, by default, are not stored as statistics (so admissions-fit never uses them); `--include-questionable-stats` stores them only with an `estimated` verification. Textual GPA (A-Level/IB) is preserved as a note instead of being coerced into the numeric `gpa_average`. A `$` tuition figure on a non-US institution keeps the source's USD-equivalent and records a transparency note in `data_quality_notes`.
+- **Acceptance rate** is normalized to the catalog's percentage-number convention; it continues to feed only the Reach/Competitive/Target/Safety fit classification and never an exact admission probability.
+
+The dataset workbook is committed under `backend/data/universities/` so the production import is a one-time, re-runnable `python manage.py import_universities_xlsx ...` in the Render shell (no public upload endpoint, no destructive writes).

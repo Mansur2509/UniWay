@@ -558,6 +558,8 @@ Any University field with no confirmed source is left `null`/blank and rendered 
 
 `international_office_url` and `virtual_info_session_url` are identity-ish contact links (same exemption as `admissions_url`/`financial_aid_url`/`application_portal_url`) shown on the university detail page's Contact tab; they do not require a `field_verifications` entry and are simply blank when unknown.
 
+The university detail object also carries `ielts_competitive` (nullable decimal) and six raw-text fields populated by the XLSX importer (`docs/DATA_SOURCES.md`): `application_requirements`, `ap_recommendations`, `deadlines_text`, `financial_aid_notes`, `scholarships_text`, and `data_quality_notes`. These hold source text preserved verbatim when it is too unstructured to split safely; each is an empty string when not provided and is rendered as a labelled block in the Requirements/Deadlines/Financial Aid/Sources tabs. `data_quality_notes` surfaces importer caveats (placeholder SAT, textual GPA, USD-equivalent tuition) so questionable values are transparent rather than silently trusted.
+
 The admissions fit analysis (`/api/v1/universities/{slug}/fit/`) only ever compares `acceptance_rate`, `gpa_average`, and `sat_average` against the caller's profile. It returns `category: null` when none of those three are verified for either side, and adds a `limited_data_for_category` next-action when a category is assigned from only one of the three. Response keys and UI copy use "fit", "category" (`reach`/`competitive`/`target`/`safety`), "strengths", "risks", "missing_fields", and "next_actions" instead of admissions-odds language.
 
 ## Roadmap response shapes

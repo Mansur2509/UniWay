@@ -45,6 +45,11 @@ class University(models.Model):
     sat_p25 = models.PositiveSmallIntegerField(null=True, blank=True)
     sat_p75 = models.PositiveSmallIntegerField(null=True, blank=True)
     ielts_minimum = models.DecimalField(max_digits=3, decimal_places=1, null=True, blank=True)
+    # The score that is competitive (not just the minimum) for admitted students.
+    # Nullable like every other statistic — null means "not verified yet".
+    ielts_competitive = models.DecimalField(
+        max_digits=3, decimal_places=1, null=True, blank=True
+    )
     test_policy = models.CharField(max_length=20, choices=TestPolicy.choices, blank=True)
     tuition_amount = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True
@@ -53,6 +58,21 @@ class University(models.Model):
     application_deadline = models.DateField(null=True, blank=True)
     scholarship_available = models.BooleanField(null=True, blank=True)
     essay_requirements = models.TextField(blank=True)
+
+    # Raw, source-backed text blocks preserved verbatim from imported datasets when
+    # the content is too unstructured to split into discrete records safely. These
+    # are displayed as-is (never parsed into invented structure) so a beta user can
+    # always read the original requirement text. Empty string means "not provided".
+    application_requirements = models.TextField(blank=True)
+    ap_recommendations = models.TextField(blank=True)
+    deadlines_text = models.TextField(blank=True)
+    financial_aid_notes = models.TextField(blank=True)
+    scholarships_text = models.TextField(blank=True)
+    # Importer-generated data-quality caveats (e.g. "possible placeholder SAT
+    # values", "GPA stored as text", "raw tuition preserved"). Shown in the
+    # Sources tab so questionable data is transparent, never silently trusted.
+    data_quality_notes = models.TextField(blank=True)
+
     qs_ranking = models.PositiveIntegerField(null=True, blank=True)
     qs_ranking_year = models.PositiveSmallIntegerField(null=True, blank=True)
 

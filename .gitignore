@@ -46,3 +46,6 @@ Thumbs.db
 
 # Local QA scratch artifacts (screen recordings, extracted frames, headless profiles)
 qa-artifacts/
+
+# Generated XLSX import reports (the dataset workbook itself is committed)
+**/import_report_*.json

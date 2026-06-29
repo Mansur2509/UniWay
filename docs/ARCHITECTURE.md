@@ -178,6 +178,10 @@ Every essay, feedback row, and revision task is self-only (filtered through the 
 
 The frontend surfaces the university/roadmap connection without new backend surface: the applications screen and the university detail page's Deadlines/Roadmap tabs call the existing `/api/roadmap/tasks/?linked_university={id}` filter and the `/api/applications/?university={id}` filter (added alongside this feature) to show roadmap tasks and tracked-application status for a given university.
 
+## University dataset import
+
+`university_service` exposes a bulk importer (`xlsx_import.py` + the `import_universities_xlsx` management command) that loads a real XLSX dataset into the same `University`/`UniversityProgram`/`UniversityScholarship`/`UniversityDataSource`/`UniversityFieldVerification` tables the curated seed uses. Parsing/normalization is a pure, unit-tested module; the command is a thin file-reading wrapper. It is idempotent (upsert by parenthetical-stripped slug, so it enriches rather than duplicates the seed rows and is safe to re-run) and follows the same no-invention data-quality discipline as ADR-023/ADR-027: unparseable content is preserved as raw text fields, placeholder-looking SAT percentiles are dropped or flagged `estimated`, textual GPA is kept as a note, and per-field verification rows are only created where a source URL and verified date exist. The dataset workbook lives under `backend/data/universities/` so the production import can run in the Render shell. See `docs/DATA_SOURCES.md`.
+
 ## Data ownership
 
 The V1 event catalog includes an offline-safe map-preview/list hybrid built from stored coordinates. It does not require a network tile provider, and events without coordinates remain accessible in the catalog. Full Leaflet tile interaction remains an EVENTS-002 enhancement.

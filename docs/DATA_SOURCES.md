@@ -29,6 +29,29 @@ Do not infer missing data. A field with no confirmed source is left `null`/blank
 
 Fictional demonstration universities (`is_demo: true`, seeded via `seed_university()` in `common/management/commands/seed_demo.py`) remain available for UI/infrastructure testing but are excluded from the default catalog list and never carry `UniversityFieldVerification` records — see `docs/DECISIONS.md` for the demo-vs-real policy.
 
+### Bulk dataset import (`import_universities_xlsx`)
+
+A larger real dataset (80 institutions) can be imported from an XLSX workbook:
+
+```
+python manage.py import_universities_xlsx "backend/data/universities/Universities Data.xlsx"
+```
+
+Useful flags: `--dry-run` (parse + report, roll back), `--replace-existing` (overwrite instead of filling only blanks), `--include-questionable-stats` (store placeholder-looking SAT values as `estimated` instead of dropping them), `--default-verification {verified|partial|estimated}` (default `partial`), `--source-label "..."`, `--report <path>`.
+
+Parsing/normalization lives in `services/university_service/xlsx_import.py`; the command is a thin wrapper. Data-quality policy enforced by the importer:
+
+- **Idempotent upsert.** Universities are matched by a slug derived from the name with any trailing `(...)` stripped, so re-running never duplicates and rows that overlap the curated seed catalog are *enriched* in place. Existing scalar values and curated `UniversityFieldVerification` rows are preserved unless `--replace-existing` is passed.
+- **Never invent data.** Anything that cannot be parsed confidently is preserved as raw text (`deadlines_text`, `application_requirements`, `ap_recommendations`, `financial_aid_notes`, `scholarships_text`, `essay_requirements`) and the row is flagged in the JSON import report. Missing fields stay `null`/blank.
+- **Acceptance rate** is stored as a percentage number (e.g. `0.038` → `3.80`, `"28.0%"` → `28.00`), matching the existing catalog convention.
+- **Tuition**: numeric amount + currency. Currency is read from a `$ £ € ¥` symbol first, otherwise inferred from the country. When the source writes a `$` figure for a non-US institution, the currency is kept as the source's USD-equivalent and a note is added to `data_quality_notes`.
+- **Excel serial dates** (e.g. `45565`) and ISO/`Mon D, YYYY` strings are both parsed for `Last Verified Date` and deadlines.
+- **Placeholder SAT detection.** Identical SAT 25/50/75 percentiles (e.g. the `550/550/550` rows) are treated as placeholders: by default they are *not* stored as statistics, are flagged in the report, and a `data_quality_notes` caveat is written. `--include-questionable-stats` stores them but marks the verification `estimated`, so admissions-fit never treats them as trustworthy.
+- **Textual GPA** (A-Level / IB grade strings) is never forced into the numeric `gpa_average`; it is preserved in `data_quality_notes`.
+- **Per-field verification.** Where a primary source URL and a verified date exist, a `UniversityFieldVerification` row is created (default status `partial`).
+
+Imported universities are `is_published=True, is_demo=False`. A timestamped JSON report (`import_report_*.json`) is written next to the workbook on a real run (git-ignored). To add a future dataset, point the command at the new workbook; the same upsert/verification rules apply.
+
 ## Events
 
 Preferred sources:

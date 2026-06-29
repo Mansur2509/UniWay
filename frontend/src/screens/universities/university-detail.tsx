@@ -513,9 +513,26 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
                       universityValue={university.ielts_minimum ?? t("universities.notVerifiedYet")}
                       yourValue={studentIelts ?? t("universities.requirements.addToProfile")}
                     />
+                    <RequirementRow
+                      label={t("universities.fields.ieltsCompetitive")}
+                      status={university.ielts_competitive ? "on_track" : "not_verified"}
+                      universityValue={
+                        university.ielts_competitive ?? t("universities.notVerifiedYet")
+                      }
+                      yourValue={studentIelts ?? t("universities.requirements.addToProfile")}
+                    />
                   </tbody>
                 </table>
               </div>
+
+              <RawTextBlock
+                text={university.application_requirements}
+                title={t("universities.requirements.applicationRequirementsTitle")}
+              />
+              <RawTextBlock
+                text={university.ap_recommendations}
+                title={t("universities.requirements.apRecommendationsTitle")}
+              />
 
               <h3 className="mt-6 text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">
                 {t("universities.requirements.qualitativeTitle")}
@@ -613,6 +630,10 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
                     {t("universities.notVerifiedYet")}
                   </p>
                 )}
+                <RawTextBlock
+                  text={university.financial_aid_notes}
+                  title={t("universities.detail.financialAidNotes")}
+                />
               </Card>
               <Card>
                 <h2 className="text-2xl font-semibold">{t("universities.detail.scholarships")}</h2>
@@ -634,6 +655,10 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
                     ))}
                   </ul>
                 )}
+                <RawTextBlock
+                  text={university.scholarships_text}
+                  title={t("universities.detail.scholarshipsRaw")}
+                />
               </Card>
             </>
           ) : null}
@@ -656,6 +681,10 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
                   )}
                 </DetailItem>
               </dl>
+              <RawTextBlock
+                text={university.deadlines_text}
+                title={t("universities.deadlinesTab.allDeadlinesTitle")}
+              />
               <h3 className="mt-5 border-t pt-4 text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">
                 {t("universities.deadlinesTab.linkedTasks")}
               </h3>
@@ -792,6 +821,19 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
                   </div>
                 )}
               </Card>
+              {university.data_quality_notes ? (
+                <Card className="border-warning/35 bg-warning/5">
+                  <h2 className="text-2xl font-semibold">
+                    {t("universities.sourcesTab.dataQualityTitle")}
+                  </h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t("universities.sourcesTab.dataQualityNote")}
+                  </p>
+                  <p className="mt-3 whitespace-pre-line text-sm leading-6">
+                    {university.data_quality_notes}
+                  </p>
+                </Card>
+              ) : null}
             </>
           ) : null}
 
@@ -952,6 +994,20 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
         </Button>
       </div>
       <p className="text-xs leading-5 text-muted-foreground">{t("universities.disclaimer")}</p>
+    </div>
+  );
+}
+
+function RawTextBlock({ title, text }: { title: string; text: string }) {
+  if (!text?.trim()) {
+    return null;
+  }
+  return (
+    <div className="mt-5 border-t pt-4">
+      <h3 className="text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+        {title}
+      </h3>
+      <p className="mt-2 whitespace-pre-line text-sm leading-6">{text}</p>
     </div>
   );
 }
