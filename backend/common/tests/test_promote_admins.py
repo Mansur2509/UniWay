@@ -63,23 +63,29 @@ class PromoteAdminsCommandTests(APITestCase):
         self.assertIn("- missing-admin@example.com", output)
         self.assertFalse(User.objects.filter(email__iexact="missing-admin@example.com").exists())
 
-    def test_seed_demo_promotes_registered_known_admin(self):
+    def test_seed_demo_hook_promotes_registered_known_admin(self):
+        # Exercise the deploy-time promotion hook directly (without running the
+        # full, heavy seed_demo dataset), since seed_demo runs it on every deploy.
         from common.management.commands.seed_demo import KNOWN_ADMIN_EMAILS
+        from common.management.commands.seed_demo import Command as SeedDemoCommand
 
         email = KNOWN_ADMIN_EMAILS[0]
         user = User.objects.create_user(
             username=email,
-            email=email,
+            email=email.upper(),  # stored lowercased; hook matches case-insensitively
             password="Strong-Development-Password-842!",
             role=User.Role.STUDENT,
         )
 
-        call_command("seed_demo", stdout=StringIO())
+        command = SeedDemoCommand()
+        command.stdout = StringIO()
+        command.promote_known_admins()
+        command.promote_known_admins()  # idempotent second pass
 
         user.refresh_from_db()
         self.assertEqual(user.role, User.Role.ADMIN)
         self.assertTrue(user.is_staff)
-        # The deploy-time hook must not have created the other operators yet.
+        # The hook never creates the other operators that have not registered.
         self.assertFalse(
             User.objects.filter(email__iexact=KNOWN_ADMIN_EMAILS[1]).exists()
         )
