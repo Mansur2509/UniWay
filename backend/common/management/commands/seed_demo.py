@@ -33,6 +33,19 @@ User = get_user_model()
 
 DEMO_PASSWORD = "EduVerse-Demo-842!"
 
+# Real EduVerse operators who should hold admin access (e.g. for the admin-only
+# university import page). Promotion is idempotent and only ever acts on an
+# account that already exists — these users are never created here and their
+# passwords are never touched. seed_demo runs on every deploy, so a person added
+# to this list becomes admin on the next deploy after they register, with no
+# Render shell required. The standalone `promote_admins` command and the
+# auth_service data migration apply the same rule.
+KNOWN_ADMIN_EMAILS = (
+    "timarus52111@gmail.com",
+    "khamidjonovmansurjon@gmail.com",
+    "iilich6304@gmail.com",
+)
+
 
 class Command(BaseCommand):
     help = "Create safe, clearly labeled demonstration data for local development."
@@ -40,11 +53,31 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.seed_usage_limits()
         demo_users = self.seed_demo_accounts()
+        self.promote_known_admins()
         self.seed_university()
         self.seed_real_universities()
         self.seed_event(demo_users)
         self.seed_question()
         self.stdout.write(self.style.SUCCESS("EduVerse demo data is ready."))
+
+    def promote_known_admins(self):
+        """Idempotently grant admin access to real operators who have registered.
+
+        No-op for any email that has no account yet (or is ambiguous); never
+        creates users or changes passwords. Mirrors the `promote_admins`
+        command and the auth_service bootstrap migration.
+        """
+        for email in KNOWN_ADMIN_EMAILS:
+            users = list(User.objects.filter(email__iexact=email).order_by("id"))
+            if len(users) != 1:
+                continue
+            user = users[0]
+            if user.role == User.Role.ADMIN and user.is_staff:
+                continue
+            user.role = User.Role.ADMIN
+            user.is_staff = True
+            user.save(update_fields=["role", "is_staff"])
+            self.stdout.write(f"Promoted {user.email} to admin.")
 
     def seed_demo_accounts(self):
         accounts = {
