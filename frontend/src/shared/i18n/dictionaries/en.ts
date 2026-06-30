@@ -708,6 +708,8 @@ export const en = {
   "universityImport.warning.missingSources": "One or more rows may be missing source URLs. Verify official sources before executing.",
   "universityImport.report.empty": "No report yet.",
   "universityImport.report.unknownError": "The import failed without a detailed error.",
+  "universityImport.report.notComputed": "Counters were not computed — the run failed before any rows were parsed. See the error above.",
+  "universityImport.report.computing": "Running… counters will appear once the run completes.",
   "universityImport.report.rowWarnings": "{{count}} row(s) with warnings",
   "universityImport.report.rowLabel": "Row {{row}}: {{name}}",
   "universityImport.confirm.title": "Confirm production import",

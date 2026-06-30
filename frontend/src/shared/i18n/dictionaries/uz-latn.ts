@@ -579,6 +579,8 @@ export const uzLatn = {
   "universityImport.warning.missingSources": "One or more rows may be missing source URLs. Verify official sources before executing.",
   "universityImport.report.empty": "No report yet.",
   "universityImport.report.unknownError": "The import failed without a detailed error.",
+  "universityImport.report.notComputed": "Hisoblagichlar hisoblanmadi — ish qatorlar tahlil qilinishidan oldin xato bilan tugadi. Yuqoridagi xatoga qarang.",
+  "universityImport.report.computing": "Bajarilmoqda… hisoblagichlar ish tugagach paydo bo‘ladi.",
   "universityImport.report.rowWarnings": "{{count}} row(s) with warnings",
   "universityImport.report.rowLabel": "Row {{row}}: {{name}}",
   "universityImport.confirm.title": "Confirm production import",

@@ -17,6 +17,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
+from django.db import transaction
 from django.utils.text import slugify
 
 from .models import (
@@ -441,7 +442,404 @@ def _http(url: str) -> str:
     return url if url.lower().startswith(("http://", "https://")) else ""
 
 
-def import_rows(
+@dataclass
+class ParsedRow:
+    """Pure, DB-free result of parsing one workbook row.
+
+    Both the read-only planner and the writer build from this — no parsing logic
+    is duplicated, and parsing never touches the database.
+    """
+
+    index: int
+    name: str
+    slug: str
+    valid: bool
+    warnings: list[str] = field(default_factory=list)
+    questionable_fields: list[str] = field(default_factory=list)
+
+    official: str = ""
+    field_values: dict = field(default_factory=dict)
+    tuition: Decimal | None = None
+    currency: str = "USD"
+    scholarship_available: bool | None = None
+
+    sources: list[str] = field(default_factory=list)
+    primary_source: str = ""
+    verified_date: date | None = None
+    last_verified_iso: str | None = None
+    majors: list[str] = field(default_factory=list)
+    scholarship_labels: list[str] = field(default_factory=list)
+    scholarships_text: str = ""
+
+    placeholder: bool = False
+    deadline_count: int = 0
+    essay_has_limits: bool = False
+    verifiable: dict = field(default_factory=dict)
+    verification_status: str | None = None
+    parsed_field_count: int = 0
+
+    @property
+    def source_url_count(self) -> int:
+        return len(self.sources)
+
+    @property
+    def verification_count(self) -> int:
+        if not (self.primary_source and self.verified_date):
+            return 0
+        return sum(1 for value in self.verifiable.values() if value not in (None, ""))
+
+
+def parse_row(raw_row: dict, index: int, *, include_questionable: bool, default_verification: str) -> ParsedRow | None:
+    """Parse and normalize a single row. Pure: performs no database access.
+
+    Returns ``None`` for an empty (nameless) row, a ``ParsedRow`` with
+    ``valid=False`` for a row that cannot be written (no official URL), or a fully
+    populated ``ParsedRow`` otherwise.
+    """
+    name = clean(raw_row.get("Name"))
+    if not name:
+        return None
+
+    slug = make_slug(name)
+    country = clean(raw_row.get("Country"))
+    official = _http(raw_row.get("Official Website")) or _http(raw_row.get("Admissions URL"))
+    if not official:
+        return ParsedRow(
+            index=index,
+            name=name,
+            slug=slug,
+            valid=False,
+            warnings=["missing official website / admissions URL"],
+        )
+
+    warnings: list[str] = []
+    questionable_fields: list[str] = []
+
+    sources = parse_sources(raw_row.get("Source URLs"))
+    primary_source = _http(sources[0]) if sources else ""
+    verified_date, date_warning = parse_date(raw_row.get("Last Verified Date"))
+    if date_warning:
+        warnings.append(date_warning)
+    if not sources:
+        warnings.append("missing source URL")
+
+    verification_status = default_verification if (primary_source and verified_date) else None
+
+    acceptance, acceptance_warning = parse_acceptance_rate(raw_row.get("Acceptance Rate"))
+    if acceptance_warning:
+        warnings.append(acceptance_warning)
+
+    sat25 = parse_int(raw_row.get("SAT 25th"))
+    sat50 = parse_int(raw_row.get("SAT 50th"))
+    sat75 = parse_int(raw_row.get("SAT 75th"))
+    placeholder = detect_sat_placeholder(sat25, sat50, sat75)
+    sat_note = ""
+    if placeholder:
+        warnings.append("possible placeholder SAT values")
+        questionable_fields.append("sat")
+        sat_note = (
+            "Possible placeholder SAT values "
+            f"({sat25}/{sat50}/{sat75}); not stored as verified statistics."
+        )
+        if not include_questionable:
+            sat25 = sat50 = sat75 = None
+
+    gpa = parse_decimal(raw_row.get("Average GPA"))
+    raw_gpa = clean(raw_row.get("Average GPA"))
+    gpa_note = ""
+    if gpa is None and raw_gpa:
+        gpa_note = f"GPA (as provided): {raw_gpa}"
+        warnings.append("GPA stored as text note")
+
+    ielts_min = parse_decimal(raw_row.get("IELTS Minimum"))
+    ielts_comp = parse_decimal(raw_row.get("IELTS Competitive"))
+
+    tuition, currency, tuition_raw, tuition_warning = parse_tuition(raw_row.get("Tuition"), country)
+    if tuition_warning:
+        warnings.append(tuition_warning)
+
+    app_deadline, deadline_count = choose_application_deadline(raw_row.get("Deadlines"))
+    deadlines_text = clean(raw_row.get("Deadlines"))
+    if deadlines_text and deadline_count == 0:
+        warnings.append("unparseable deadline (kept raw text)")
+
+    essays_text = clean(raw_row.get("Essays"))
+    essay_has_limits = bool(count_word_limits(essays_text))
+
+    majors = parse_majors(raw_row.get("Majors"))
+    if not majors:
+        warnings.append("empty majors")
+
+    scholarships_text = clean(raw_row.get("Scholarships"))
+    financial_aid_notes = clean(raw_row.get("Financial Aid"))
+    application_requirements = clean(raw_row.get("Application Requirements"))
+    ap_recommendations = clean(raw_row.get("AP Recommendations by Major"))
+
+    data_quality_lines: list[str] = []
+    if sat_note:
+        data_quality_lines.append(sat_note)
+    if gpa_note:
+        data_quality_lines.append(gpa_note)
+    if tuition is None and tuition_raw:
+        data_quality_lines.append(f"Tuition (as provided): {tuition_raw}")
+    elif (
+        tuition is not None
+        and currency == "USD"
+        and "$" in tuition_raw
+        and any(key in country.lower() for key in _CURRENCY_BY_COUNTRY if _CURRENCY_BY_COUNTRY[key] != "USD")
+    ):
+        data_quality_lines.append(
+            f"Tuition shown as {tuition_raw} in the source (a $ figure on a "
+            "non-US institution; treat the currency as the source's USD-equivalent)."
+        )
+    if not sources:
+        data_quality_lines.append(
+            "No source URL provided in the dataset; treat all figures as unverified."
+        )
+    data_quality_notes = "\n".join(data_quality_lines)
+
+    scholarship_available = True if (scholarships_text or financial_aid_notes) else None
+
+    field_values = {
+        "country": country,
+        "city": clean(raw_row.get("City")),
+        "admissions_url": _http(raw_row.get("Admissions URL")),
+        "acceptance_rate": acceptance,
+        "sat_p25": sat25,
+        "sat_average": sat50,
+        "sat_p75": sat75,
+        "gpa_average": gpa,
+        "ielts_minimum": ielts_min,
+        "ielts_competitive": ielts_comp,
+        "tuition_amount": tuition,
+        "application_deadline": app_deadline,
+        "essay_requirements": essays_text,
+        "application_requirements": application_requirements,
+        "ap_recommendations": ap_recommendations,
+        "deadlines_text": deadlines_text,
+        "financial_aid_notes": financial_aid_notes,
+        "scholarships_text": scholarships_text,
+        "data_quality_notes": data_quality_notes,
+    }
+
+    verifiable = {
+        "acceptance_rate": acceptance,
+        "sat_p25": sat25,
+        "sat_average": sat50,
+        "sat_p75": sat75,
+        "gpa_average": gpa,
+        "ielts_minimum": ielts_min,
+        "ielts_competitive": ielts_comp,
+        "tuition_amount": tuition,
+        "application_deadline": app_deadline,
+        "essay_requirements": essays_text or None,
+        "scholarship_available": scholarship_available,
+    }
+
+    parsed_field_count = sum(
+        1
+        for value in (
+            acceptance, sat25, sat50, sat75, gpa, ielts_min, ielts_comp, tuition,
+            app_deadline, essays_text or None, scholarships_text or None,
+            financial_aid_notes or None, application_requirements or None,
+            ap_recommendations or None,
+        )
+        if value not in (None, "")
+    )
+
+    return ParsedRow(
+        index=index,
+        name=name,
+        slug=slug,
+        valid=True,
+        warnings=warnings,
+        questionable_fields=questionable_fields,
+        official=official,
+        field_values=field_values,
+        tuition=tuition,
+        currency=currency,
+        scholarship_available=scholarship_available,
+        sources=sources,
+        primary_source=primary_source,
+        verified_date=verified_date,
+        last_verified_iso=verified_date.isoformat() if verified_date else None,
+        majors=majors,
+        scholarship_labels=detect_scholarship_types(scholarships_text),
+        scholarships_text=scholarships_text,
+        placeholder=placeholder,
+        deadline_count=deadline_count,
+        essay_has_limits=essay_has_limits,
+        verifiable=verifiable,
+        verification_status=verification_status,
+        parsed_field_count=parsed_field_count,
+    )
+
+
+def _accumulate_counts(report: ImportReport, parsed: ParsedRow) -> None:
+    report.source_urls += parsed.source_url_count
+    report.placeholder_sat += 1 if parsed.placeholder else 0
+    report.parsed_deadlines += parsed.deadline_count
+    report.parsed_essays += 1 if parsed.essay_has_limits else 0
+    report.fields_verified += parsed.verification_count
+
+
+def _result_from_parsed(parsed: ParsedRow, status: str) -> RowResult:
+    return RowResult(
+        row_number=parsed.index,
+        name=parsed.name,
+        slug=parsed.slug,
+        status=status,
+        duplicate_matched=status == "updated",
+        parsed_field_count=parsed.parsed_field_count,
+        source_url_count=parsed.source_url_count,
+        last_verified_date=parsed.last_verified_iso,
+        warnings=list(parsed.warnings),
+        questionable_fields=list(parsed.questionable_fields),
+    )
+
+
+def plan_import_rows(
+    rows: list[dict],
+    *,
+    replace_existing: bool = False,  # noqa: ARG001 - accepted for a uniform signature
+    include_questionable: bool = False,
+    source_label: str = "Universities Data XLSX",  # noqa: ARG001
+    default_verification: str = "partial",
+) -> ImportReport:
+    """TRUE read-only preflight.
+
+    Parses every row and decides created/updated/skipped using a single bulk
+    ``slug__in`` SELECT. It never calls ``save()``, ``get_or_create()``,
+    ``update_or_create()``, never locks rows, and never relies on rollback — so it
+    cannot time out while locking ``university_service_university``.
+    """
+    if default_verification not in VERIFICATION_CHOICES:
+        default_verification = "partial"
+    report = ImportReport()
+
+    parsed_rows: list[ParsedRow] = []
+    for index, raw_row in enumerate(rows, start=2):  # row 1 is the header
+        parsed = parse_row(
+            raw_row, index, include_questionable=include_questionable, default_verification=default_verification
+        )
+        if parsed is not None:
+            parsed_rows.append(parsed)
+
+    slugs = [parsed.slug for parsed in parsed_rows if parsed.valid]
+    existing_slugs: set[str] = set()
+    if slugs:
+        # The only database access in dry-run: a single read-only SELECT.
+        existing_slugs = set(
+            University.objects.filter(slug__in=slugs).values_list("slug", flat=True)
+        )
+
+    for parsed in parsed_rows:
+        if not parsed.valid:
+            report.add(_result_from_parsed(parsed, "skipped"))
+            continue
+        status = "updated" if parsed.slug in existing_slugs else "created"
+        _accumulate_counts(report, parsed)
+        report.add(_result_from_parsed(parsed, status))
+
+    return report
+
+
+# Backwards-compatible alias for the read-only preflight.
+dry_run_import_rows = plan_import_rows
+
+
+def _write_parsed_row(parsed: ParsedRow, *, replace_existing: bool, source_label: str) -> bool:
+    """Write one parsed row inside its own short transaction. Returns created?."""
+    existing = University.objects.filter(slug=parsed.slug).first()
+    created = existing is None
+    university = existing or University(
+        slug=parsed.slug,
+        name=parsed.name,
+        official_website=parsed.official,
+        is_published=True,
+        is_demo=False,
+    )
+
+    def assign(attr: str, value) -> None:
+        if value in (None, ""):
+            return
+        if created or replace_existing or getattr(university, attr) in (None, ""):
+            setattr(university, attr, value)
+
+    if created:
+        university.name = parsed.name
+        university.official_website = parsed.official
+        university.is_published = True
+        university.is_demo = False
+
+    for attr, value in parsed.field_values.items():
+        assign(attr, value)
+
+    # Currency has a model default of "USD" (never blank), so tie it to the amount.
+    had_tuition = university.tuition_amount is not None
+    if parsed.tuition is not None and (created or replace_existing or not had_tuition):
+        university.tuition_currency = parsed.currency
+
+    if parsed.scholarship_available and (
+        created or replace_existing or university.scholarship_available is None
+    ):
+        university.scholarship_available = True
+
+    university.save()
+
+    for major in parsed.majors:
+        UniversityProgram.objects.get_or_create(university=university, name=major)
+
+    for url in parsed.sources:
+        normalized = _http(url)
+        if not normalized:
+            continue
+        UniversityDataSource.objects.get_or_create(
+            university=university,
+            source_url=normalized,
+            defaults={
+                "source_title": f"{source_label}: {parsed.name}",
+                "is_official": True,
+                "published_at": parsed.verified_date,
+            },
+        )
+
+    scholarship_url = parsed.primary_source or university.financial_aid_url or parsed.official
+    for label in parsed.scholarship_labels:
+        UniversityScholarship.objects.get_or_create(
+            university=university,
+            name=label,
+            defaults={"summary": parsed.scholarships_text[:2000], "official_url": scholarship_url},
+        )
+
+    if parsed.primary_source and parsed.verified_date:
+        for field_name, value in parsed.verifiable.items():
+            if value in (None, ""):
+                continue
+            field_status = parsed.verification_status
+            note = ""
+            if field_name.startswith("sat") and parsed.placeholder:
+                field_status = "estimated"
+                note = "Identical SAT percentiles in the source; treat as estimated."
+            defaults = {
+                "status": field_status,
+                "source_url": parsed.primary_source,
+                "last_verified_date": parsed.verified_date,
+                "note": note,
+            }
+            if replace_existing:
+                UniversityFieldVerification.objects.update_or_create(
+                    university=university, field_name=field_name, defaults=defaults
+                )
+            else:
+                UniversityFieldVerification.objects.get_or_create(
+                    university=university, field_name=field_name, defaults=defaults
+                )
+
+    return created
+
+
+def execute_import_rows(
     rows: list[dict],
     *,
     replace_existing: bool = False,
@@ -449,267 +847,40 @@ def import_rows(
     source_label: str = "Universities Data XLSX",
     default_verification: str = "partial",
 ) -> ImportReport:
+    """Write rows to the database, one short transaction per university.
+
+    Per-row transactions keep any row lock brief (avoiding the long lock-hold that
+    a single giant transaction caused on Supabase) and let a single bad row be
+    skipped without aborting the whole import. No rows are ever deleted.
+    """
     if default_verification not in VERIFICATION_CHOICES:
         default_verification = "partial"
     report = ImportReport()
 
-    for index, raw_row in enumerate(rows, start=2):  # row 1 is the header
-        name = clean(raw_row.get("Name"))
-        if not name:
+    for index, raw_row in enumerate(rows, start=2):
+        parsed = parse_row(
+            raw_row, index, include_questionable=include_questionable, default_verification=default_verification
+        )
+        if parsed is None:
+            continue
+        if not parsed.valid:
+            report.add(_result_from_parsed(parsed, "skipped"))
             continue
 
-        slug = make_slug(name)
-        result = RowResult(row_number=index, name=name, slug=slug)
-
-        country = clean(raw_row.get("Country"))
-        official = _http(raw_row.get("Official Website")) or _http(raw_row.get("Admissions URL"))
-        if not official:
-            result.warnings.append("missing official website / admissions URL")
+        try:
+            with transaction.atomic():
+                created = _write_parsed_row(parsed, replace_existing=replace_existing, source_label=source_label)
+        except Exception as exc:  # noqa: BLE001 - isolate a bad row, never abort the run
+            result = _result_from_parsed(parsed, "skipped")
+            result.warnings.append(f"row not imported: {exc}")
             report.add(result)
             continue
 
-        sources = parse_sources(raw_row.get("Source URLs"))
-        result.source_url_count = len(sources)
-        report.source_urls += len(sources)
-        primary_source = _http(sources[0]) if sources else ""
-        verified_date, date_warning = parse_date(raw_row.get("Last Verified Date"))
-        if date_warning:
-            result.warnings.append(date_warning)
-        result.last_verified_date = verified_date.isoformat() if verified_date else None
-        if not sources:
-            result.warnings.append("missing source URL")
-
-        status = default_verification if (primary_source and verified_date) else None
-
-        acceptance, acceptance_warning = parse_acceptance_rate(raw_row.get("Acceptance Rate"))
-        if acceptance_warning:
-            result.warnings.append(acceptance_warning)
-
-        sat25 = parse_int(raw_row.get("SAT 25th"))
-        sat50 = parse_int(raw_row.get("SAT 50th"))
-        sat75 = parse_int(raw_row.get("SAT 75th"))
-        placeholder = detect_sat_placeholder(sat25, sat50, sat75)
-        sat_note = ""
-        if placeholder:
-            report.placeholder_sat += 1
-            result.warnings.append("possible placeholder SAT values")
-            result.questionable_fields.append("sat")
-            sat_note = (
-                "Possible placeholder SAT values "
-                f"({sat25}/{sat50}/{sat75}); not stored as verified statistics."
-            )
-            if not include_questionable:
-                sat25 = sat50 = sat75 = None
-
-        gpa = parse_decimal(raw_row.get("Average GPA"))
-        raw_gpa = clean(raw_row.get("Average GPA"))
-        gpa_note = ""
-        if gpa is None and raw_gpa:
-            gpa_note = f"GPA (as provided): {raw_gpa}"
-            result.warnings.append("GPA stored as text note")
-
-        ielts_min = parse_decimal(raw_row.get("IELTS Minimum"))
-        ielts_comp = parse_decimal(raw_row.get("IELTS Competitive"))
-
-        tuition, currency, tuition_raw, tuition_warning = parse_tuition(
-            raw_row.get("Tuition"), country
-        )
-        if tuition_warning:
-            result.warnings.append(tuition_warning)
-
-        app_deadline, deadline_count = choose_application_deadline(raw_row.get("Deadlines"))
-        report.parsed_deadlines += deadline_count
-        deadlines_text = clean(raw_row.get("Deadlines"))
-        if deadlines_text and deadline_count == 0:
-            result.warnings.append("unparseable deadline (kept raw text)")
-
-        essays_text = clean(raw_row.get("Essays"))
-        if count_word_limits(essays_text):
-            report.parsed_essays += 1
-
-        majors = parse_majors(raw_row.get("Majors"))
-        if not majors:
-            result.warnings.append("empty majors")
-
-        scholarships_text = clean(raw_row.get("Scholarships"))
-        financial_aid_notes = clean(raw_row.get("Financial Aid"))
-        application_requirements = clean(raw_row.get("Application Requirements"))
-        ap_recommendations = clean(raw_row.get("AP Recommendations by Major"))
-
-        data_quality_lines: list[str] = []
-        if sat_note:
-            data_quality_lines.append(sat_note)
-        if gpa_note:
-            data_quality_lines.append(gpa_note)
-        if tuition is None and tuition_raw:
-            data_quality_lines.append(f"Tuition (as provided): {tuition_raw}")
-        elif (
-            tuition is not None
-            and currency == "USD"
-            and "$" in tuition_raw
-            and any(key in country.lower() for key in _CURRENCY_BY_COUNTRY if _CURRENCY_BY_COUNTRY[key] != "USD")
-        ):
-            # The source wrote a "$" figure for a non-US institution; keep the exact
-            # source string visible rather than silently converting the currency.
-            data_quality_lines.append(
-                f"Tuition shown as {tuition_raw} in the source (a $ figure on a "
-                "non-US institution; treat the currency as the source's USD-equivalent)."
-            )
-        if not sources:
-            data_quality_lines.append(
-                "No source URL provided in the dataset; treat all figures as unverified."
-            )
-        data_quality_notes = "\n".join(data_quality_lines)
-
-        existing = University.objects.filter(slug=slug).first()
-        created = existing is None
-        university = existing or University(
-            slug=slug,
-            name=name,
-            official_website=official,
-            is_published=True,
-            is_demo=False,
-        )
-        result.duplicate_matched = not created
-
-        def assign(attr: str, value, *, _u=university, _created=created, _replace=replace_existing) -> None:
-            """Fill a field. New rows and --replace-existing overwrite; otherwise
-            only fill values that are currently empty so curated data is kept.
-            (Loop variables are bound via defaults so this stays correct per row.)"""
-            if value in (None, ""):
-                return
-            if _created or _replace or getattr(_u, attr) in (None, ""):
-                setattr(_u, attr, value)
-
-        if created:
-            university.name = name
-            university.official_website = official
-            university.is_published = True
-            university.is_demo = False
-        assign("country", country)
-        assign("city", clean(raw_row.get("City")))
-        admissions = _http(raw_row.get("Admissions URL"))
-        if admissions:
-            assign("admissions_url", admissions)
-        assign("acceptance_rate", acceptance)
-        assign("sat_p25", sat25)
-        assign("sat_average", sat50)
-        assign("sat_p75", sat75)
-        assign("gpa_average", gpa)
-        assign("ielts_minimum", ielts_min)
-        assign("ielts_competitive", ielts_comp)
-        # Currency carries a model default of "USD", so it is never "blank" and the
-        # fill-only-blanks rule would never correct it. Tie it to the amount: set
-        # the currency whenever we actually populate the tuition amount.
-        had_tuition = university.tuition_amount is not None
-        assign("tuition_amount", tuition)
-        if tuition is not None and (created or replace_existing or not had_tuition):
-            university.tuition_currency = currency
-        assign("application_deadline", app_deadline)
-        assign("essay_requirements", essays_text)
-        assign("application_requirements", application_requirements)
-        assign("ap_recommendations", ap_recommendations)
-        assign("deadlines_text", deadlines_text)
-        assign("financial_aid_notes", financial_aid_notes)
-        assign("scholarships_text", scholarships_text)
-        assign("data_quality_notes", data_quality_notes)
-        if scholarships_text or financial_aid_notes:
-            if created or replace_existing or university.scholarship_available is None:
-                university.scholarship_available = True
-
-        university.save()
-
-        # --- idempotent related records ---
-        for major in majors:
-            UniversityProgram.objects.get_or_create(university=university, name=major)
-
-        for url in sources:
-            normalized = _http(url)
-            if not normalized:
-                continue
-            UniversityDataSource.objects.get_or_create(
-                university=university,
-                source_url=normalized,
-                defaults={
-                    "source_title": f"{source_label}: {name}",
-                    "is_official": True,
-                    "published_at": verified_date,
-                },
-            )
-
-        scholarship_url = primary_source or university.financial_aid_url or official
-        for label in detect_scholarship_types(scholarships_text):
-            UniversityScholarship.objects.get_or_create(
-                university=university,
-                name=label,
-                defaults={
-                    "summary": scholarships_text[:2000],
-                    "official_url": scholarship_url,
-                },
-            )
-
-        # --- per-field verification (only where a source + date exist) ---
-        verifiable = {
-            "acceptance_rate": acceptance,
-            "sat_p25": sat25,
-            "sat_average": sat50,
-            "sat_p75": sat75,
-            "gpa_average": gpa,
-            "ielts_minimum": ielts_min,
-            "ielts_competitive": ielts_comp,
-            "tuition_amount": tuition,
-            "application_deadline": app_deadline,
-            "essay_requirements": essays_text or None,
-            "scholarship_available": university.scholarship_available,
-        }
-        if primary_source and verified_date:
-            for field_name, value in verifiable.items():
-                if value in (None, ""):
-                    continue
-                field_status = status
-                note = ""
-                if field_name.startswith("sat") and placeholder:
-                    field_status = "estimated"
-                    note = "Identical SAT percentiles in the source; treat as estimated."
-                defaults = {
-                    "status": field_status,
-                    "source_url": primary_source,
-                    "last_verified_date": verified_date,
-                    "note": note,
-                }
-                if replace_existing:
-                    UniversityFieldVerification.objects.update_or_create(
-                        university=university, field_name=field_name, defaults=defaults
-                    )
-                else:
-                    # Preserve a curated/manually-verified row if one already exists;
-                    # only add verification for fields that had none.
-                    UniversityFieldVerification.objects.get_or_create(
-                        university=university, field_name=field_name, defaults=defaults
-                    )
-                report.fields_verified += 1
-
-        result.parsed_field_count = sum(
-            1
-            for value in (
-                acceptance,
-                sat25,
-                sat50,
-                sat75,
-                gpa,
-                ielts_min,
-                ielts_comp,
-                tuition,
-                app_deadline,
-                essays_text or None,
-                scholarships_text or None,
-                financial_aid_notes or None,
-                application_requirements or None,
-                ap_recommendations or None,
-            )
-            if value not in (None, "")
-        )
-        result.status = "created" if created else "updated"
-        report.add(result)
+        _accumulate_counts(report, parsed)
+        report.add(_result_from_parsed(parsed, "created" if created else "updated"))
 
     return report
+
+
+# Backwards-compatible alias: the historical name now writes via the executor.
+import_rows = execute_import_rows

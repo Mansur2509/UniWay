@@ -7,11 +7,11 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
-from django.db import close_old_connections, transaction
+from django.db import close_old_connections
 from django.utils import timezone
 
 from .models import UniversityImportJob
-from .xlsx_import import import_rows, load_xlsx_rows
+from .xlsx_import import execute_import_rows, load_xlsx_rows, plan_import_rows
 
 MAX_IMPORT_UPLOAD_BYTES = 10 * 1024 * 1024
 
@@ -74,12 +74,13 @@ def run_university_import_job(job_id: int, workbook_path: str | Path) -> None:
             "default_verification": "partial",
         }
         if job.mode == UniversityImportJob.Mode.DRY_RUN:
-            with transaction.atomic():
-                report = import_rows(rows, **import_kwargs)
-                transaction.set_rollback(True)
+            # TRUE read-only preflight: a single bulk SELECT, no writes, no row
+            # locks, no rollback. It cannot time out locking university rows.
+            report = plan_import_rows(rows, **import_kwargs)
         else:
-            with transaction.atomic():
-                report = import_rows(rows, **import_kwargs)
+            # Writer uses short per-row transactions internally; no outer atomic
+            # block, so no single long-held lock across all rows.
+            report = execute_import_rows(rows, **import_kwargs)
 
         report_payload = report.as_dict()
         summary = report_payload["summary"]

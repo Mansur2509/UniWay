@@ -1,14 +1,22 @@
 from datetime import date
 from decimal import Decimal
+from unittest import mock
 
 from django.test import TestCase
 
 from services.university_service import xlsx_import
 from services.university_service.models import (
     University,
+    UniversityDataSource,
     UniversityFieldVerification,
+    UniversityProgram,
+    UniversityScholarship,
 )
-from services.university_service.xlsx_import import import_rows, parse_date
+from services.university_service.xlsx_import import (
+    import_rows,
+    parse_date,
+    plan_import_rows,
+)
 
 HEADERS = xlsx_import.EXPECTED_HEADERS
 
@@ -194,4 +202,66 @@ class XlsxImportTests(TestCase):
     def test_row_without_website_is_skipped(self):
         report = import_rows([make_row(**{"Official Website": "", "Admissions URL": ""})])
         self.assertEqual(report.skipped, 1)
+        self.assertEqual(University.objects.count(), 0)
+
+
+class PlanImportReadOnlyTests(TestCase):
+    """The dry-run planner must perform zero writes/locks on university tables."""
+
+    def test_plan_import_rows_performs_no_writes(self):
+        University.objects.create(
+            name="Example University",
+            slug="example-university",
+            official_website="https://example.edu",
+            is_published=True,
+        )
+        before = University.objects.count()
+
+        rows = [make_row(), make_row(Name="Brand New College")]
+        with (
+            mock.patch.object(University, "save", side_effect=AssertionError("save() called")) as save_mock,
+            mock.patch.object(
+                UniversityProgram.objects, "get_or_create", side_effect=AssertionError("program write")
+            ) as program_mock,
+            mock.patch.object(
+                UniversityDataSource.objects, "get_or_create", side_effect=AssertionError("source write")
+            ),
+            mock.patch.object(
+                UniversityScholarship.objects, "get_or_create", side_effect=AssertionError("scholarship write")
+            ),
+            mock.patch.object(
+                UniversityFieldVerification.objects, "get_or_create", side_effect=AssertionError("verif write")
+            ),
+            mock.patch.object(
+                UniversityFieldVerification.objects, "update_or_create", side_effect=AssertionError("verif update")
+            ),
+        ):
+            report = plan_import_rows(rows)
+
+        save_mock.assert_not_called()
+        program_mock.assert_not_called()
+        # No rows added/removed, and the planner still produced created/updated estimates.
+        self.assertEqual(University.objects.count(), before)
+        self.assertEqual(report.updated, 1)  # existing "example-university"
+        self.assertEqual(report.created, 1)  # "brand-new-college"
+        self.assertGreater(report.fields_verified, 0)
+
+    def test_plan_does_not_change_existing_university_fields(self):
+        University.objects.create(
+            name="Example University",
+            slug="example-university",
+            official_website="https://example.edu",
+            is_published=True,
+            gpa_average=None,
+        )
+
+        plan_import_rows([make_row()])  # the row carries a GPA of 3.9
+
+        university = University.objects.get(slug="example-university")
+        self.assertIsNone(university.gpa_average)  # unchanged by the read-only plan
+
+    def test_plan_reports_skipped_without_writing(self):
+        report = plan_import_rows([make_row(**{"Official Website": "", "Admissions URL": ""})])
+        self.assertEqual(report.skipped, 1)
+        self.assertEqual(report.created, 0)
         self.assertEqual(University.objects.count(), 0)

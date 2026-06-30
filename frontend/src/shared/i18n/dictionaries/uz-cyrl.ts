@@ -579,6 +579,8 @@ export const uzCyrl = {
   "universityImport.warning.missingSources": "One or more rows may be missing source URLs. Verify official sources before executing.",
   "universityImport.report.empty": "No report yet.",
   "universityImport.report.unknownError": "The import failed without a detailed error.",
+  "universityImport.report.notComputed": "Ҳисоблагичлар ҳисобланмади — иш қаторлар таҳлил қилинишидан олдин хато билан тугади. Юқоридаги хатога қаранг.",
+  "universityImport.report.computing": "Бажарилмоқда… ҳисоблагичлар иш тугагач пайдо бўлади.",
   "universityImport.report.rowWarnings": "{{count}} row(s) with warnings",
   "universityImport.report.rowLabel": "Row {{row}}: {{name}}",
   "universityImport.confirm.title": "Confirm production import",

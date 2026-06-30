@@ -579,6 +579,8 @@ export const ru = {
   "universityImport.warning.missingSources": "One or more rows may be missing source URLs. Verify official sources before executing.",
   "universityImport.report.empty": "No report yet.",
   "universityImport.report.unknownError": "The import failed without a detailed error.",
+  "universityImport.report.notComputed": "Счётчики не рассчитаны — запуск завершился ошибкой до разбора строк. См. ошибку выше.",
+  "universityImport.report.computing": "Выполняется… счётчики появятся после завершения.",
   "universityImport.report.rowWarnings": "{{count}} row(s) with warnings",
   "universityImport.report.rowLabel": "Row {{row}}: {{name}}",
   "universityImport.confirm.title": "Confirm production import",

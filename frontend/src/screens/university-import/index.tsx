@@ -102,13 +102,20 @@ function ImportReport({
 
   const rows = job.summary_json.rows ?? [];
   const warningRows = rowsWithWarnings(rows);
+  const isFailed = job.status === "failed";
+  const isCompleted = job.status === "completed";
+  const isRunning = !isFailed && !isCompleted;
   const hasSkipped = job.skipped_count > 0;
   const hasQuestionableSat = job.questionable_sat_count > 0;
+  // Only meaningful once a report was actually computed. A failed run never
+  // parsed rows, so its zero counters must NOT surface a "missing sources" warning.
   const hasMissingSources =
-    job.source_url_count === 0 ||
-    rows.some((row) =>
-      row.warnings.some((warning) => warning.toLowerCase().includes("missing source"))
-    );
+    isCompleted &&
+    job.row_count > 0 &&
+    (job.source_url_count === 0 ||
+      rows.some((row) =>
+        row.warnings.some((warning) => warning.toLowerCase().includes("missing source"))
+      ));
 
   return (
     <Card>
@@ -120,62 +127,73 @@ function ImportReport({
         <StatusBadge status={job.status} />
       </div>
 
-      <dl className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label={t("universityImport.fields.filename")} value={job.original_filename} />
-        <Metric label={t("universityImport.fields.rowCount")} value={job.row_count} />
-        <Metric label={t("universityImport.fields.created")} value={job.created_count} />
-        <Metric label={t("universityImport.fields.updated")} value={job.updated_count} />
-        <Metric label={t("universityImport.fields.skipped")} value={job.skipped_count} />
-        <Metric label={t("universityImport.fields.warnings")} value={job.warning_count} />
-        <Metric
-          label={t("universityImport.fields.questionableSat")}
-          value={job.questionable_sat_count}
-        />
-        <Metric
-          label={t("universityImport.fields.fieldVerifications")}
-          value={job.field_verification_count}
-        />
-        <Metric
-          label={t("universityImport.fields.parsedDeadlines")}
-          value={job.parsed_deadline_count}
-        />
-        <Metric
-          label={t("universityImport.fields.parsedEssays")}
-          value={job.parsed_essay_count}
-        />
-        <Metric label={t("universityImport.fields.sourceUrls")} value={job.source_url_count} />
-      </dl>
-
-      {job.status === "failed" ? (
-        <p className="mt-5 rounded-sm border border-danger/35 bg-danger/10 p-3 text-sm text-danger">
-          {job.error_message || t("universityImport.report.unknownError")}
+      {isFailed ? (
+        <>
+          <p className="mt-5 rounded-sm border border-danger/35 bg-danger/10 p-3 text-sm text-danger">
+            {job.error_message || t("universityImport.report.unknownError")}
+          </p>
+          <p className="mt-3 text-sm italic text-muted-foreground">
+            {t("universityImport.report.notComputed")}
+          </p>
+        </>
+      ) : isRunning ? (
+        <p className="mt-5 text-sm text-muted-foreground">
+          {t("universityImport.report.computing")}
         </p>
-      ) : null}
+      ) : (
+        <>
+          <dl className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Metric label={t("universityImport.fields.filename")} value={job.original_filename} />
+            <Metric label={t("universityImport.fields.rowCount")} value={job.row_count} />
+            <Metric label={t("universityImport.fields.created")} value={job.created_count} />
+            <Metric label={t("universityImport.fields.updated")} value={job.updated_count} />
+            <Metric label={t("universityImport.fields.skipped")} value={job.skipped_count} />
+            <Metric label={t("universityImport.fields.warnings")} value={job.warning_count} />
+            <Metric
+              label={t("universityImport.fields.questionableSat")}
+              value={job.questionable_sat_count}
+            />
+            <Metric
+              label={t("universityImport.fields.fieldVerifications")}
+              value={job.field_verification_count}
+            />
+            <Metric
+              label={t("universityImport.fields.parsedDeadlines")}
+              value={job.parsed_deadline_count}
+            />
+            <Metric
+              label={t("universityImport.fields.parsedEssays")}
+              value={job.parsed_essay_count}
+            />
+            <Metric label={t("universityImport.fields.sourceUrls")} value={job.source_url_count} />
+          </dl>
 
-      {hasSkipped || hasQuestionableSat || hasMissingSources ? (
-        <div className="mt-5 space-y-2 rounded-sm border border-warning/40 bg-warning/10 p-4 text-sm">
-          {hasSkipped ? (
-            <p className="flex gap-2">
-              <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
-              <span>{t("universityImport.warning.skipped")}</span>
-            </p>
+          {hasSkipped || hasQuestionableSat || hasMissingSources ? (
+            <div className="mt-5 space-y-2 rounded-sm border border-warning/40 bg-warning/10 p-4 text-sm">
+              {hasSkipped ? (
+                <p className="flex gap-2">
+                  <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
+                  <span>{t("universityImport.warning.skipped")}</span>
+                </p>
+              ) : null}
+              {hasQuestionableSat ? (
+                <p className="flex gap-2">
+                  <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
+                  <span>{t("universityImport.warning.questionableSat")}</span>
+                </p>
+              ) : null}
+              {hasMissingSources ? (
+                <p className="flex gap-2">
+                  <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
+                  <span>{t("universityImport.warning.missingSources")}</span>
+                </p>
+              ) : null}
+            </div>
           ) : null}
-          {hasQuestionableSat ? (
-            <p className="flex gap-2">
-              <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
-              <span>{t("universityImport.warning.questionableSat")}</span>
-            </p>
-          ) : null}
-          {hasMissingSources ? (
-            <p className="flex gap-2">
-              <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
-              <span>{t("universityImport.warning.missingSources")}</span>
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+        </>
+      )}
 
-      {warningRows.length ? (
+      {isCompleted && warningRows.length ? (
         <details className="mt-5 rounded-sm border bg-elevated/45 p-4">
           <summary className="cursor-pointer text-sm font-semibold">
             {t("universityImport.report.rowWarnings", { count: warningRows.length })}
