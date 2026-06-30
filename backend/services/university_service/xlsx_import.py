@@ -11,7 +11,9 @@ stored as verified statistics.
 
 from __future__ import annotations
 
+import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -27,6 +29,8 @@ from .models import (
     UniversityProgram,
     UniversityScholarship,
 )
+
+logger = logging.getLogger(__name__)
 
 EXPECTED_HEADERS = [
     "Name",
@@ -489,6 +493,9 @@ class ParsedRow:
         return sum(1 for value in self.verifiable.values() if value not in (None, ""))
 
 
+ImportProgressCallback = Callable[[ImportReport, ParsedRow, int], None]
+
+
 def parse_row(raw_row: dict, index: int, *, include_questionable: bool, default_verification: str) -> ParsedRow | None:
     """Parse and normalize a single row. Pure: performs no database access.
 
@@ -839,6 +846,16 @@ def _write_parsed_row(parsed: ParsedRow, *, replace_existing: bool, source_label
     return created
 
 
+def _notify_progress(
+    callback: ImportProgressCallback | None,
+    report: ImportReport,
+    parsed: ParsedRow,
+) -> None:
+    if callback is None:
+        return
+    callback(report, parsed, len(report.rows))
+
+
 def execute_import_rows(
     rows: list[dict],
     *,
@@ -846,6 +863,7 @@ def execute_import_rows(
     include_questionable: bool = False,
     source_label: str = "Universities Data XLSX",
     default_verification: str = "partial",
+    progress_callback: ImportProgressCallback | None = None,
 ) -> ImportReport:
     """Write rows to the database, one short transaction per university.
 
@@ -865,19 +883,27 @@ def execute_import_rows(
             continue
         if not parsed.valid:
             report.add(_result_from_parsed(parsed, "skipped"))
+            _notify_progress(progress_callback, report, parsed)
             continue
 
         try:
+            logger.info(
+                "University import writing row %s: %s",
+                parsed.index,
+                parsed.name,
+            )
             with transaction.atomic():
                 created = _write_parsed_row(parsed, replace_existing=replace_existing, source_label=source_label)
         except Exception as exc:  # noqa: BLE001 - isolate a bad row, never abort the run
             result = _result_from_parsed(parsed, "skipped")
             result.warnings.append(f"row not imported: {exc}")
             report.add(result)
+            _notify_progress(progress_callback, report, parsed)
             continue
 
         _accumulate_counts(report, parsed)
         report.add(_result_from_parsed(parsed, "created" if created else "updated"))
+        _notify_progress(progress_callback, report, parsed)
 
     return report
 

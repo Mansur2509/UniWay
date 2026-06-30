@@ -29,6 +29,7 @@ import { fieldClassName } from "@/shared/ui/field";
 type ImportAction = "dry_run" | "execute" | null;
 
 const TERMINAL_STATUSES: UniversityImportStatus[] = ["completed", "failed"];
+const STALE_IMPORT_HEARTBEAT_MS = 15 * 60 * 1000;
 
 function isTerminal(job: UniversityImportJob) {
   return TERMINAL_STATUSES.includes(job.status);
@@ -78,6 +79,21 @@ function rowsWithWarnings(rows: UniversityImportRowResult[]) {
   return rows.filter((row) => row.warnings.length > 0 || row.questionable_fields.length > 0);
 }
 
+function formatTimestamp(timestamp: string | null) {
+  if (!timestamp) return "";
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleString();
+}
+
+function isRunningJobStale(job: UniversityImportJob) {
+  if (job.status !== "running") return false;
+  const heartbeat = job.last_heartbeat_at ?? job.started_at;
+  if (!heartbeat) return false;
+  const parsed = Date.parse(heartbeat);
+  return Number.isFinite(parsed) && Date.now() - parsed > STALE_IMPORT_HEARTBEAT_MS;
+}
+
 function ImportReport({
   job,
   title,
@@ -102,9 +118,16 @@ function ImportReport({
 
   const rows = job.summary_json.rows ?? [];
   const warningRows = rowsWithWarnings(rows);
+  const progress = job.summary_json.progress;
   const isFailed = job.status === "failed";
   const isCompleted = job.status === "completed";
   const isRunning = !isFailed && !isCompleted;
+  const processedCount = job.processed_count || progress?.processed_count || 0;
+  const currentRow = job.current_row ?? progress?.current_row ?? null;
+  const currentUniversity = job.current_university || progress?.current_university || "";
+  const heartbeat = job.last_heartbeat_at ?? progress?.last_heartbeat_at ?? job.started_at;
+  const formattedHeartbeat = formatTimestamp(heartbeat);
+  const isStale = isRunningJobStale(job);
   const hasSkipped = job.skipped_count > 0;
   const hasQuestionableSat = job.questionable_sat_count > 0;
   // Only meaningful once a report was actually computed. A failed run never
@@ -137,9 +160,38 @@ function ImportReport({
           </p>
         </>
       ) : isRunning ? (
-        <p className="mt-5 text-sm text-muted-foreground">
-          {t("universityImport.report.computing")}
-        </p>
+        <div className="mt-5 space-y-2 rounded-sm border bg-elevated/45 p-4 text-sm">
+          <p className="font-semibold">{t("universityImport.report.computing")}</p>
+          <p className="text-muted-foreground">
+            {t("universityImport.report.progress", {
+              processed: processedCount,
+              total: job.row_count || progress?.row_count || "?"
+            })}
+          </p>
+          {progress?.stage ? (
+            <p className="text-muted-foreground">
+              {t("universityImport.report.stage", { stage: progress.stage })}
+            </p>
+          ) : null}
+          {currentRow || currentUniversity ? (
+            <p className="text-muted-foreground">
+              {t("universityImport.report.current", {
+                row: currentRow ?? "?",
+                name: currentUniversity || "?"
+              })}
+            </p>
+          ) : null}
+          {formattedHeartbeat ? (
+            <p className="text-muted-foreground">
+              {t("universityImport.report.heartbeat", { time: formattedHeartbeat })}
+            </p>
+          ) : null}
+          {isStale ? (
+            <p className="rounded-sm border border-warning/40 bg-warning/10 p-3 text-warning">
+              {t("universityImport.report.stale")}
+            </p>
+          ) : null}
+        </div>
       ) : (
         <>
           <dl className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

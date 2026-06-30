@@ -27,6 +27,14 @@ export type UniversityImportSummary = {
     source_urls: number;
     fields_verified: number;
   };
+  progress?: {
+    stage?: string;
+    row_count?: number;
+    processed_count?: number;
+    current_row?: number | null;
+    current_university?: string;
+    last_heartbeat_at?: string;
+  };
   rows?: UniversityImportRowResult[];
 };
 
@@ -47,6 +55,10 @@ export type UniversityImportJob = {
   parsed_deadline_count: number;
   parsed_essay_count: number;
   questionable_sat_count: number;
+  processed_count: number;
+  current_row: number | null;
+  current_university: string;
+  last_heartbeat_at: string | null;
   summary_json: UniversityImportSummary;
   error_message: string;
   created_at: string;

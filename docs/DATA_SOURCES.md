@@ -58,7 +58,7 @@ Parsing/normalization lives in `services/university_service/xlsx_import.py`; the
 - **Textual GPA** (A-Level / IB grade strings) is never forced into the numeric `gpa_average`; it is preserved in `data_quality_notes`.
 - **Per-field verification.** Where a primary source URL and a verified date exist, a `UniversityFieldVerification` row is created (default status `partial`).
 
-Imported universities are `is_published=True, is_demo=False`. Admin uploads create a `UniversityImportJob` with row-level report JSON; uploaded temporary files are deleted after processing when possible and are never committed to the repo. A management-command real run can also write a timestamped JSON report (`import_report_*.json`) next to the workbook (git-ignored). To add a future dataset, upload the new workbook or point the command at it; the same upsert/verification rules apply.
+Imported universities are `is_published=True, is_demo=False`. Admin uploads create a `UniversityImportJob` with row-level report JSON plus running progress/heartbeat fields; uploaded temporary files are deleted after processing when possible and are never committed to the repo. A management-command real run can also write a timestamped JSON report (`import_report_*.json`) next to the workbook (git-ignored). To add a future dataset, upload the new workbook or point the command at it; the same upsert/verification rules apply.
 
 ## Events
 

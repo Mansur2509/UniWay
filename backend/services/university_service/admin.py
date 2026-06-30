@@ -56,6 +56,7 @@ class UniversityImportJobAdmin(admin.ModelAdmin):
         "created_count",
         "updated_count",
         "skipped_count",
+        "processed_count",
         "created_at",
     )
     list_filter = ("mode", "status", "created_at")
@@ -75,6 +76,10 @@ class UniversityImportJobAdmin(admin.ModelAdmin):
         "parsed_deadline_count",
         "parsed_essay_count",
         "questionable_sat_count",
+        "processed_count",
+        "current_row",
+        "current_university",
+        "last_heartbeat_at",
         "summary_json",
         "error_message",
         "created_at",

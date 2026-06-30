@@ -12,7 +12,7 @@ from rest_framework.viewsets import ModelViewSet
 from common.permissions import IsAdminOrReadOnly, IsAdminRole
 from services.user_profile_service.services import ensure_profile_records
 
-from .import_jobs import enqueue_university_import_job
+from .import_jobs import enqueue_university_import_job, mark_stale_university_import_job
 from .models import SavedUniversity, University, UniversityImportJob
 from .serializers import (
     SavedUniversitySerializer,
@@ -160,3 +160,9 @@ class AdminUniversityImportJobDetailView(RetrieveAPIView):
     serializer_class = UniversityImportJobSerializer
     permission_classes = [IsAdminRole]
     queryset = UniversityImportJob.objects.select_related("uploaded_by")
+
+    def get_object(self):
+        job = super().get_object()
+        if mark_stale_university_import_job(job):
+            job.refresh_from_db()
+        return job

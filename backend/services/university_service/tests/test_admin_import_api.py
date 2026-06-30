@@ -1,8 +1,10 @@
+from datetime import timedelta
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.test import override_settings
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from services.university_service import xlsx_import
@@ -142,6 +144,11 @@ class AdminUniversityImportApiTests(APITestCase):
         self.assertEqual(response.status_code, 202, response.data)
         self.assertEqual(response.data["status"], UniversityImportJob.Status.COMPLETED)
         self.assertEqual(response.data["created_count"], 1)
+        self.assertEqual(response.data["processed_count"], 1)
+        self.assertEqual(response.data["current_row"], 2)
+        self.assertEqual(response.data["current_university"], "Admin Import University")
+        self.assertIsNotNone(response.data["last_heartbeat_at"])
+        self.assertEqual(response.data["summary_json"]["progress"]["stage"], "completed")
         self.assertEqual(University.objects.filter(slug="admin-import-university").count(), 1)
 
         detail = self.client.get(
@@ -183,4 +190,28 @@ class AdminUniversityImportApiTests(APITestCase):
         self.assertEqual(response.status_code, 202, response.data)
         self.assertEqual(response.data["status"], UniversityImportJob.Status.FAILED)
         self.assertTrue(response.data["error_message"])
+        self.assertEqual(University.objects.count(), 0)
+
+    @override_settings(UNIVERSITY_IMPORT_STALE_AFTER_MINUTES=1)
+    def test_stale_running_job_is_marked_failed_on_detail(self):
+        stale_started_at = timezone.now() - timedelta(minutes=5)
+        job = UniversityImportJob.objects.create(
+            uploaded_by=self.admin,
+            status=UniversityImportJob.Status.RUNNING,
+            mode=UniversityImportJob.Mode.EXECUTE,
+            original_filename="Universities Data.xlsx",
+            started_at=stale_started_at,
+            last_heartbeat_at=stale_started_at,
+        )
+        self.client.force_authenticate(self.admin)
+
+        response = self.client.get(
+            reverse("university-import:job-detail", kwargs={"pk": job.id})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], UniversityImportJob.Status.FAILED)
+        self.assertIn("timed out", response.data["error_message"])
+        self.assertIsNotNone(response.data["finished_at"])
+        self.assertEqual(response.data["summary_json"]["progress"]["stage"], "stale")
         self.assertEqual(University.objects.count(), 0)

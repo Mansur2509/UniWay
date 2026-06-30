@@ -101,6 +101,12 @@ window. Nothing heavy may run before gunicorn binds:
   bootstrap_admins && gunicorn …`.
 - Bulk imports run **out-of-band** (admin-only `/admin/university-import` UI, or
   the `import_universities_xlsx` command), never during startup.
+- Admin import jobs must not stay `running` indefinitely. The job runner stores
+  row progress and `last_heartbeat_at`; if a running job is older than the stale
+  window without a heartbeat, the admin status endpoint marks it failed with an
+  explicit timeout message. Review the catalog for partial writes before
+  rerunning because the importer is idempotent but production data should still
+  be inspected.
 
 ## Supabase RLS cleanup (tracked, not blocking)
 

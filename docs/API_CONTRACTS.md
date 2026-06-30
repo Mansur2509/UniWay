@@ -591,7 +591,19 @@ Both `dry-run` and `execute` create a `UniversityImportJob`:
   "parsed_deadline_count": 75,
   "parsed_essay_count": 40,
   "questionable_sat_count": 2,
+  "processed_count": 80,
+  "current_row": 81,
+  "current_university": "Example University",
+  "last_heartbeat_at": "2026-06-30T10:00:05Z",
   "summary_json": {
+    "progress": {
+      "stage": "completed",
+      "row_count": 80,
+      "processed_count": 80,
+      "current_row": 81,
+      "current_university": "Example University",
+      "last_heartbeat_at": "2026-06-30T10:00:05Z"
+    },
     "summary": {},
     "rows": []
   },
@@ -602,9 +614,9 @@ Both `dry-run` and `execute` create a `UniversityImportJob`:
 }
 ```
 
-`status` is `pending`, `running`, `completed`, or `failed`; `mode` is `dry_run` or `execute`. The job runner currently uses a beta-only daemon thread because there is no production queue yet. This keeps imports out of web-service startup and avoids blocking gunicorn port readiness. If the process exits mid-import, an admin should re-run the upload.
+`status` is `pending`, `running`, `completed`, or `failed`; `mode` is `dry_run` or `execute`. Running jobs update `row_count` after workbook parse, `processed_count`, `current_row`, `current_university`, `last_heartbeat_at`, and a compact `summary_json.progress` object while rows finish. A running job whose heartbeat is older than the configured stale window is marked `failed` with an explicit timeout `error_message` the next time an admin reads the job detail. This avoids jobs staying `running` forever after a process interruption.
 
-Dry-run behavior uses the same `xlsx_import.py` parser/upsert logic as execute, inside a transaction that is rolled back before the job summary is persisted. Execute uses the same importer inside an atomic transaction and performs the existing idempotent upsert by slug/name. It does not delete existing universities and does not overwrite curated verified rows unless the importer policy is changed deliberately.
+Dry-run behavior uses the same `xlsx_import.py` parser as execute but performs only read-only planning: parse rows and bulk-check existing slugs. Execute writes one university per short transaction and performs the existing idempotent upsert by slug/name. It does not delete existing universities and does not overwrite curated verified rows unless the importer policy is changed deliberately.
 
 ## Roadmap response shapes
 
