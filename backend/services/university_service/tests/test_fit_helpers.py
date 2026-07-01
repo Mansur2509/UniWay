@@ -1,6 +1,11 @@
 from django.test import SimpleTestCase
 
-from services.university_service.services import best_sat_score, normalize_gpa_to_4
+from services.university_service.services import (
+    best_sat_score,
+    ielts_gap_severity,
+    normalize_gpa_to_4,
+    sat_gap_severity,
+)
 
 
 class NormalizeGpaTests(SimpleTestCase):
@@ -40,3 +45,18 @@ class BestSatScoreTests(SimpleTestCase):
 
     def test_returns_none_for_non_numeric_value(self):
         self.assertIsNone(best_sat_score({"sat": "not-a-number"}))
+
+
+class GapSeverityTests(SimpleTestCase):
+    def test_ielts_severity_never_marks_below_threshold_on_track(self):
+        self.assertEqual(ielts_gap_severity(6.0, 6.5), "near_target")
+        self.assertEqual(ielts_gap_severity(6.0, 7.0), "moderate_gap")
+        self.assertEqual(ielts_gap_severity(6.5, 6.5), "on_track")
+        self.assertEqual(ielts_gap_severity(6.5, 7.0), "near_target")
+        self.assertEqual(ielts_gap_severity(7.0, 7.0), "on_track")
+
+    def test_sat_severity_distinguishes_small_and_large_gaps(self):
+        self.assertEqual(sat_gap_severity(1460, 1510), "near_target")
+        self.assertEqual(sat_gap_severity(1410, 1510), "moderate_gap")
+        self.assertEqual(sat_gap_severity(1360, 1510), "substantial_gap")
+        self.assertEqual(sat_gap_severity(1220, 1510), "significant_gap")

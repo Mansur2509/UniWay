@@ -58,10 +58,34 @@ const CATEGORY_STYLES: Record<string, string> = {
   safety: "border-success/35 bg-success/10 text-success"
 };
 
-const STATUS_STYLES: Record<string, string> = {
+type RequirementStatus =
+  | "strong"
+  | "on_track"
+  | "close_to_target"
+  | "slightly_below_target"
+  | "below_target"
+  | "well_below_target"
+  | "needs_improvement"
+  | "significant_improvement_needed"
+  | "below_minimum"
+  | "below_competitive"
+  | "not_enough_data"
+  | "missing"
+  | "not_verified"
+  | "not_tracked";
+
+const STATUS_STYLES: Record<RequirementStatus, string> = {
   strong: "border-success/35 bg-success/10 text-success",
   on_track: "border-accent/35 bg-accent/10 text-accent",
-  gap: "border-warning/35 bg-warning/10 text-warning",
+  close_to_target: "border-accent/35 bg-accent/10 text-accent",
+  slightly_below_target: "border-warning/35 bg-warning/10 text-warning",
+  below_target: "border-warning/35 bg-warning/10 text-warning",
+  well_below_target: "border-danger/35 bg-danger/10 text-danger",
+  needs_improvement: "border-warning/45 bg-warning/10 text-warning",
+  significant_improvement_needed: "border-danger/45 bg-danger/10 text-danger",
+  below_minimum: "border-danger/45 bg-danger/10 text-danger",
+  below_competitive: "border-warning/45 bg-warning/10 text-warning",
+  not_enough_data: "border-muted-foreground/30 bg-surface text-muted-foreground",
   missing: "border-muted-foreground/30 bg-surface text-muted-foreground",
   not_verified: "border-muted-foreground/30 bg-surface text-muted-foreground",
   not_tracked: "border-muted-foreground/30 bg-surface text-muted-foreground"
@@ -82,6 +106,41 @@ type Tab = (typeof TABS)[number];
 
 function isTab(value: string | null): value is Tab {
   return TABS.includes(value as Tab);
+}
+
+function numericValue(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const numeric = typeof value === "number" ? value : Number.parseFloat(String(value));
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function statusFromIeltsGap(gap: number, thresholdType: "minimum" | "competitive"): RequirementStatus {
+  if (gap <= 0) return "on_track";
+  if (thresholdType === "minimum") {
+    if (gap <= 0.5) return "below_minimum";
+    if (gap < 1.5) return "needs_improvement";
+    return "significant_improvement_needed";
+  }
+  if (gap <= 0.5) return "slightly_below_target";
+  if (gap <= 1) return "below_competitive";
+  if (gap < 1.5) return "needs_improvement";
+  return "significant_improvement_needed";
+}
+
+function statusFromSatGap(gap: number): RequirementStatus {
+  if (gap <= 0) return "on_track";
+  if (gap <= 50) return "close_to_target";
+  if (gap <= 100) return "below_target";
+  if (gap <= 150) return "well_below_target";
+  return "significant_improvement_needed";
+}
+
+function statusFromGpaGap(gap: number): RequirementStatus {
+  if (gap <= -0.3) return "strong";
+  if (gap <= 0) return "on_track";
+  if (gap <= 0.15) return "slightly_below_target";
+  if (gap <= 0.3) return "below_target";
+  return "needs_improvement";
 }
 
 export function UniversityDetailScreen({ slug }: { slug: string }) {
@@ -290,51 +349,107 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
     normalizedGpa !== null
       ? t("universities.requirements.normalizedGpa", { value: String(normalizedGpa) })
       : t("universities.requirements.gpaScaleNotConfirmed");
+  const programDisplayNames =
+    university.program_display_names && university.program_display_names.length > 0
+      ? university.program_display_names
+      : university.programs.map((program) => program.display_name ?? program.name);
 
-  function gpaStatus(): string {
-    if (studentGpa === null) return "missing";
-    if (currentUniversity.gpa_average === null) return "not_verified";
-    if (fit?.risks.includes("gpa_scale_not_confirmed")) return "gap";
-    if (fit?.risks.includes("gpa_below_average")) return "gap";
-    if (fit?.strengths.includes("gpa_above_average")) return "strong";
-    return "on_track";
+  function gpaAssessment(): { status: RequirementStatus; help: string } {
+    const student = numericValue(normalizedGpa);
+    const benchmark = numericValue(currentUniversity.gpa_average);
+    if (studentGpa === null) {
+      return {
+        status: "missing",
+        help: t("universities.requirements.help.addGpa")
+      };
+    }
+    if (benchmark === null) {
+      return {
+        status: "not_verified",
+        help: t("universities.requirements.help.notVerified")
+      };
+    }
+    if (student === null) {
+      return {
+        status: "not_enough_data",
+        help: t("universities.requirements.help.gpaNotEnoughData")
+      };
+    }
+    return {
+      status: statusFromGpaGap(benchmark - student),
+      help: t("universities.requirements.help.gpaConverted")
+    };
   }
 
-  function satStatus(): string {
-    if (studentSat === null) return "missing";
-    if (
-      currentUniversity.sat_average === null &&
-      currentUniversity.sat_p25 === null &&
-      currentUniversity.sat_p75 === null
-    ) {
-      return "not_verified";
+  function satBenchmark(): number | null {
+    if (currentUniversity.sat_average !== null) return currentUniversity.sat_average;
+    if (currentUniversity.sat_p25 !== null && currentUniversity.sat_p75 !== null) {
+      return Math.round((currentUniversity.sat_p25 + currentUniversity.sat_p75) / 2);
     }
-    if (
-      fit?.risks.includes("sat_below_average") ||
-      fit?.risks.includes("sat_below_p25") ||
-      fit?.risks.includes("sat_partial_fit")
-    ) return "gap";
-    if (
-      fit?.strengths.includes("sat_above_average") ||
-      fit?.strengths.includes("sat_above_p75") ||
-      fit?.strengths.includes("sat_competitive")
-    ) return "strong";
-    return "on_track";
+    return currentUniversity.sat_p25 ?? currentUniversity.sat_p75;
   }
 
-  function ieltsStatus(): string {
-    if (studentIelts === null) return "missing";
-    if (currentUniversity.ielts_minimum === null && currentUniversity.ielts_competitive === null) {
-      return "not_verified";
+  function satAssessment(): { status: RequirementStatus; help: string } {
+    const student = numericValue(studentSat);
+    const benchmark = satBenchmark();
+    if (student === null) {
+      return {
+        status: "missing",
+        help: t("universities.requirements.help.addSat")
+      };
     }
-    if (
-      fit?.risks.includes("ielts_below_minimum") ||
-      fit?.risks.includes("ielts_below_competitive")
-    ) {
-      return "gap";
+    if (benchmark === null) {
+      return {
+        status: "not_verified",
+        help: t("universities.requirements.help.notVerified")
+      };
     }
-    if (fit?.strengths.includes("ielts_meets_competitive")) return "strong";
-    return Number(studentIelts) >= Number(currentUniversity.ielts_minimum) ? "on_track" : "gap";
+    const gap = benchmark - student;
+    return {
+      status: statusFromSatGap(gap),
+      help:
+        gap > 0
+          ? t("universities.requirements.help.satBelow", { gap: Math.round(gap) })
+          : t("universities.requirements.help.satOnTrack")
+    };
+  }
+
+  function ieltsAssessment(
+    threshold: string | null,
+    thresholdType: "minimum" | "competitive"
+  ): { status: RequirementStatus; help: string } {
+    const student = numericValue(studentIelts);
+    const benchmark = numericValue(threshold);
+    if (student === null) {
+      return {
+        status: "missing",
+        help: t("universities.requirements.help.addIelts")
+      };
+    }
+    if (benchmark === null) {
+      return {
+        status: "not_verified",
+        help: t("universities.requirements.help.notVerified")
+      };
+    }
+    const gap = benchmark - student;
+    if (gap <= 0) {
+      return {
+        status: "on_track",
+        help: t("universities.requirements.help.ieltsOnTrack")
+      };
+    }
+    return {
+      status: statusFromIeltsGap(gap, thresholdType),
+      help:
+        thresholdType === "minimum"
+          ? t("universities.requirements.help.ieltsBelowMinimum", {
+              gap: gap.toFixed(1)
+            })
+          : t("universities.requirements.help.ieltsBelowCompetitive", {
+              gap: gap.toFixed(1)
+            })
+    };
   }
 
   const qualitativeRows: Array<{ key: string; labelKey: TranslationKey; count: number }> = [
@@ -344,6 +459,18 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
     { key: "portfolio", labelKey: "universities.requirements.portfolio", count: itemCounts.portfolio ?? 0 },
     { key: "essays", labelKey: "universities.requirements.essayStatus", count: itemCounts.essays ?? 0 }
   ];
+  const gpaRequirement = gpaAssessment();
+  const satRequirement = satAssessment();
+  const ieltsMinimumRequirement = ieltsAssessment(university.ielts_minimum, "minimum");
+  const ieltsCompetitiveRequirement = ieltsAssessment(
+    university.ielts_competitive,
+    "competitive"
+  );
+  const satBenchmarkDisplay =
+    university.sat_average ??
+    (university.sat_p25 !== null && university.sat_p75 !== null
+      ? `${university.sat_p25}–${university.sat_p75}`
+      : university.sat_p25 ?? university.sat_p75 ?? t("universities.notVerifiedYet"));
 
   return (
     <div className="space-y-6">
@@ -505,17 +632,19 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
               </Card>
               <Card>
                 <h2 className="text-2xl font-semibold">{t("universities.detail.programs")}</h2>
-                {university.programs.length === 0 ? (
+                {programDisplayNames.length === 0 ? (
                   <p className="mt-3 text-sm italic text-muted-foreground">
                     {t("universities.notVerifiedYet")}
                   </p>
                 ) : (
                   <ul className="mt-3 space-y-2 text-sm">
-                    {university.programs.map((program) => (
-                      <li className="rounded-sm border bg-surface px-3 py-2" key={program.id}>
-                        <span className="font-semibold">{program.name}</span>
-                        {program.degree_level ? (
-                          <span className="ml-2 text-muted-foreground">{program.degree_level}</span>
+                    {programDisplayNames.map((programName, index) => (
+                      <li className="rounded-sm border bg-surface px-3 py-2" key={`${programName}-${index}`}>
+                        <span className="font-semibold">{programName}</span>
+                        {programName.includes("—") ? (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {t("universities.programs.track")}
+                          </span>
                         ) : null}
                       </li>
                     ))}
@@ -549,7 +678,8 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
                           <HelpTooltip label={t("help.normalizedGpa")} />
                         </span>
                       }
-                      status={gpaStatus()}
+                      status={gpaRequirement.status}
+                      statusHelp={gpaRequirement.help}
                       universityValue={university.gpa_average ?? t("universities.notVerifiedYet")}
                       yourValue={
                         <div>
@@ -567,19 +697,22 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
                     />
                     <RequirementRow
                       label={t("universities.fields.satAverage")}
-                      status={satStatus()}
-                      universityValue={university.sat_average ?? t("universities.notVerifiedYet")}
+                      status={satRequirement.status}
+                      statusHelp={satRequirement.help}
+                      universityValue={satBenchmarkDisplay}
                       yourValue={studentSat ?? t("universities.requirements.addToProfile")}
                     />
                     <RequirementRow
                       label={t("universities.fields.ieltsMinimum")}
-                      status={ieltsStatus()}
+                      status={ieltsMinimumRequirement.status}
+                      statusHelp={ieltsMinimumRequirement.help}
                       universityValue={university.ielts_minimum ?? t("universities.notVerifiedYet")}
                       yourValue={studentIelts ?? t("universities.requirements.addToProfile")}
                     />
                     <RequirementRow
                       label={t("universities.fields.ieltsCompetitive")}
-                      status={university.ielts_competitive ? "on_track" : "not_verified"}
+                      status={ieltsCompetitiveRequirement.status}
+                      statusHelp={ieltsCompetitiveRequirement.help}
                       universityValue={
                         university.ielts_competitive ?? t("universities.notVerifiedYet")
                       }
@@ -1157,7 +1290,7 @@ function DetailItem({ label, children }: { label: string; children: React.ReactN
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status }: { status: RequirementStatus }) {
   const { t } = useI18n();
   return (
     <span
@@ -1172,12 +1305,14 @@ function RequirementRow({
   label,
   universityValue,
   yourValue,
-  status
+  status,
+  statusHelp
 }: {
   label: React.ReactNode;
   universityValue: string | number;
   yourValue: React.ReactNode;
-  status: string;
+  status: RequirementStatus;
+  statusHelp?: string;
 }) {
   return (
     <tr className="border-t">
@@ -1185,7 +1320,10 @@ function RequirementRow({
       <td className="py-2">{universityValue}</td>
       <td className="py-2">{yourValue}</td>
       <td className="py-2">
-        <StatusBadge status={status} />
+        <span className="inline-flex items-center gap-1.5">
+          <StatusBadge status={status} />
+          {statusHelp ? <HelpTooltip label={statusHelp} /> : null}
+        </span>
       </td>
     </tr>
   );

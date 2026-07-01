@@ -22,6 +22,32 @@ FIT_DISCLAIMER = (
 GPA_SIGNIFICANT_DIFF = Decimal("0.30")
 SAT_SIGNIFICANT_DIFF = 100
 
+STATUS_ON_TRACK = "on_track"
+STATUS_NEAR_TARGET = "near_target"
+STATUS_MODERATE_GAP = "moderate_gap"
+STATUS_SUBSTANTIAL_GAP = "substantial_gap"
+STATUS_SIGNIFICANT_GAP = "significant_gap"
+STATUS_NOT_ENOUGH_DATA = "not_enough_data"
+
+SAT_GAP_PENALTIES = {
+    STATUS_NEAR_TARGET: 6,
+    STATUS_MODERATE_GAP: 12,
+    STATUS_SUBSTANTIAL_GAP: 18,
+    STATUS_SIGNIFICANT_GAP: 28,
+}
+IELTS_COMPETITIVE_GAP_PENALTIES = {
+    STATUS_NEAR_TARGET: 4,
+    STATUS_MODERATE_GAP: 8,
+    STATUS_SUBSTANTIAL_GAP: 12,
+    STATUS_SIGNIFICANT_GAP: 16,
+}
+IELTS_MINIMUM_GAP_PENALTIES = {
+    STATUS_NEAR_TARGET: 16,
+    STATUS_MODERATE_GAP: 22,
+    STATUS_SUBSTANTIAL_GAP: 26,
+    STATUS_SIGNIFICANT_GAP: 30,
+}
+
 
 def normalize_gpa_to_4(gpa, gpa_scale) -> float | None:
     """Legacy helper retained for callers; prefer normalize_profile_academics."""
@@ -48,6 +74,40 @@ def _number(value) -> float | None:
         except ValueError:
             return None
     return None
+
+
+def ielts_gap_severity(student_score, benchmark) -> str:
+    student = _number(student_score)
+    target = _number(benchmark)
+    if student is None or target is None:
+        return STATUS_NOT_ENOUGH_DATA
+    gap = target - student
+    if gap <= 0:
+        return STATUS_ON_TRACK
+    if gap <= 0.5:
+        return STATUS_NEAR_TARGET
+    if gap <= 1.0:
+        return STATUS_MODERATE_GAP
+    if gap < 1.5:
+        return STATUS_SUBSTANTIAL_GAP
+    return STATUS_SIGNIFICANT_GAP
+
+
+def sat_gap_severity(student_score, benchmark) -> str:
+    student = _number(student_score)
+    target = _number(benchmark)
+    if student is None or target is None:
+        return STATUS_NOT_ENOUGH_DATA
+    gap = target - student
+    if gap <= 0:
+        return STATUS_ON_TRACK
+    if gap <= 50:
+        return STATUS_NEAR_TARGET
+    if gap <= 100:
+        return STATUS_MODERATE_GAP
+    if gap <= 150:
+        return STATUS_SUBSTANTIAL_GAP
+    return STATUS_SIGNIFICANT_GAP
 
 
 def best_sat_score(test_scores) -> int | None:
@@ -288,12 +348,17 @@ def calculate_university_fit(profile, university: University) -> dict:
             compared_any = True
             sat_p50 = uni_sat_midpoint or round((university.sat_p25 + university.sat_p75) / 2)
             if student_sat < university.sat_p25:
+                severity = sat_gap_severity(student_sat, university.sat_p25)
                 index_shift -= 1
-                academic_score -= 24
-                severe_academic_gap = True
+                academic_score -= SAT_GAP_PENALTIES.get(severity, 24)
+                severe_academic_gap = severity in {
+                    STATUS_SUBSTANTIAL_GAP,
+                    STATUS_SIGNIFICANT_GAP,
+                }
                 risks.append("sat_below_p25")
             elif student_sat < sat_p50:
-                academic_score -= 10
+                severity = sat_gap_severity(student_sat, sat_p50)
+                academic_score -= min(SAT_GAP_PENALTIES.get(severity, 10), 14)
                 risks.append("sat_partial_fit")
             elif student_sat < university.sat_p75:
                 academic_score += 7
@@ -309,9 +374,13 @@ def calculate_university_fit(profile, university: University) -> dict:
                 index_shift += 1
                 academic_score += 10
                 strengths.append("sat_above_average")
-            elif sat_diff <= -SAT_SIGNIFICANT_DIFF:
-                index_shift -= 1
-                academic_score -= 18
+            elif sat_diff < 0:
+                severity = sat_gap_severity(student_sat, uni_sat_midpoint)
+                if severity in {STATUS_MODERATE_GAP, STATUS_SUBSTANTIAL_GAP, STATUS_SIGNIFICANT_GAP}:
+                    index_shift -= 1
+                if severity in {STATUS_SUBSTANTIAL_GAP, STATUS_SIGNIFICANT_GAP}:
+                    severe_academic_gap = True
+                academic_score -= SAT_GAP_PENALTIES.get(severity, 12)
                 risks.append("sat_below_average")
     elif uni_sat_midpoint is not None or university.sat_p25 or university.sat_p75:
         academic_score -= 10
@@ -327,11 +396,13 @@ def calculate_university_fit(profile, university: University) -> dict:
                 float(university.ielts_competitive) if university.ielts_competitive else minimum
             )
             if minimum is not None and student_ielts < minimum:
-                academic_score -= 28
+                severity = ielts_gap_severity(student_ielts, minimum)
+                academic_score -= IELTS_MINIMUM_GAP_PENALTIES.get(severity, 28)
                 severe_academic_gap = True
                 risks.append("ielts_below_minimum")
             elif competitive is not None and student_ielts < competitive:
-                academic_score -= 12
+                severity = ielts_gap_severity(student_ielts, competitive)
+                academic_score -= IELTS_COMPETITIVE_GAP_PENALTIES.get(severity, 12)
                 risks.append("ielts_below_competitive")
             else:
                 academic_score += 7

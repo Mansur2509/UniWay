@@ -3,6 +3,7 @@ export type InstitutionType = "public" | "private" | "";
 export type UniversityProgram = {
   id: number;
   name: string;
+  display_name?: string;
   degree_level: string;
   official_url: string;
 };
@@ -92,6 +93,7 @@ export type UniversitySummary = {
   qs_ranking: number | null;
   qs_ranking_year: number | null;
   is_shortlisted: boolean;
+  program_display_names?: string[];
   programs: UniversityProgram[];
   requirements: UniversityRequirementItem[];
   scholarships: UniversityScholarshipItem[];

@@ -11,6 +11,7 @@ from services.university_service.models import (
     SavedUniversity,
     University,
     UniversityFieldVerification,
+    UniversityProgram,
 )
 from services.university_service.services import calculate_university_fit
 from services.user_profile_service.services import ensure_profile_records
@@ -197,6 +198,56 @@ class FieldVerificationTests(APITestCase):
         self.client.force_authenticate(self.user)
         response = self.client.get(f"/api/v1/universities/{university.slug}/")
         self.assertEqual(response.data["field_verifications"], [])
+
+
+class ProgramDisplayTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="program-user", email="program@test.com", password="testpass123"
+        )
+        self.university = create_university("program-display-university")
+
+    def test_parenthetical_tracks_are_serialized_as_clean_display_names(self):
+        UniversityProgram.objects.create(
+            university=self.university,
+            name="Engineering (Civil, Mechanical, EE, Aerospace, Chemical)",
+        )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(f"/api/v1/universities/{self.university.slug}/")
+
+        self.assertEqual(
+            response.data["program_display_names"],
+            [
+                "Engineering — Civil",
+                "Engineering — Mechanical",
+                "Engineering — Electrical Engineering",
+                "Engineering — Aerospace",
+                "Engineering — Chemical",
+            ],
+        )
+
+    def test_broken_parenthetical_sequence_keeps_parent_context(self):
+        for name in ["Engineering (Civil", "Mechanical", "EE", "Aerospace", "Chemical)"]:
+            UniversityProgram.objects.create(university=self.university, name=name)
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(f"/api/v1/universities/{self.university.slug}/")
+
+        self.assertEqual(
+            response.data["program_display_names"],
+            [
+                "Engineering — Civil",
+                "Engineering — Mechanical",
+                "Engineering — Electrical Engineering",
+                "Engineering — Aerospace",
+                "Engineering — Chemical",
+            ],
+        )
+        self.assertEqual(
+            list(self.university.programs.order_by("id").values_list("name", flat=True)),
+            ["Engineering (Civil", "Mechanical", "EE", "Aerospace", "Chemical)"],
+        )
 
 
 class ShortlistTests(APITestCase):

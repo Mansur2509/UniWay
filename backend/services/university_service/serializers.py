@@ -11,6 +11,7 @@ from .models import (
     UniversityRequirement,
     UniversityScholarship,
 )
+from .program_display import format_program_display_names
 
 
 class UniversityDataSourceSerializer(serializers.ModelSerializer):
@@ -20,9 +21,14 @@ class UniversityDataSourceSerializer(serializers.ModelSerializer):
 
 
 class UniversityProgramSerializer(serializers.ModelSerializer):
+    display_name = serializers.SerializerMethodField()
+
     class Meta:
         model = UniversityProgram
-        exclude = ("university",)
+        fields = ("id", "name", "display_name", "degree_level", "official_url")
+
+    def get_display_name(self, obj) -> str:
+        return (format_program_display_names([obj.name]) or [obj.name])[0]
 
 
 class UniversityRequirementSerializer(serializers.ModelSerializer):
@@ -45,6 +51,7 @@ class UniversityFieldVerificationSerializer(serializers.ModelSerializer):
 
 class UniversitySerializer(serializers.ModelSerializer):
     programs = UniversityProgramSerializer(many=True, read_only=True)
+    program_display_names = serializers.SerializerMethodField()
     requirements = UniversityRequirementSerializer(many=True, read_only=True)
     scholarships = UniversityScholarshipSerializer(many=True, read_only=True)
     data_sources = UniversityDataSourceSerializer(many=True, read_only=True)
@@ -65,6 +72,9 @@ class UniversitySerializer(serializers.ModelSerializer):
         if saved_ids is not None:
             return obj.id in saved_ids
         return SavedUniversity.objects.filter(user=user, university=obj).exists()
+
+    def get_program_display_names(self, obj) -> list[str]:
+        return format_program_display_names(program.name for program in obj.programs.all())
 
 
 class SavedUniversitySerializer(serializers.ModelSerializer):
