@@ -74,7 +74,9 @@ class UniversitySerializer(serializers.ModelSerializer):
         return SavedUniversity.objects.filter(user=user, university=obj).exists()
 
     def get_program_display_names(self, obj) -> list[str]:
-        return format_program_display_names(program.name for program in obj.programs.all())
+        return format_program_display_names(
+            program.name for program in obj.programs.order_by("id")
+        )
 
 
 class SavedUniversitySerializer(serializers.ModelSerializer):

@@ -497,6 +497,38 @@ class FitAnalysisTests(APITestCase):
         self.assertIn("sat_below_p25", fit["risks"])
         self.assertLessEqual(fit["fit_score"], 55)
 
+    def test_large_sat_gap_penalizes_more_than_small_ielts_gap(self):
+        self.profile.test_scores = {"sat": 1510, "ielts": 6.5}
+        self.profile.save()
+        small_ielts_gap_university = create_university(
+            "small-ielts-gap-university",
+            sat_average=1510,
+            ielts_minimum="6.0",
+            ielts_competitive="7.0",
+        )
+        small_ielts_fit = calculate_university_fit(
+            self.profile,
+            small_ielts_gap_university,
+        )
+
+        self.profile.test_scores = {"sat": 1220, "ielts": 7.0}
+        self.profile.save()
+        large_sat_gap_university = create_university(
+            "large-sat-gap-university",
+            sat_p25=1510,
+            sat_p75=1560,
+            ielts_minimum="6.0",
+            ielts_competitive="7.0",
+        )
+        large_sat_fit = calculate_university_fit(self.profile, large_sat_gap_university)
+
+        self.assertIn("ielts_below_competitive", small_ielts_fit["risks"])
+        self.assertIn("sat_below_p25", large_sat_fit["risks"])
+        self.assertGreater(
+            small_ielts_fit["academic_subscore"],
+            large_sat_fit["academic_subscore"],
+        )
+
     def test_planned_retake_is_conditional_not_current_score_boost(self):
         self.profile.test_scores = {"sat": 1200}
         self.profile.exam_plans = {
