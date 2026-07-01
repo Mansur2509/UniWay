@@ -29,7 +29,7 @@ import {
   getProfileRequest,
   updateProfileRequest
 } from "@/features/profile";
-import { getApiErrorMessage } from "@/shared/api/client";
+import { ApiError, getApiErrorMessage } from "@/shared/api/client";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { useUnsavedChangesGuard } from "@/shared/lib/use-unsaved-changes-guard";
 import { Button } from "@/shared/ui/button";
@@ -399,6 +399,21 @@ function formPayload(
   };
 }
 
+// Timeout/network failures are synthesized client-side (see shared/api/client.ts)
+// and must never surface their raw, English-only message; every other error
+// falls back to the backend's own (already localized where applicable) text.
+function localizedSaveError(
+  error: unknown,
+  t: (key: TranslationKey) => string,
+  fallback: string
+): string {
+  if (error instanceof ApiError) {
+    if (error.errorCode === "timeout") return t("common.error.timeout");
+    if (error.errorCode === "network") return t("common.error.network");
+  }
+  return getApiErrorMessage(error, fallback);
+}
+
 export function OnboardingFlow({ onCompleted }: { onCompleted?: () => void }) {
   const { logout } = useAuth();
   const { t } = useI18n();
@@ -425,7 +440,7 @@ export function OnboardingFlow({ onCompleted }: { onCompleted?: () => void }) {
         setSavedForm(backendForm);
         setSections(profile.onboarding_sections);
       } catch (loadError) {
-        setError(getApiErrorMessage(loadError, t("onboarding.error.load")));
+        setError(localizedSaveError(loadError, t, t("onboarding.error.load")));
       } finally {
         setIsLoading(false);
       }
@@ -485,7 +500,7 @@ export function OnboardingFlow({ onCompleted }: { onCompleted?: () => void }) {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return true;
     } catch (saveError) {
-      setError(getApiErrorMessage(saveError, t("onboarding.error.save")));
+      setError(localizedSaveError(saveError, t, t("onboarding.error.save")));
       return false;
     } finally {
       setIsSaving(false);
@@ -500,7 +515,7 @@ export function OnboardingFlow({ onCompleted }: { onCompleted?: () => void }) {
       setSavedForm(form);
       return true;
     } catch (saveError) {
-      setError(getApiErrorMessage(saveError, t("onboarding.error.save")));
+      setError(localizedSaveError(saveError, t, t("onboarding.error.save")));
       return false;
     } finally {
       setIsSaving(false);
@@ -524,7 +539,7 @@ export function OnboardingFlow({ onCompleted }: { onCompleted?: () => void }) {
       window.sessionStorage.removeItem(DRAFT_KEY);
       onCompleted?.();
     } catch (finishError) {
-      setError(getApiErrorMessage(finishError, t("onboarding.error.finish")));
+      setError(localizedSaveError(finishError, t, t("onboarding.error.finish")));
     } finally {
       setIsSaving(false);
     }

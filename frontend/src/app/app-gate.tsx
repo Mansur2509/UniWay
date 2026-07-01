@@ -8,6 +8,7 @@ import { useAuth } from "@/features/auth";
 import { OnboardingFlow } from "@/features/onboarding";
 import { getProfileCompletionRequest } from "@/features/profile";
 import { useI18n } from "@/shared/i18n";
+import { notifyAuthInvalid } from "@/shared/lib/auth-storage";
 import { useSlowLoad } from "@/shared/lib/use-slow-load";
 import { Button } from "@/shared/ui/button";
 import { LanguageSwitcher } from "@/shared/ui/language-switcher";
@@ -63,11 +64,13 @@ function AcademicBrand() {
 function FullScreenStatus({
   offline = false,
   onboarding = false,
-  onRetry
+  onRetry,
+  onClearSession
 }: {
   offline?: boolean;
   onboarding?: boolean;
   onRetry?: () => void;
+  onClearSession?: () => void;
 }) {
   const { t } = useI18n();
   const isSlow = useSlowLoad(!offline);
@@ -91,10 +94,17 @@ function FullScreenStatus({
         <h1 className="mt-5 font-serif text-2xl font-semibold">{title}</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p>
         {offline && onRetry ? (
-          <Button className="mt-6 gap-2" onClick={onRetry}>
-            <RefreshCw aria-hidden className="size-4" />
-            {t("auth.gateway.retry")}
-          </Button>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Button className="gap-2" onClick={onRetry}>
+              <RefreshCw aria-hidden className="size-4" />
+              {t("auth.gateway.retry")}
+            </Button>
+            {onClearSession ? (
+              <Button onClick={onClearSession} variant="ghost">
+                {t("auth.gateway.clearSession")}
+              </Button>
+            ) : null}
+          </div>
         ) : (
           <>
             <div
@@ -169,7 +179,18 @@ export function AppGate({ children }: { children: ReactNode }) {
 
   if (status === "checking") return <FullScreenStatus />;
   if (status === "offline") {
-    return <FullScreenStatus offline onRetry={() => void retrySession()} />;
+    return (
+      <FullScreenStatus
+        offline
+        // Instant, network-free escape hatch: the backend is already known to
+        // be unreachable here, so this must not itself wait on another
+        // network round trip. `notifyAuthInvalid` synchronously clears stored
+        // tokens and flips auth status to "unauthenticated" via the existing
+        // AUTH_INVALID_EVENT listener in AuthProvider.
+        onClearSession={notifyAuthInvalid}
+        onRetry={() => void retrySession()}
+      />
+    );
   }
 
   if (status === "unauthenticated") {

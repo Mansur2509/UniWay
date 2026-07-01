@@ -5,7 +5,7 @@ import type {
   RegisterInput,
   UpdateCurrentUserInput
 } from "@/entities/user";
-import { apiRequest } from "@/shared/api/client";
+import { apiRequest, SESSION_CHECK_TIMEOUT_MS } from "@/shared/api/client";
 
 export function loginRequest(input: LoginInput) {
   return apiRequest<AuthResponse>("/login/", {
@@ -34,7 +34,7 @@ export function logoutRequest(refresh: string) {
 }
 
 export function getCurrentUserRequest() {
-  return apiRequest<CurrentUser>("/me/", { base: "auth" });
+  return apiRequest<CurrentUser>("/me/", { base: "auth", timeoutMs: SESSION_CHECK_TIMEOUT_MS });
 }
 
 export function updateCurrentUserRequest(input: UpdateCurrentUserInput) {

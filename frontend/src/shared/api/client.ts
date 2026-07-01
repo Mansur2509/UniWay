@@ -6,14 +6,19 @@ import {
 } from "@/shared/lib/auth-storage";
 
 // The backend runs on Render's free tier, which spins the service down after a
-// period of inactivity. The first request after a spin-down is a "cold start"
-// and can take ~60-90s while the container boots. Without a timeout a cold
-// start would leave the browser's fetch pending indefinitely, which is what
-// produced the "infinite spinner that never resolves" bug. We cap every
-// request at REQUEST_TIMEOUT_MS: long enough to let a cold start finish, but
-// bounded so a genuinely unreachable backend surfaces a clear, retryable error
-// instead of hanging forever.
-export const REQUEST_TIMEOUT_MS = 60_000;
+// period of inactivity, so a cold start can take 60-90s. Rather than make every
+// button wait that long before showing an error (which reads as "stuck
+// forever" even though it would eventually resolve), we cap requests at a
+// bounded 15-25s window and surface a clear, retryable "may be waking up"
+// error well before the user gives up. The GET auto-retry below (which also
+// serves as the wake-up ping) means a cold start typically self-heals within
+// a couple of these shorter windows instead of one long silent wait.
+export const REQUEST_TIMEOUT_MS = 20_000;
+
+// Session checks (`/auth/me/`) gate the whole app behind a full-screen loader,
+// so they get a shorter budget: a slow session check should surface a
+// recoverable "offline" screen quickly rather than block every page load.
+export const SESSION_CHECK_TIMEOUT_MS = 12_000;
 
 // A failed first request is also what *triggers* the Render wake-up. So for
 // safe, idempotent GET reads we automatically retry once on a timeout/network
@@ -42,6 +47,16 @@ type ApiOptions = Omit<RequestInit, "body"> & {
   timeoutMs?: number;
 };
 
+// Classifies *why* a request failed so callers can pick a localized message
+// without ever reading `.message` (which only exists for logs/dev diagnostics
+// and is never guaranteed to be translated):
+//  - "timeout": the request was aborted after the configured timeout window.
+//  - "network": fetch rejected before any response came back (offline, DNS,
+//    CORS-style failure, or the backend genuinely unreachable).
+//  - "http": a response came back with a non-2xx status.
+//  - "parse": a response came back but wasn't valid/expected JSON.
+export type ApiErrorCode = "timeout" | "network" | "http" | "parse";
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -51,7 +66,8 @@ export class ApiError extends Error {
     // Render cold start) or the network/backend was unreachable. Screens use
     // this to show a "the server may be waking up" message instead of a generic
     // failure, since this case is usually transient and resolves on retry.
-    public readonly isNetworkError = false
+    public readonly isNetworkError = false,
+    public readonly errorCode: ApiErrorCode = "http"
   ) {
     super(message);
     this.name = "ApiError";
@@ -125,7 +141,9 @@ async function parseResponse(response: Response): Promise<unknown> {
       {
         contentType,
         body: text.slice(0, 500)
-      }
+      },
+      false,
+      "parse"
     );
   }
 
@@ -139,7 +157,9 @@ async function parseResponse(response: Response): Promise<unknown> {
         {
           contentType,
           body: text.slice(0, 500)
-        }
+        },
+        false,
+        "parse"
       );
     }
   }
@@ -162,19 +182,24 @@ export async function withTimeout(
   try {
     return await fetch(input, { ...init, signal: controller.signal });
   } catch (error) {
+    // These two messages exist only for dev-console logs and as a last-resort
+    // fallback; UI code must branch on `errorCode` and render a translated
+    // string instead of ever displaying `.message` to the user.
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new ApiError(
         "The request took too long. The server may be waking up — please try again.",
         0,
         null,
-        true
+        true,
+        "timeout"
       );
     }
     throw new ApiError(
       "The service is unreachable. Please check your connection and try again.",
       0,
       null,
-      true
+      true,
+      "network"
     );
   } finally {
     clearTimeout(timer);

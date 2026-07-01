@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 
-import { getApiErrorMessage } from "@/shared/api/client";
+import { ApiError, getApiErrorMessage } from "@/shared/api/client";
 import { useI18n } from "@/shared/i18n";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
@@ -83,11 +83,19 @@ export function AuthForm({
     } catch (submitError) {
       let errorMessage = t("common.error.generic");
 
-      // Handle network errors
-      if (submitError instanceof TypeError) {
-        errorMessage = t("common.error.network");
-      } else {
-        errorMessage = getApiErrorMessage(submitError, errorMessage);
+      if (submitError instanceof ApiError) {
+        if (submitError.errorCode === "timeout") {
+          errorMessage = t("common.error.timeout");
+        } else if (submitError.errorCode === "network") {
+          errorMessage = t("common.error.network");
+        } else if (!isRegister && submitError.status === 400) {
+          // Login failures return a single backend validation message
+          // ("Invalid email or password.") in English only; show a stable
+          // localized message instead of leaking that raw text.
+          errorMessage = t("auth.invalidCredentials");
+        } else {
+          errorMessage = getApiErrorMessage(submitError, errorMessage);
+        }
       }
 
       // Map common backend errors to user-friendly messages

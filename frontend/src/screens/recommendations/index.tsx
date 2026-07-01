@@ -105,6 +105,7 @@ export function RecommendationsScreen() {
   const [hasError, setHasError] = useState(false);
   const [actionError, setActionError] = useState(false);
   const [expandedSlug, setExpandedSlug] = useState<string | null>(null);
+  const [pendingSlugs, setPendingSlugs] = useState<Set<string>>(new Set());
 
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [countryFilter, setCountryFilter] = useState<string>("all");
@@ -157,23 +158,40 @@ export function RecommendationsScreen() {
     );
   }
 
+  function setPending(slug: string, isPending: boolean) {
+    setPendingSlugs((current) => {
+      const next = new Set(current);
+      if (isPending) next.add(slug);
+      else next.delete(slug);
+      return next;
+    });
+  }
+
   async function handleAddToShortlist(item: RecommendationItem) {
+    if (pendingSlugs.has(item.university.slug)) return;
     setActionError(false);
+    setPending(item.university.slug, true);
     try {
       await addToShortlistRequest(item.university.slug);
       updateItem(item.university.slug, { is_shortlisted: true });
     } catch {
       setActionError(true);
+    } finally {
+      setPending(item.university.slug, false);
     }
   }
 
   async function handleTrackApplication(item: RecommendationItem) {
+    if (pendingSlugs.has(item.university.slug)) return;
     setActionError(false);
+    setPending(item.university.slug, true);
     try {
       const created = await createApplicationRequest({ university: item.university.id });
       updateItem(item.university.slug, { application_id: created.id });
     } catch {
       setActionError(true);
+    } finally {
+      setPending(item.university.slug, false);
     }
   }
 
@@ -424,6 +442,7 @@ export function RecommendationsScreen() {
                 {list.map((item) => (
                   <RecommendationCard
                     isExpanded={expandedSlug === item.university.slug}
+                    isPending={pendingSlugs.has(item.university.slug)}
                     item={item}
                     key={item.university.slug}
                     locale={locale}
@@ -451,6 +470,7 @@ export function RecommendationsScreen() {
 function RecommendationCard({
   item,
   isExpanded,
+  isPending,
   onToggleExpand,
   onAddToShortlist,
   onTrackApplication,
@@ -459,6 +479,7 @@ function RecommendationCard({
 }: {
   item: RecommendationItem;
   isExpanded: boolean;
+  isPending: boolean;
   onToggleExpand: () => void;
   onAddToShortlist: () => void;
   onTrackApplication: () => void;
@@ -676,7 +697,7 @@ function RecommendationCard({
 
       <div className="mt-1 flex flex-wrap gap-2">
         <Button
-          disabled={item.is_shortlisted}
+          disabled={item.is_shortlisted || isPending}
           onClick={onAddToShortlist}
           size="sm"
           type="button"
@@ -687,7 +708,7 @@ function RecommendationCard({
             : t("recommendations.actions.addToShortlist")}
         </Button>
         <Button
-          disabled={item.application_id !== null}
+          disabled={item.application_id !== null || isPending}
           onClick={onTrackApplication}
           size="sm"
           type="button"
