@@ -39,12 +39,14 @@ import {
 import { getShortlistRequest } from "@/features/universities";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { formatDate } from "@/shared/lib/date-time";
+import { useUnsavedChangesGuard } from "@/shared/lib/use-unsaved-changes-guard";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { fieldClassName } from "@/shared/ui/field";
 import { HelpTooltip } from "@/shared/ui/help-tooltip";
 import { LoadingNotice } from "@/shared/ui/loading-notice";
 import { PaginationControls } from "@/shared/ui/pagination";
+import { UnsavedChangesDialog } from "@/shared/ui/unsaved-changes-dialog";
 
 const ESSAYS_STATUSES = ["not_started", "drafting", "needs_revision", "ready", "submitted"];
 const RECOMMENDATIONS_STATUSES: RecommendationsStatus[] = [
@@ -129,6 +131,8 @@ export function ApplicationsScreen() {
   const [actionError, setActionError] = useState(false);
   const [linkedTasks, setLinkedTasks] = useState<RoadmapTask[]>([]);
   const [isRefreshingSuggestions, setIsRefreshingSuggestions] = useState(false);
+  const [notesDraft, setNotesDraft] = useState("");
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [roundFilter, setRoundFilter] = useState<string>("all");
   const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
@@ -167,6 +171,15 @@ export function ApplicationsScreen() {
   }, [loadApplications]);
 
   const selected = applications.find((item) => item.id === selectedId) ?? null;
+  const hasUnsavedNotes = Boolean(selected && notesDraft !== selected.notes);
+  const notesGuard = useUnsavedChangesGuard({
+    browserMessage: t("common.unsaved.browserMessage"),
+    isDirty: hasUnsavedNotes
+  });
+
+  useEffect(() => {
+    setNotesDraft(selected?.notes ?? "");
+  }, [selected?.id, selected?.notes]);
 
   useEffect(() => {
     if (!selected) {
@@ -206,14 +219,25 @@ export function ApplicationsScreen() {
     }
   }
 
-  async function handleNotesChange(notes: string) {
-    if (!selected) return;
+  async function handleSaveNotes() {
+    if (!selected) return false;
+    setIsSavingNotes(true);
+    setActionError(false);
     try {
-      const updated = await updateApplicationRequest(selected.id, { notes });
+      const updated = await updateApplicationRequest(selected.id, { notes: notesDraft });
       updateInList(updated);
+      setNotesDraft(updated.notes);
+      return true;
     } catch {
       setActionError(true);
+      return false;
+    } finally {
+      setIsSavingNotes(false);
     }
+  }
+
+  function handleDiscardNotes() {
+    setNotesDraft(selected?.notes ?? "");
   }
 
   async function handleDelete(application: ApplicationTrackerItem) {
@@ -556,7 +580,9 @@ export function ApplicationsScreen() {
                       application={application}
                       isSelected={application.id === selectedId}
                       key={application.id}
-                      onSelect={(item) => setSelectedId(item.id)}
+                      onSelect={(item) =>
+                        notesGuard.requestLeave(() => setSelectedId(item.id))
+                      }
                     />
                   ))}
                 </div>
@@ -715,11 +741,30 @@ export function ApplicationsScreen() {
             <span className="text-xs font-semibold">{t("applications.detail.notes")}</span>
             <textarea
               className={fieldClassName}
-              defaultValue={selected.notes}
-              onBlur={(event) => void handleNotesChange(event.target.value)}
+              onChange={(event) => setNotesDraft(event.target.value)}
               rows={3}
+              value={notesDraft}
             />
           </label>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={isSavingNotes || !hasUnsavedNotes}
+              onClick={() => void handleSaveNotes()}
+              size="sm"
+              type="button"
+            >
+              {isSavingNotes ? t("applications.detail.savingNotes") : t("common.actions.save")}
+            </Button>
+            <Button
+              disabled={isSavingNotes || !hasUnsavedNotes}
+              onClick={handleDiscardNotes}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              {t("common.actions.cancel")}
+            </Button>
+          </div>
 
           <div>
             <div className="flex items-center gap-1.5">
@@ -809,6 +854,18 @@ export function ApplicationsScreen() {
       ) : null}
 
       <p className="text-xs leading-5 text-muted-foreground">{t("applications.disclaimer")}</p>
+      <UnsavedChangesDialog
+        description={t("common.unsaved.description")}
+        isSaving={isSavingNotes}
+        leaveWithoutSavingLabel={t("common.unsaved.leaveWithoutSaving")}
+        onLeaveWithoutSaving={notesGuard.leaveWithoutSaving}
+        onSaveAndLeave={handleSaveNotes}
+        onStay={notesGuard.stay}
+        open={notesGuard.isPromptOpen}
+        saveAndLeaveLabel={t("common.unsaved.saveAndLeave")}
+        stayLabel={t("common.unsaved.stay")}
+        title={t("common.unsaved.title")}
+      />
     </div>
   );
 }

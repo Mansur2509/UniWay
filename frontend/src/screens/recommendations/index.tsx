@@ -113,6 +113,24 @@ export function RecommendationsScreen() {
   const [confidenceFilter, setConfidenceFilter] = useState<string>("all");
   const [internationalOnly, setInternationalOnly] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("best_fit");
+  const hasActiveFilters =
+    categoryFilter !== "all" ||
+    countryFilter !== "all" ||
+    costRiskFilter !== "all" ||
+    urgencyFilter !== "all" ||
+    confidenceFilter !== "all" ||
+    internationalOnly ||
+    sortBy !== "best_fit";
+
+  function clearFilters() {
+    setCategoryFilter("all");
+    setCountryFilter("all");
+    setCostRiskFilter("all");
+    setUrgencyFilter("all");
+    setConfidenceFilter("all");
+    setInternationalOnly(false);
+    setSortBy("best_fit");
+  }
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -262,15 +280,8 @@ export function RecommendationsScreen() {
             </span>
           </div>
           <Button
-            onClick={() => {
-              setCategoryFilter("all");
-              setCountryFilter("all");
-              setCostRiskFilter("all");
-              setUrgencyFilter("all");
-              setConfidenceFilter("all");
-              setInternationalOnly(false);
-              setSortBy("best_fit");
-            }}
+            disabled={!hasActiveFilters}
+            onClick={clearFilters}
             size="sm"
             type="button"
             variant="ghost"
@@ -387,6 +398,15 @@ export function RecommendationsScreen() {
       {filtered.length === 0 ? (
         <Card>
           <p className="text-sm text-muted-foreground">{t("recommendations.states.empty")}</p>
+          {hasActiveFilters ? (
+            <Button className="mt-4" onClick={clearFilters} size="sm" type="button" variant="secondary">
+              {t("applications.filters.clear")}
+            </Button>
+          ) : (
+            <Button asChild className="mt-4" size="sm" variant="secondary">
+              <Link href="/profile">{t("recommendations.missingProfile.update")}</Link>
+            </Button>
+          )}
         </Card>
       ) : (
         RECOMMENDATION_CATEGORIES.map((category) => {
@@ -619,6 +639,38 @@ function RecommendationCard({
             <span className="font-semibold">{t("recommendations.card.nextAction")}: </span>
             {t(`universities.fit.nextActions.${item.next_action}` as TranslationKey)}
           </p>
+          <div>
+            <p className="font-semibold">{t("recommendations.card.dataContext")}</p>
+            <p className="mt-1">
+              {t("recommendations.card.deadlineConfidence")}:{" "}
+              {t(`applications.confidence.${item.deadline_confidence}` as TranslationKey)}
+            </p>
+            {item.source_notes.length > 0 ? (
+              <ul className="mt-1 space-y-1">
+                {item.source_notes.slice(0, 3).map((source) => (
+                  <li key={`${source.title}-${source.url}`}>
+                    <a
+                      className="font-semibold text-primary-hover underline"
+                      href={source.url}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      {source.title || source.url}
+                    </a>{" "}
+                    <span className="text-muted-foreground">
+                      {source.is_official
+                        ? t("recommendations.card.officialSource")
+                        : t("recommendations.card.supportingSource")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-1 text-muted-foreground">
+                {t("recommendations.card.noSources")}
+              </p>
+            )}
+          </div>
         </div>
       ) : null}
 

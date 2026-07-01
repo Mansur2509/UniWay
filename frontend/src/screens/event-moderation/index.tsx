@@ -62,6 +62,15 @@ export function EventModerationScreen() {
       setActionError(event.slug);
       return;
     }
+    const confirmationKey =
+      action === "approve"
+        ? "moderation.confirm.approve"
+        : action === "reject"
+          ? "moderation.confirm.reject"
+          : "moderation.confirm.archive";
+    if (!window.confirm(t(confirmationKey as TranslationKey))) {
+      return;
+    }
 
     setActionSlug(event.slug);
     setActionError(null);
@@ -248,6 +257,16 @@ export function EventModerationScreen() {
                     >
                       <History aria-hidden className="mr-2 size-4" />
                       {t("moderation.logs")}
+                    </Button>
+                    <Button
+                      disabled={actionSlug === event.slug || !(reasons[event.slug] ?? "").trim()}
+                      onClick={() =>
+                        setReasons((current) => ({ ...current, [event.slug]: "" }))
+                      }
+                      type="button"
+                      variant="ghost"
+                    >
+                      {t("moderation.clearReason")}
                     </Button>
                   </div>
                 </div>

@@ -73,6 +73,7 @@ export function EventsScreen() {
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / DEFAULT_PAGE_SIZE));
+  const hasActiveFilters = Object.values(appliedFilters).some(Boolean);
 
   return (
     <div className="space-y-6">
@@ -240,6 +241,15 @@ export function EventsScreen() {
           <p className="mt-2 text-sm text-muted-foreground">
             {t("events.states.emptyDescription")}
           </p>
+          {hasActiveFilters ? (
+            <Button className="mt-4" onClick={clearFilters} type="button" variant="secondary">
+              {t("events.actions.clearFilters")}
+            </Button>
+          ) : (
+            <Button asChild className="mt-4" variant="secondary">
+              <Link href="/events/my">{t("events.actions.myEvents")}</Link>
+            </Button>
+          )}
         </Card>
       ) : (
         <PaginatedGrid
