@@ -142,6 +142,7 @@ export const uzCyrl = {
   "profile.sections.delete": "Ўчириш",
   "profile.sections.update": "Янгилаш",
   "profile.sections.empty": "Ҳеч қандай нарса йўқ.",
+  "profile.sections.emptyAction": "Бу бўлимдан аниқ далиллар, саналар, кўлам ва тасдиқ ҳаволалари учун фойдаланинг.",
   "profile.sections.deleteConfirm": "Ўчириб ташламоқчимисиз?",
   "profile.activity.title": "Фаолияти номи",
   "profile.activity.role": "Сизнинг рoли",

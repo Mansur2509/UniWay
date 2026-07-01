@@ -142,6 +142,7 @@ export const ru = {
   "profile.sections.delete": "Удалить",
   "profile.sections.update": "Обновить",
   "profile.sections.empty": "Нет элементов. Нажмите 'Добавить' для начала.",
+  "profile.sections.emptyAction": "Используйте этот раздел для конкретных фактов, дат, масштаба и ссылок на подтверждения.",
   "profile.sections.deleteConfirm": "Вы уверены, что хотите удалить этот элемент?",
   "profile.activity.title": "Название активности",
   "profile.activity.role": "Ваша роль",

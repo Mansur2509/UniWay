@@ -4,8 +4,13 @@ from rest_framework.test import APITestCase
 
 from services.user_profile_service.models import (
     Activity,
+    EssayDraft,
     Honor,
+    Olympiad,
+    PortfolioProject,
     Recommender,
+    ResearchProject,
+    Sport,
     Volunteer,
 )
 
@@ -245,3 +250,81 @@ class ProfileItemCRUDTestCase(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_all_profile_item_endpoints_support_create_update_delete(self):
+        self.client.force_authenticate(user=self.user1)
+        cases = [
+            ("activities", Activity, {"title": "MUN"}, {"title": "MUN leadership"}, "title"),
+            ("honors", Honor, {"title": "Debate award"}, {"title": "Debate cup"}, "title"),
+            ("olympiads", Olympiad, {"name": "Math Olympiad"}, {"name": "Physics Olympiad"}, "name"),
+            ("sports", Sport, {"sport_name": "Tennis"}, {"sport_name": "Swimming"}, "sport_name"),
+            (
+                "research-projects",
+                ResearchProject,
+                {"title": "Survey research"},
+                {"title": "Cross-country survey"},
+                "title",
+            ),
+            ("essays", EssayDraft, {"essay_type": "Why school"}, {"essay_type": "Personal statement"}, "essay_type"),
+            (
+                "portfolio-projects",
+                PortfolioProject,
+                {"title": "AI/ML school tool"},
+                {"title": "Education platform"},
+                "title",
+            ),
+            ("volunteering", Volunteer, {"title": "Tutoring"}, {"title": "Volunteer leadership"}, "title"),
+            ("recommenders", Recommender, {"name": "Counselor"}, {"name": "Math teacher"}, "name"),
+        ]
+
+        for endpoint, model, create_payload, update_payload, field_name in cases:
+            with self.subTest(endpoint=endpoint):
+                create_response = self.client.post(
+                    f"/api/profile/{endpoint}/",
+                    create_payload,
+                    format="json",
+                )
+                self.assertEqual(
+                    create_response.status_code,
+                    status.HTTP_201_CREATED,
+                    create_response.data,
+                )
+                item_id = create_response.data["id"]
+
+                update_response = self.client.patch(
+                    f"/api/profile/{endpoint}/{item_id}/",
+                    update_payload,
+                    format="json",
+                )
+                self.assertEqual(
+                    update_response.status_code,
+                    status.HTTP_200_OK,
+                    update_response.data,
+                )
+                self.assertEqual(update_response.data[field_name], update_payload[field_name])
+
+                list_response = self.client.get(f"/api/profile/{endpoint}/", format="json")
+                self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+                self.assertTrue(
+                    any(item["id"] == item_id for item in list_response.data["results"])
+                )
+
+                delete_response = self.client.delete(f"/api/profile/{endpoint}/{item_id}/")
+                self.assertEqual(delete_response.status_code, status.HTTP_204_NO_CONTENT)
+                self.assertFalse(model.objects.filter(id=item_id).exists())
+
+    def test_recommender_update_and_delete_are_self_only(self):
+        recommender = Recommender.objects.create(user=self.user2, name="Other counselor")
+
+        self.client.force_authenticate(user=self.user1)
+        update_response = self.client.patch(
+            f"/api/profile/recommenders/{recommender.id}/",
+            {"name": "Hijacked"},
+            format="json",
+        )
+        delete_response = self.client.delete(f"/api/profile/recommenders/{recommender.id}/")
+
+        self.assertEqual(update_response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(delete_response.status_code, status.HTTP_404_NOT_FOUND)
+        recommender.refresh_from_db()
+        self.assertEqual(recommender.name, "Other counselor")

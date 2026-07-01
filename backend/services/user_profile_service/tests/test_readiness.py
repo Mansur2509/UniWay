@@ -4,21 +4,25 @@ from django.test import TestCase
 from services.user_profile_service.models import (
     Activity,
     EssayDraft,
+    Honor,
     Olympiad,
     PortfolioProject,
     Recommender,
     ResearchProject,
+    Sport,
     Volunteer,
 )
 from services.user_profile_service.readiness import (
     ENRICHMENT_COMPONENTS,
     _score_activities,
     _score_essays,
+    _score_honors,
     _score_leadership,
     _score_olympiads,
     _score_portfolio,
     _score_recommenders,
     _score_research,
+    _score_sports,
     _score_volunteering,
     calculate_application_readiness,
 )
@@ -51,6 +55,19 @@ class GranularReadinessScoringTests(TestCase):
         Olympiad.objects.create(user=self.user, name="National Physics", level="national")
         Olympiad.objects.create(user=self.user, name="City Chemistry", level="city")
         self.assertEqual(_score_olympiads(self.profile), 5)
+
+    def test_honors_reward_notable_level(self):
+        Honor.objects.create(user=self.user, title="National Debate Cup", level="national")
+        self.assertEqual(_score_honors(self.profile), 4)
+
+    def test_sports_reward_notable_level(self):
+        Sport.objects.create(
+            user=self.user,
+            sport_name="Tennis",
+            level="international",
+            peak_result="World Championship 2nd place",
+        )
+        self.assertEqual(_score_sports(self.profile), 4)
 
     def test_research_rewards_published_or_cross_country(self):
         ResearchProject.objects.create(
@@ -174,6 +191,31 @@ class ApplicationReadinessAggregationTests(TestCase):
         readiness = calculate_application_readiness(self.profile, self.preferences)
         self.assertEqual(readiness.score_components["olympiads"], 5)
         self.assertIn("olympiads", readiness.strengths)
+
+    def test_readiness_updates_after_structured_evidence_is_removed(self):
+        volunteer = Volunteer.objects.create(
+            user=self.user,
+            title="Community tutoring leadership",
+            scale=Volunteer.Scale.INTERNATIONAL,
+        )
+        recommender = Recommender.objects.create(
+            user=self.user,
+            name="School counselor",
+            status=Recommender.Status.SUBMITTED,
+        )
+
+        readiness = calculate_application_readiness(self.profile, self.preferences)
+        self.assertIn("volunteering", readiness.strengths)
+        self.assertIn("recommenders", readiness.strengths)
+
+        volunteer.delete()
+        recommender.delete()
+
+        updated = calculate_application_readiness(self.profile, self.preferences)
+        self.assertEqual(updated.score_components["volunteering"], 1)
+        self.assertEqual(updated.score_components["recommenders"], 1)
+        self.assertIn("volunteering", updated.improvements)
+        self.assertIn("recommenders", updated.improvements)
 
     def test_no_admissions_outcome_language(self):
         readiness = calculate_application_readiness(self.profile, self.preferences)

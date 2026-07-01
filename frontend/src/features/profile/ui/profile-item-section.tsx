@@ -140,20 +140,21 @@ export function ProfileItemSection<T extends { id: number }>({
 
   if (isLoading) {
     return (
-      <Card className="p-5">
+      <Card className="p-4">
         <p className="text-xs text-muted-foreground">{t("common.loading")}</p>
       </Card>
     );
   }
 
   return (
-    <Card className="p-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
+    <Card className="p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h3 className="text-lg font-semibold">{t(title)}</h3>
           <p className="mt-1 text-xs text-muted-foreground">{t(description)}</p>
         </div>
         <Button
+          className="shrink-0 self-start sm:self-auto"
           onClick={() => (isExpanded ? handleCancel() : openNewForm())}
           size="sm"
           variant="secondary"
@@ -186,6 +187,7 @@ export function ProfileItemSection<T extends { id: number }>({
                   {t("profile.sections.edit")}
                 </button>
                 <button
+                  aria-label={t("profile.sections.delete")}
                   onClick={() => setDeleteConfirm(item.id)}
                   className="rounded px-2 py-1 text-xs font-medium text-danger hover:bg-danger/10"
                   type="button"
@@ -202,6 +204,9 @@ export function ProfileItemSection<T extends { id: number }>({
       {items.length === 0 && !isExpanded && (
         <div className="mt-4 rounded-sm border border-dashed bg-elevated/35 p-4">
           <p className="text-xs text-muted-foreground">{t("profile.sections.empty")}</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {t("profile.sections.emptyAction")}
+          </p>
         </div>
       )}
 
@@ -240,52 +245,68 @@ export function ProfileItemSection<T extends { id: number }>({
             </p>
           )}
 
-          {fields.map((field) => (
-            <label key={field.key} className="block">
-              <span className="text-xs font-semibold">{t(field.label)}</span>
-              {field.type === "textarea" ? (
-                <textarea
-                  className={fieldClassName}
-                  maxLength={field.maxLength || 1500}
-                  placeholder={field.placeholder ? t(field.placeholder) : ""}
-                  required={field.required}
-                  value={(formData[field.key] as string | undefined) ?? ""}
-                  onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                  rows={3}
-                />
-              ) : field.type === "select" ? (
-                <select
-                  className={fieldClassName}
-                  required={field.required}
-                  value={(formData[field.key] as string | undefined) ?? ""}
-                  onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                >
-                  <option value="">{t("profile.options.select")}</option>
-                  {field.options?.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {t(opt.label)}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  className={fieldClassName}
-                  maxLength={field.maxLength || 150}
-                  placeholder={field.placeholder ? t(field.placeholder) : ""}
-                  required={field.required}
-                  type={field.type || "text"}
-                  value={(formData[field.key] as string | undefined) ?? ""}
-                  onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                />
-              )}
-            </label>
-          ))}
+          {fields.map((field) => {
+            const value = String(formData[field.key] ?? "");
+            return (
+              <label key={field.key} className="block">
+                <span className="text-xs font-semibold">{t(field.label)}</span>
+                {field.type === "textarea" ? (
+                  <>
+                    <textarea
+                      className={`${fieldClassName} min-h-28 resize-y py-2 leading-5`}
+                      maxLength={field.maxLength || 1500}
+                      placeholder={field.placeholder ? t(field.placeholder) : ""}
+                      required={field.required}
+                      value={value}
+                      onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                      rows={field.maxLength && field.maxLength > 500 ? 6 : 3}
+                    />
+                    {field.maxLength ? (
+                      <p className="mt-1 text-right text-[0.68rem] text-muted-foreground">
+                        {value.length}/{field.maxLength}
+                      </p>
+                    ) : null}
+                  </>
+                ) : field.type === "select" ? (
+                  <select
+                    className={fieldClassName}
+                    required={field.required}
+                    value={value}
+                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                  >
+                    <option value="">{t("profile.options.select")}</option>
+                    {field.options?.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {t(opt.label)}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    className={fieldClassName}
+                    maxLength={field.maxLength || 150}
+                    placeholder={field.placeholder ? t(field.placeholder) : ""}
+                    required={field.required}
+                    type={field.type || "text"}
+                    value={value}
+                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                  />
+                )}
+              </label>
+            );
+          })}
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button type="submit" size="sm" disabled={isSubmitting}>
               {editingId ? t("profile.sections.update") : t("profile.sections.add")}
             </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={handleCancel} disabled={isSubmitting}>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={handleCancel}
+              disabled={isSubmitting}
+            >
               {t("common.actions.cancel")}
             </Button>
           </div>

@@ -149,6 +149,7 @@ export const en = {
   "profile.sections.delete": "Delete",
   "profile.sections.update": "Update",
   "profile.sections.empty": "No items yet. Click 'Add item' to get started.",
+  "profile.sections.emptyAction": "Use this section for specific evidence, dates, scope, and proof links.",
   "profile.sections.deleteConfirm": "Are you sure you want to delete this item?",
   "profile.activity.title": "Activity title",
   "profile.activity.role": "Your role",

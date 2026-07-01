@@ -142,6 +142,7 @@ export const uzLatn = {
   "profile.sections.delete": "O’chirish",
   "profile.sections.update": "Yangilash",
   "profile.sections.empty": "Hech qanday narsa yo’q.",
+  "profile.sections.emptyAction": "Bu bo'limdan aniq dalillar, sanalar, ko'lam va tasdiq havolalari uchun foydalaning.",
   "profile.sections.deleteConfirm": "O’chirib tashlamoqchimisiz?",
   "profile.activity.title": "Faoliyat nomi",
   "profile.activity.role": "Sizning roli",
