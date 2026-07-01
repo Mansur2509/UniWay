@@ -574,6 +574,13 @@ All moderation endpoints require an admin role. A moderator cannot approve or re
 
 ## University source fields
 
+Catalog list query parameters:
+
+- `page`, `page_size` use the shared DRF paginated response shape: `count`, `next`, `previous`, `results`; `page_size` is capped at 100 and the frontend standard catalog size is 21.
+- `search` searches university name, city, country, and program names across the full backend queryset, not just the current page.
+- `country`, `city`, `institution_type`, `scholarship_available`, `test_policy`, and `verification_status` narrow results. `verification_status` accepts `verified`, `partial`, or `estimated` and matches universities that have at least one field verification with that status.
+- `ordering` supports `name`, `country`, `created_at`, `acceptance_rate`, `qs_ranking`, `tuition_usd_amount`, and `total_cost_usd_amount`; prefix with `-` for descending order. QS ranking and USD cost sorts keep missing comparable values last.
+
 University records carry two complementary sourcing mechanisms:
 
 - `data_sources[]` (existing) — page-level citations for the institution as a whole: `source_url`, `source_title`, `published_at` when known, `retrieved_at`, `is_official`. Used as the fit analysis's `source_notes` fallback.

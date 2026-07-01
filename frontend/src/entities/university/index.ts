@@ -106,8 +106,10 @@ export type UniversityDetails = UniversitySummary;
 export type UniversityFilters = {
   search?: string;
   country?: string;
+  city?: string;
   institution_type?: string;
   scholarship_available?: string;
+  verification_status?: string;
   include_demo?: string;
   ordering?: string;
 };

@@ -6,7 +6,12 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from services.university_service.currency import normalize_university_costs
-from services.university_service.models import ExchangeRate, SavedUniversity, University
+from services.university_service.models import (
+    ExchangeRate,
+    SavedUniversity,
+    University,
+    UniversityFieldVerification,
+)
 from services.university_service.services import calculate_university_fit
 from services.user_profile_service.services import ensure_profile_records
 
@@ -59,6 +64,65 @@ class UniversityCatalogTests(APITestCase):
         self.assertEqual(response.data["count"], 0)
         response = self.client.get("/api/v1/universities/", {"country": "Sampleton"})
         self.assertEqual(response.data["count"], 1)
+
+    def test_city_filter(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/v1/universities/", {"city": "Northfield"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["slug"], "published-university")
+
+    def test_verification_status_filter(self):
+        UniversityFieldVerification.objects.create(
+            university=self.published,
+            field_name="acceptance_rate",
+            status=UniversityFieldVerification.Status.VERIFIED,
+            source_url="https://example.com/source",
+            last_verified_date=timezone.now().date(),
+            note="Official source check.",
+        )
+        partial = create_university("partial-university", country="Sampleton")
+        UniversityFieldVerification.objects.create(
+            university=partial,
+            field_name="sat_p25",
+            status=UniversityFieldVerification.Status.PARTIAL,
+            source_url="https://example.com/source-partial",
+            last_verified_date=timezone.now().date(),
+            note="Partial official source check.",
+        )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(
+            "/api/v1/universities/", {"verification_status": "verified"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        slugs = [item["slug"] for item in response.data["results"]]
+        self.assertEqual(slugs, ["published-university"])
+
+    def test_qs_ranking_ordering(self):
+        top_ranked = create_university("top-ranked-university", qs_ranking=5)
+        lower_ranked = create_university("lower-ranked-university", qs_ranking=200)
+        unranked = create_university("unranked-university", qs_ranking=None)
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get("/api/v1/universities/", {"ordering": "qs_ranking"})
+
+        slugs = [item["slug"] for item in response.data["results"]]
+        self.assertLess(slugs.index(top_ranked.slug), slugs.index(lower_ranked.slug))
+        self.assertLess(slugs.index(lower_ranked.slug), slugs.index(unranked.slug))
+
+    def test_qs_ranking_reverse_ordering_keeps_missing_last(self):
+        top_ranked = create_university("reverse-top-ranked-university", qs_ranking=5)
+        lower_ranked = create_university("reverse-lower-ranked-university", qs_ranking=200)
+        unranked = create_university("reverse-unranked-university", qs_ranking=None)
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get("/api/v1/universities/", {"ordering": "-qs_ranking"})
+
+        slugs = [item["slug"] for item in response.data["results"]]
+        self.assertLess(slugs.index(lower_ranked.slug), slugs.index(top_ranked.slug))
+        self.assertLess(slugs.index(top_ranked.slug), slugs.index(unranked.slug))
 
     def test_retrieve_by_slug(self):
         self.client.force_authenticate(self.user)

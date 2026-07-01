@@ -1,3 +1,4 @@
+from django.db.models import F
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -13,7 +14,12 @@ from common.permissions import IsAdminOrReadOnly, IsAdminRole
 from services.user_profile_service.services import ensure_profile_records
 
 from .import_jobs import enqueue_university_import_job, mark_stale_university_import_job
-from .models import SavedUniversity, University, UniversityImportJob
+from .models import (
+    SavedUniversity,
+    University,
+    UniversityFieldVerification,
+    UniversityImportJob,
+)
 from .recommendations import calculate_university_recommendations
 from .serializers import (
     SavedUniversitySerializer,
@@ -33,18 +39,34 @@ SELF_SERVICE_ACTIONS = {
     "recommendations",
 }
 
+UNIVERSITY_NULLS_LAST_ORDERINGS = {
+    "qs_ranking": (F("qs_ranking").asc(nulls_last=True), "name"),
+    "-qs_ranking": (F("qs_ranking").desc(nulls_last=True), "name"),
+    "tuition_usd_amount": (F("tuition_usd_amount").asc(nulls_last=True), "name"),
+    "-tuition_usd_amount": (F("tuition_usd_amount").desc(nulls_last=True), "name"),
+    "total_cost_usd_amount": (F("total_cost_usd_amount").asc(nulls_last=True), "name"),
+    "-total_cost_usd_amount": (F("total_cost_usd_amount").desc(nulls_last=True), "name"),
+}
+
 
 class UniversityViewSet(ModelViewSet):
     serializer_class = UniversitySerializer
     permission_classes = [IsAdminOrReadOnly]
     lookup_field = "slug"
     search_fields = ("name", "city", "country", "programs__name")
-    filterset_fields = ("country", "institution_type", "scholarship_available", "test_policy")
+    filterset_fields = (
+        "country",
+        "city",
+        "institution_type",
+        "scholarship_available",
+        "test_policy",
+    )
     ordering_fields = (
         "name",
         "country",
         "created_at",
         "acceptance_rate",
+        "qs_ranking",
         "tuition_usd_amount",
         "total_cost_usd_amount",
     )
@@ -65,7 +87,21 @@ class UniversityViewSet(ModelViewSet):
             include_demo = self.request.query_params.get("include_demo", "").lower() == "true"
             if not include_demo:
                 queryset = queryset.exclude(is_demo=True)
+            verification_status = self.request.query_params.get("verification_status", "")
+            valid_statuses = {choice[0] for choice in UniversityFieldVerification.Status.choices}
+            if verification_status in valid_statuses:
+                queryset = queryset.filter(
+                    field_verifications__status=verification_status
+                ).distinct()
 
+        return queryset
+
+    def filter_queryset(self, queryset):
+        queryset = super().filter_queryset(queryset)
+        ordering = self.request.query_params.get("ordering", "")
+        custom_ordering = UNIVERSITY_NULLS_LAST_ORDERINGS.get(ordering)
+        if self.action == "list" and custom_ordering:
+            return queryset.order_by(*custom_ordering)
         return queryset
 
     def get_serializer_context(self):

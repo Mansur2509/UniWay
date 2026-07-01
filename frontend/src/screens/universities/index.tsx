@@ -16,8 +16,10 @@ import { DEFAULT_PAGE_SIZE, PaginatedGrid } from "@/shared/ui/pagination";
 const emptyFilters: UniversityFilters = {
   search: "",
   country: "",
+  city: "",
   institution_type: "",
   scholarship_available: "",
+  verification_status: "",
   include_demo: "",
   ordering: ""
 };
@@ -181,6 +183,17 @@ export function UniversitiesScreen() {
             />
           </label>
           <label className="block">
+            <span className="text-sm font-semibold">{t("universities.filters.city")}</span>
+            <input
+              className={fieldClassName}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, city: event.target.value }))
+              }
+              placeholder={t("universities.filters.cityPlaceholder")}
+              value={filters.city}
+            />
+          </label>
+          <label className="block">
             <span className="text-sm font-semibold">
               {t("universities.filters.institutionType")}
             </span>
@@ -215,6 +228,26 @@ export function UniversitiesScreen() {
               {t("universities.filters.scholarshipAvailable")}
             </span>
           </label>
+          <label className="block">
+            <span className="text-sm font-semibold">
+              {t("universities.filters.verificationStatus")}
+            </span>
+            <select
+              className={fieldClassName}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  verification_status: event.target.value
+                }))
+              }
+              value={filters.verification_status}
+            >
+              <option value="">{t("universities.filters.verificationAny")}</option>
+              <option value="verified">{t("universities.filters.verificationVerified")}</option>
+              <option value="partial">{t("universities.filters.verificationPartial")}</option>
+              <option value="estimated">{t("universities.filters.verificationEstimated")}</option>
+            </select>
+          </label>
           <label className="flex items-center gap-2 self-end pb-2.5">
             <input
               checked={filters.include_demo === "true"}
@@ -245,6 +278,8 @@ export function UniversitiesScreen() {
               <option value="-tuition_usd_amount">{t("universities.filters.tuitionUsdHighLow")}</option>
               <option value="total_cost_usd_amount">{t("universities.filters.totalUsdLowHigh")}</option>
               <option value="-total_cost_usd_amount">{t("universities.filters.totalUsdHighLow")}</option>
+              <option value="qs_ranking">{t("universities.filters.qsHighLow")}</option>
+              <option value="-qs_ranking">{t("universities.filters.qsLowHigh")}</option>
             </select>
           </label>
           <div className="flex flex-wrap gap-3 md:col-span-2 xl:col-span-3">
@@ -277,25 +312,33 @@ export function UniversitiesScreen() {
           </p>
         </Card>
       ) : (
-        <PaginatedGrid
-          currentPage={currentPage}
-          getItemKey={(university) => university.id}
-          items={visibleUniversities}
-          onPageChange={setCurrentPage}
-          totalCount={shortlistOnly ? visibleUniversities.length : totalCount}
-          totalPages={shortlistOnly ? 1 : totalPages}
-          renderItem={(university) => (
-            <UniversityCard
-              canSelectCompare={compareIds.length < MAX_COMPARE}
-              isCompareSelected={compareIds.includes(university.id)}
-              isShortlistPending={pendingShortlistId === university.id}
-              key={university.id}
-              onToggleCompare={toggleCompare}
-              onToggleShortlist={(item) => void toggleShortlist(item)}
-              university={university}
-            />
-          )}
-        />
+        <div className="space-y-3">
+          <p className="text-sm font-semibold text-muted-foreground">
+            {t("universities.list.total", {
+              count: shortlistOnly ? visibleUniversities.length : totalCount
+            })}
+          </p>
+          <PaginatedGrid
+            currentPage={currentPage}
+            getItemKey={(university) => university.id}
+            items={visibleUniversities}
+            onPageChange={setCurrentPage}
+            pageSize={DEFAULT_PAGE_SIZE}
+            totalCount={shortlistOnly ? visibleUniversities.length : totalCount}
+            totalPages={shortlistOnly ? 1 : totalPages}
+            renderItem={(university) => (
+              <UniversityCard
+                canSelectCompare={compareIds.length < MAX_COMPARE}
+                isCompareSelected={compareIds.includes(university.id)}
+                isShortlistPending={pendingShortlistId === university.id}
+                key={university.id}
+                onToggleCompare={toggleCompare}
+                onToggleShortlist={(item) => void toggleShortlist(item)}
+                university={university}
+              />
+            )}
+          />
+        </div>
       )}
 
       <p className="text-xs leading-5 text-muted-foreground">{t("universities.disclaimer")}</p>

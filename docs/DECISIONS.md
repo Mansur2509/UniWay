@@ -277,6 +277,8 @@ Repeated item surfaces use explicit page controls instead of infinite scroll, en
 
 The shared frontend primitives are `PaginationControls`, `PaginatedGrid`, and `PaginatedList` under `frontend/src/shared/ui/pagination.tsx`. Grids are used for catalog/card surfaces such as universities and events; list or board pages such as roadmap, applications, moderation, and participant tables keep their domain layout but still expose previous/next, page number, total pages, and range summaries. Local pagination is used only after the full relevant client-side filtered set is already loaded, such as essay tab filters and roadmap task buckets.
 
+EDUVERSE-GLOBAL-PAGINATION-AND-SLIDERS-001 tightened this pattern: `PaginationControls` now supports `pageSize`, `totalCount`, and first/last page controls while preserving the older `onPrevious`/`onNext`/`onPageSelect` callback style. The university catalog remains backend-paginated at 21 cards per page and now exposes city, verification-status, QS ranking, tuition, and total-cost filters/sorts through the same paginated API instead of filtering only the visible page.
+
 ## ADR-030: Normalized academics, sourced costs, and fit score foundation
 
 - **Status:** Accepted

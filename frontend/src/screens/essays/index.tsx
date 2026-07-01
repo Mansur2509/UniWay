@@ -30,7 +30,7 @@ import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { fieldClassName } from "@/shared/ui/field";
 import { LoadingNotice } from "@/shared/ui/loading-notice";
-import { DEFAULT_PAGE_SIZE, PaginatedList } from "@/shared/ui/pagination";
+import { PaginatedList } from "@/shared/ui/pagination";
 
 const SCORE_FIELDS: Array<{
   key: "structure_score" | "clarity_score" | "authenticity_score" | "specificity_score" | "grammar_score" | "prompt_fit_score";
@@ -51,6 +51,8 @@ const LABEL_STYLES: Record<string, string> = {
   strong: "border-success/35 bg-success/10 text-success",
   excellent: "border-success/35 bg-success/10 text-success"
 };
+
+const ESSAYS_PAGE_SIZE = 5;
 
 export function EssaysScreen() {
   const { t } = useI18n();
@@ -131,10 +133,10 @@ export function EssaysScreen() {
     const universityId = Number(filter);
     return essays.filter((essay) => essay.university === universityId);
   }, [essays, filter]);
-  const totalEssayPages = Math.max(1, Math.ceil(filteredEssays.length / DEFAULT_PAGE_SIZE));
+  const totalEssayPages = Math.max(1, Math.ceil(filteredEssays.length / ESSAYS_PAGE_SIZE));
   const visibleEssays = filteredEssays.slice(
-    (currentPage - 1) * DEFAULT_PAGE_SIZE,
-    currentPage * DEFAULT_PAGE_SIZE
+    (currentPage - 1) * ESSAYS_PAGE_SIZE,
+    currentPage * ESSAYS_PAGE_SIZE
   );
 
   useEffect(() => {
@@ -420,6 +422,7 @@ export function EssaysScreen() {
             getItemKey={(essay) => essay.id}
             items={visibleEssays}
             onPageChange={setCurrentPage}
+            pageSize={ESSAYS_PAGE_SIZE}
             totalCount={filteredEssays.length}
             totalPages={totalEssayPages}
             renderItem={(essay) => (
