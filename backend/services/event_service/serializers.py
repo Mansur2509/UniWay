@@ -4,11 +4,15 @@ from rest_framework import serializers
 from .models import (
     Event,
     EventCategory,
+    EventFormField,
     EventLocation,
     EventModerationLog,
+    EventRegistrationAnswer,
     EventRegistration,
     EventSource,
     EventSubmission,
+    EventTicket,
+    ParticipationRecord,
 )
 from .services import (
     ACTIVE_REGISTRATION_STATUSES,
@@ -35,6 +39,77 @@ class EventSourceSerializer(serializers.ModelSerializer):
         exclude = ("event",)
 
 
+class EventFormFieldSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventFormField
+        fields = (
+            "id",
+            "field_type",
+            "label",
+            "help_text",
+            "is_required",
+            "order",
+            "choices",
+            "validation",
+        )
+        read_only_fields = ("id", "order")
+
+
+class EventTicketSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventTicket
+        fields = (
+            "code",
+            "status",
+            "created_at",
+            "checked_in_at",
+            "expires_at",
+        )
+        read_only_fields = fields
+
+
+class EventRegistrationAnswerSerializer(serializers.ModelSerializer):
+    field_id = serializers.IntegerField(source="field.id", read_only=True)
+    field_label = serializers.CharField(source="field.label", read_only=True)
+    field_type = serializers.CharField(source="field.field_type", read_only=True)
+
+    class Meta:
+        model = EventRegistrationAnswer
+        fields = (
+            "field_id",
+            "field_label",
+            "field_type",
+            "value",
+            "created_at",
+        )
+        read_only_fields = fields
+
+
+class ParticipationRecordSerializer(serializers.ModelSerializer):
+    event_title = serializers.CharField(source="event.title", read_only=True)
+    event_slug = serializers.CharField(source="event.slug", read_only=True)
+    organizer_name = serializers.CharField(source="event.organizer_name", read_only=True)
+    starts_at = serializers.DateTimeField(source="event.starts_at", read_only=True)
+
+    class Meta:
+        model = ParticipationRecord
+        fields = (
+            "id",
+            "event_title",
+            "event_slug",
+            "organizer_name",
+            "attendance_status",
+            "participation_type",
+            "verification_status",
+            "verified_at",
+            "record_id",
+            "public_verification_code",
+            "starts_at",
+            "created_at",
+        )
+        read_only_fields = fields
+
+
 class PublicEventSerializer(serializers.ModelSerializer):
     category = EventCategorySerializer(read_only=True)
     location = EventLocationSerializer(read_only=True)
@@ -46,6 +121,8 @@ class PublicEventSerializer(serializers.ModelSerializer):
     registration_count = serializers.SerializerMethodField()
     spots_left = serializers.SerializerMethodField()
     registration_status = serializers.SerializerMethodField()
+    registration_form_fields = serializers.SerializerMethodField()
+    registration_ticket = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
@@ -78,6 +155,8 @@ class PublicEventSerializer(serializers.ModelSerializer):
             "scholarship_available",
             "source",
             "registration_status",
+            "registration_form_fields",
+            "registration_ticket",
         )
 
     def get_registration_count(self, obj):
@@ -110,9 +189,35 @@ class PublicEventSerializer(serializers.ModelSerializer):
         )
         return registration.status if registration else None
 
+    def _current_registration(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return None
+        return (
+            obj.registrations.filter(
+                user=request.user,
+                status__in=ACTIVE_REGISTRATION_STATUSES,
+            )
+            .select_related("ticket")
+            .order_by("-updated_at")
+            .first()
+        )
+
+    def get_registration_form_fields(self, obj):
+        fields = obj.form_fields.all().order_by("order", "id")
+        return EventFormFieldSerializer(fields, many=True).data
+
+    def get_registration_ticket(self, obj):
+        registration = self._current_registration(obj)
+        if not registration or not hasattr(registration, "ticket"):
+            return None
+        return EventTicketSerializer(registration.ticket).data
+
 
 class EventRegistrationSerializer(serializers.ModelSerializer):
     event = PublicEventSerializer(read_only=True)
+    ticket = EventTicketSerializer(read_only=True)
+    answers = EventRegistrationAnswerSerializer(many=True, read_only=True)
 
     class Meta:
         model = EventRegistration
@@ -123,6 +228,8 @@ class EventRegistrationSerializer(serializers.ModelSerializer):
             "payment_status",
             "registration_data",
             "contact_snapshot",
+            "ticket",
+            "answers",
             "created_at",
             "updated_at",
         )
@@ -336,6 +443,10 @@ class OrganizerParticipantSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
     telegram_username = serializers.SerializerMethodField()
+    ticket_status = serializers.SerializerMethodField()
+    checked_in_at = serializers.SerializerMethodField()
+    participation_verified = serializers.SerializerMethodField()
+    answers = EventRegistrationAnswerSerializer(many=True, read_only=True)
 
     class Meta:
         model = EventRegistration
@@ -346,6 +457,10 @@ class OrganizerParticipantSerializer(serializers.ModelSerializer):
             "telegram_username",
             "status",
             "payment_status",
+            "ticket_status",
+            "checked_in_at",
+            "participation_verified",
+            "answers",
             "created_at",
         )
         read_only_fields = fields
@@ -358,6 +473,19 @@ class OrganizerParticipantSerializer(serializers.ModelSerializer):
 
     def get_telegram_username(self, obj):
         return obj.contact_snapshot.get("telegram_username", "")
+
+    def get_ticket_status(self, obj):
+        if not hasattr(obj, "ticket"):
+            return ""
+        return obj.ticket.status
+
+    def get_checked_in_at(self, obj):
+        if not hasattr(obj, "ticket"):
+            return None
+        return obj.ticket.checked_in_at
+
+    def get_participation_verified(self, obj):
+        return hasattr(obj, "participation_record")
 
 
 class EventRejectionSerializer(serializers.Serializer):

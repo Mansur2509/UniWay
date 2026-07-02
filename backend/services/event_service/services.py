@@ -1,5 +1,13 @@
+import re
+import secrets
+import uuid
+from decimal import Decimal, InvalidOperation
+
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import EmailValidator
 from django.db import transaction
 from django.db.models import Count, Q
+from django.utils.dateparse import parse_date
 from django.utils import timezone
 from django.utils.text import slugify
 from rest_framework import serializers
@@ -8,9 +16,14 @@ from services.user_profile_service.services import ensure_profile_records
 
 from .models import (
     Event,
+    EventFormField,
     EventModerationLog,
+    EventNotification,
     EventRegistration,
+    EventRegistrationAnswer,
     EventSubmission,
+    EventTicket,
+    ParticipationRecord,
 )
 
 ACTIVE_REGISTRATION_STATUSES = (
@@ -24,6 +37,14 @@ ORGANIZER_EDITABLE_STATUSES = (
     Event.Status.PENDING_REVIEW,
     Event.Status.REJECTED,
 )
+
+MAX_FORM_FIELDS_PER_EVENT = 20
+MAX_SHORT_ANSWER_LENGTH = 240
+MAX_LONG_ANSWER_LENGTH = 4000
+MAX_CHOICE_COUNT = 20
+MAX_CHOICE_LENGTH = 120
+
+TELEGRAM_USERNAME_RE = re.compile(r"^@?[A-Za-z0-9_]{5,32}$")
 
 
 def generate_unique_event_slug(title: str) -> str:
@@ -41,6 +62,267 @@ def validate_event_is_editable(event: Event) -> None:
         raise serializers.ValidationError(
             {"status": "Only draft, pending, or rejected events can be edited."}
         )
+
+
+def _is_blank_answer(value) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str) and not value.strip():
+        return True
+    if isinstance(value, list) and not value:
+        return True
+    return False
+
+
+def normalize_form_choices(raw_choices) -> list[str]:
+    if raw_choices in (None, ""):
+        return []
+    if not isinstance(raw_choices, list):
+        raise serializers.ValidationError({"choices": "Choices must be a list."})
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for choice in raw_choices:
+        if not isinstance(choice, str):
+            raise serializers.ValidationError({"choices": "Each choice must be text."})
+        value = choice.strip()
+        if not value:
+            continue
+        if len(value) > MAX_CHOICE_LENGTH:
+            raise serializers.ValidationError(
+                {"choices": f"Choices must be {MAX_CHOICE_LENGTH} characters or fewer."}
+            )
+        lowered = value.casefold()
+        if lowered not in seen:
+            normalized.append(value)
+            seen.add(lowered)
+    if len(normalized) > MAX_CHOICE_COUNT:
+        raise serializers.ValidationError(
+            {"choices": f"No more than {MAX_CHOICE_COUNT} choices are allowed."}
+        )
+    return normalized
+
+
+def validate_form_fields_payload(fields: list[dict]) -> list[dict]:
+    if len(fields) > MAX_FORM_FIELDS_PER_EVENT:
+        raise serializers.ValidationError(
+            {"fields": f"No more than {MAX_FORM_FIELDS_PER_EVENT} form fields are allowed."}
+        )
+    normalized_fields = []
+    for index, field in enumerate(fields):
+        field_type = field.get("field_type")
+        if field_type not in EventFormField.FieldType.values:
+            raise serializers.ValidationError({"field_type": "Unsupported form field type."})
+        label = str(field.get("label", "")).strip()
+        if not label:
+            raise serializers.ValidationError({"label": "A field label is required."})
+        if len(label) > 160:
+            raise serializers.ValidationError({"label": "Field labels must be 160 characters or fewer."})
+        help_text = str(field.get("help_text", "")).strip()
+        if len(help_text) > 500:
+            raise serializers.ValidationError({"help_text": "Help text must be 500 characters or fewer."})
+        choices = normalize_form_choices(field.get("choices", []))
+        if field_type in (
+            EventFormField.FieldType.SINGLE_CHOICE,
+            EventFormField.FieldType.MULTIPLE_CHOICE,
+        ) and not choices:
+            raise serializers.ValidationError({"choices": "Choice fields need at least one option."})
+        if field_type not in (
+            EventFormField.FieldType.SINGLE_CHOICE,
+            EventFormField.FieldType.MULTIPLE_CHOICE,
+        ):
+            choices = []
+        validation = field.get("validation") if isinstance(field.get("validation"), dict) else {}
+        normalized_fields.append(
+            {
+                "field_type": field_type,
+                "label": label,
+                "help_text": help_text,
+                "is_required": bool(field.get("is_required", False)),
+                "order": index,
+                "choices": choices,
+                "validation": validation,
+            }
+        )
+    return normalized_fields
+
+
+def _field_input_key(field: EventFormField) -> str:
+    return str(field.id)
+
+
+def normalize_answer_value(field: EventFormField, raw_value):
+    if _is_blank_answer(raw_value):
+        if field.is_required:
+            raise serializers.ValidationError(
+                {str(field.id): f"{field.label} is required."}
+            )
+        return None
+
+    if field.field_type == EventFormField.FieldType.SHORT_TEXT:
+        value = str(raw_value).strip()
+        if len(value) > MAX_SHORT_ANSWER_LENGTH:
+            raise serializers.ValidationError(
+                {str(field.id): f"{field.label} must be {MAX_SHORT_ANSWER_LENGTH} characters or fewer."}
+            )
+        return value
+
+    if field.field_type == EventFormField.FieldType.LONG_TEXT:
+        value = str(raw_value).strip()
+        if len(value) > MAX_LONG_ANSWER_LENGTH:
+            raise serializers.ValidationError(
+                {str(field.id): f"{field.label} must be {MAX_LONG_ANSWER_LENGTH} characters or fewer."}
+            )
+        return value
+
+    if field.field_type == EventFormField.FieldType.SINGLE_CHOICE:
+        value = str(raw_value).strip()
+        if value not in field.choices:
+            raise serializers.ValidationError({str(field.id): "Choose one of the allowed options."})
+        return value
+
+    if field.field_type == EventFormField.FieldType.MULTIPLE_CHOICE:
+        values = raw_value if isinstance(raw_value, list) else [raw_value]
+        normalized = []
+        for item in values:
+            value = str(item).strip()
+            if value not in field.choices:
+                raise serializers.ValidationError({str(field.id): "Choose only allowed options."})
+            if value not in normalized:
+                normalized.append(value)
+        return normalized
+
+    if field.field_type == EventFormField.FieldType.NUMBER:
+        try:
+            decimal_value = Decimal(str(raw_value).strip())
+        except (InvalidOperation, ValueError):
+            raise serializers.ValidationError({str(field.id): "Enter a valid number."})
+        return str(decimal_value.normalize())
+
+    if field.field_type == EventFormField.FieldType.DATE:
+        value = str(raw_value).strip()
+        if not parse_date(value):
+            raise serializers.ValidationError({str(field.id): "Enter a valid date."})
+        return value
+
+    if field.field_type == EventFormField.FieldType.EMAIL:
+        value = str(raw_value).strip()
+        try:
+            EmailValidator()(value)
+        except DjangoValidationError:
+            raise serializers.ValidationError({str(field.id): "Enter a valid email address."})
+        return value
+
+    if field.field_type == EventFormField.FieldType.PHONE:
+        value = str(raw_value).strip()
+        if len(value) > 40:
+            raise serializers.ValidationError({str(field.id): "Enter a shorter phone number."})
+        return value
+
+    if field.field_type == EventFormField.FieldType.TELEGRAM:
+        value = str(raw_value).strip()
+        if not TELEGRAM_USERNAME_RE.match(value):
+            raise serializers.ValidationError({str(field.id): "Enter a valid Telegram username."})
+        return value if value.startswith("@") else f"@{value}"
+
+    if field.field_type == EventFormField.FieldType.URL:
+        value = str(raw_value).strip()
+        if len(value) > 500 or not value.startswith(("http://", "https://")):
+            raise serializers.ValidationError({str(field.id): "Enter a safe http(s) link."})
+        return value
+
+    raise serializers.ValidationError({str(field.id): "Unsupported form field."})
+
+
+def normalize_registration_answers(event: Event, answers) -> list[tuple[EventFormField, object]]:
+    fields = list(event.form_fields.order_by("order", "id"))
+    if not fields:
+        return []
+    if answers is None:
+        answers = {}
+    if not isinstance(answers, dict):
+        raise serializers.ValidationError({"answers": "Answers must be an object keyed by form field id."})
+
+    known_keys = {_field_input_key(field) for field in fields}
+    unknown_keys = [key for key in answers.keys() if str(key) not in known_keys]
+    if unknown_keys:
+        raise serializers.ValidationError({"answers": "Unknown registration form field."})
+
+    normalized_answers = []
+    for field in fields:
+        raw_value = answers.get(_field_input_key(field))
+        normalized_value = normalize_answer_value(field, raw_value)
+        if normalized_value is not None:
+            normalized_answers.append((field, normalized_value))
+    return normalized_answers
+
+
+def _generate_ticket_code() -> str:
+    return f"evt_{secrets.token_urlsafe(24)}"
+
+
+def _generate_public_verification_code() -> str:
+    return f"part_{secrets.token_urlsafe(18)}"
+
+
+def ensure_ticket_for_registration(registration: EventRegistration) -> EventTicket:
+    ticket, created = EventTicket.objects.get_or_create(
+        registration=registration,
+        defaults={
+            "event": registration.event,
+            "user": registration.user,
+            "code": _generate_ticket_code(),
+            "status": EventTicket.Status.ACTIVE,
+        },
+    )
+    if not created and ticket.status != EventTicket.Status.ACTIVE:
+        ticket.status = EventTicket.Status.ACTIVE
+        ticket.code = _generate_ticket_code()
+        ticket.checked_in_at = None
+        ticket.event = registration.event
+        ticket.user = registration.user
+        ticket.save(update_fields=["status", "code", "checked_in_at", "event", "user"])
+    return ticket
+
+
+def replace_registration_answers(
+    *,
+    registration: EventRegistration,
+    normalized_answers: list[tuple[EventFormField, object]],
+) -> None:
+    registration.answers.all().delete()
+    EventRegistrationAnswer.objects.bulk_create(
+        [
+            EventRegistrationAnswer(
+                registration=registration,
+                field=field,
+                value=value,
+            )
+            for field, value in normalized_answers
+        ]
+    )
+
+
+def create_event_notification(
+    *,
+    event: Event,
+    notification_type: str,
+    recipient=None,
+    actor=None,
+    registration: EventRegistration | None = None,
+    channel: str = EventNotification.Channel.INTERNAL,
+    payload: dict | None = None,
+    status: str = EventNotification.DeliveryStatus.PENDING,
+) -> EventNotification:
+    return EventNotification.objects.create(
+        event=event,
+        registration=registration,
+        actor=actor,
+        recipient=recipient,
+        notification_type=notification_type,
+        channel=channel,
+        status=status,
+        payload=payload or {},
+    )
 
 
 def _log_transition(
@@ -113,6 +395,12 @@ def approve_event(*, event: Event, actor) -> Event:
         new_status=Event.Status.PUBLISHED,
         note="Approved for publication.",
     )
+    create_event_notification(
+        event=locked_event,
+        recipient=locked_event.organizer,
+        actor=actor,
+        notification_type=EventNotification.NotificationType.EVENT_APPROVED,
+    )
     return locked_event
 
 
@@ -140,6 +428,13 @@ def reject_event(*, event: Event, actor, reason: str) -> Event:
         previous_status=Event.Status.PENDING_REVIEW,
         new_status=Event.Status.REJECTED,
         note=reason,
+    )
+    create_event_notification(
+        event=locked_event,
+        recipient=locked_event.organizer,
+        actor=actor,
+        notification_type=EventNotification.NotificationType.EVENT_REJECTED,
+        payload={"reason": reason},
     )
     return locked_event
 
@@ -225,7 +520,7 @@ def payment_status_for_event(event: Event) -> str:
 
 
 @transaction.atomic
-def register_for_event(*, event: Event, user) -> tuple[EventRegistration, bool]:
+def register_for_event(*, event: Event, user, answers=None) -> tuple[EventRegistration, bool]:
     locked_event = Event.objects.select_for_update().get(pk=event.pk)
     now = timezone.now()
 
@@ -256,6 +551,7 @@ def register_for_event(*, event: Event, user) -> tuple[EventRegistration, bool]:
     if locked_event.capacity is not None and active_count >= locked_event.capacity:
         raise serializers.ValidationError({"event": "This event has reached capacity."})
 
+    normalized_answers = normalize_registration_answers(locked_event, answers)
     registration_data, contact_snapshot = build_registration_snapshots(user)
     cancelled_registration = (
         EventRegistration.objects.select_for_update()
@@ -277,16 +573,43 @@ def register_for_event(*, event: Event, user) -> tuple[EventRegistration, bool]:
         for field, value in defaults.items():
             setattr(cancelled_registration, field, value)
         cancelled_registration.save()
+        replace_registration_answers(
+            registration=cancelled_registration,
+            normalized_answers=normalized_answers,
+        )
+        ensure_ticket_for_registration(cancelled_registration)
+        create_event_notification(
+            event=locked_event,
+            recipient=user,
+            registration=cancelled_registration,
+            notification_type=EventNotification.NotificationType.REGISTRATION_CONFIRMED,
+        )
         return cancelled_registration, False
 
-    return (
-        EventRegistration.objects.create(
-            user=user,
-            event=locked_event,
-            **defaults,
-        ),
-        True,
+    registration = EventRegistration.objects.create(
+        user=user,
+        event=locked_event,
+        **defaults,
     )
+    replace_registration_answers(
+        registration=registration,
+        normalized_answers=normalized_answers,
+    )
+    ensure_ticket_for_registration(registration)
+    create_event_notification(
+        event=locked_event,
+        recipient=user,
+        registration=registration,
+        notification_type=EventNotification.NotificationType.REGISTRATION_CONFIRMED,
+    )
+    if locked_event.organizer_id:
+        create_event_notification(
+            event=locked_event,
+            recipient=locked_event.organizer,
+            registration=registration,
+            notification_type=EventNotification.NotificationType.ORGANIZER_NEW_REGISTRATION,
+        )
+    return registration, True
 
 
 @transaction.atomic
@@ -308,6 +631,98 @@ def cancel_event_registration(*, event: Event, user) -> EventRegistration:
 
     registration.status = EventRegistration.Status.CANCELLED
     registration.save(update_fields=["status", "updated_at"])
+    if hasattr(registration, "ticket"):
+        registration.ticket.status = EventTicket.Status.CANCELLED
+        registration.ticket.save(update_fields=["status"])
+    create_event_notification(
+        event=event,
+        recipient=user,
+        registration=registration,
+        notification_type=EventNotification.NotificationType.REGISTRATION_CANCELLED,
+    )
+    return registration
+
+
+@transaction.atomic
+def check_in_registration(
+    *,
+    event: Event,
+    registration_id: int,
+    actor,
+) -> EventRegistration:
+    registration = (
+        EventRegistration.objects.select_for_update()
+        .select_related("event", "user", "event__organizer")
+        .filter(event=event, id=registration_id)
+        .first()
+    )
+    if not registration:
+        raise serializers.ValidationError({"registration": "Registration not found."})
+    if registration.status == EventRegistration.Status.CANCELLED:
+        raise serializers.ValidationError({"registration": "Cancelled registrations cannot be checked in."})
+    if registration.status not in (
+        EventRegistration.Status.REGISTERED,
+        EventRegistration.Status.WAITLISTED,
+        EventRegistration.Status.ATTENDED,
+    ):
+        raise serializers.ValidationError({"registration": "This registration cannot be checked in."})
+
+    now = timezone.now()
+    ticket = ensure_ticket_for_registration(registration)
+    if ticket.status == EventTicket.Status.CANCELLED:
+        raise serializers.ValidationError({"ticket": "Cancelled tickets cannot be checked in."})
+
+    if registration.status != EventRegistration.Status.ATTENDED:
+        registration.status = EventRegistration.Status.ATTENDED
+        registration.save(update_fields=["status", "updated_at"])
+    if ticket.status != EventTicket.Status.CHECKED_IN:
+        ticket.status = EventTicket.Status.CHECKED_IN
+        ticket.checked_in_at = now
+        ticket.save(update_fields=["status", "checked_in_at"])
+
+    record, created = ParticipationRecord.objects.get_or_create(
+        registration=registration,
+        defaults={
+            "event": event,
+            "user": registration.user,
+            "organizer": event.organizer,
+            "attendance_status": ParticipationRecord.AttendanceStatus.CHECKED_IN,
+            "participation_type": ParticipationRecord.ParticipationType.ATTENDEE,
+            "verification_status": ParticipationRecord.VerificationStatus.VERIFIED,
+            "verified_at": now,
+            "record_id": uuid.uuid4(),
+            "public_verification_code": _generate_public_verification_code(),
+        },
+    )
+    if not created:
+        record.attendance_status = ParticipationRecord.AttendanceStatus.CHECKED_IN
+        record.verification_status = ParticipationRecord.VerificationStatus.VERIFIED
+        record.verified_at = record.verified_at or now
+        record.organizer = event.organizer
+        record.save(
+            update_fields=[
+                "attendance_status",
+                "verification_status",
+                "verified_at",
+                "organizer",
+                "updated_at",
+            ]
+        )
+
+    create_event_notification(
+        event=event,
+        recipient=registration.user,
+        actor=actor,
+        registration=registration,
+        notification_type=EventNotification.NotificationType.CHECK_IN_CONFIRMED,
+    )
+    create_event_notification(
+        event=event,
+        recipient=registration.user,
+        actor=actor,
+        registration=registration,
+        notification_type=EventNotification.NotificationType.PARTICIPATION_VERIFIED,
+    )
     return registration
 
 

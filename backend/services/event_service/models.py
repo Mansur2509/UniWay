@@ -206,3 +206,236 @@ class EventRegistration(models.Model):
             models.Index(fields=("event", "status")),
             models.Index(fields=("user", "status")),
         ]
+
+
+class EventFormField(models.Model):
+    class FieldType(models.TextChoices):
+        SHORT_TEXT = "short_text", "Short text"
+        LONG_TEXT = "long_text", "Long text"
+        SINGLE_CHOICE = "single_choice", "Single choice"
+        MULTIPLE_CHOICE = "multiple_choice", "Multiple choice"
+        NUMBER = "number", "Number"
+        DATE = "date", "Date"
+        EMAIL = "email", "Email"
+        PHONE = "phone", "Phone"
+        TELEGRAM = "telegram", "Telegram username"
+        URL = "url", "File or link URL"
+
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="form_fields")
+    field_type = models.CharField(max_length=32, choices=FieldType.choices)
+    label = models.CharField(max_length=160)
+    help_text = models.CharField(max_length=500, blank=True)
+    is_required = models.BooleanField(default=False)
+    order = models.PositiveSmallIntegerField(default=0, db_index=True)
+    choices = models.JSONField(default=list, blank=True)
+    validation = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("order", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("event", "order"),
+                name="unique_event_form_field_order",
+            )
+        ]
+        indexes = [models.Index(fields=("event", "order"))]
+
+    def __str__(self) -> str:
+        return f"{self.event_id}: {self.label}"
+
+
+class EventRegistrationAnswer(models.Model):
+    registration = models.ForeignKey(
+        EventRegistration,
+        on_delete=models.CASCADE,
+        related_name="answers",
+    )
+    field = models.ForeignKey(
+        EventFormField,
+        on_delete=models.CASCADE,
+        related_name="answers",
+    )
+    value = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("field__order", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("registration", "field"),
+                name="unique_event_registration_answer",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.registration_id}: {self.field.label}"
+
+
+class EventTicket(models.Model):
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        CANCELLED = "cancelled", "Cancelled"
+        CHECKED_IN = "checked_in", "Checked in"
+        EXPIRED = "expired", "Expired"
+
+    registration = models.OneToOneField(
+        EventRegistration,
+        on_delete=models.CASCADE,
+        related_name="ticket",
+    )
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="tickets")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="event_tickets",
+    )
+    code = models.CharField(max_length=96, unique=True, db_index=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    checked_in_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=("event", "status")),
+            models.Index(fields=("user", "status")),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.event_id}:{self.registration_id}:{self.status}"
+
+
+class ParticipationRecord(models.Model):
+    class AttendanceStatus(models.TextChoices):
+        CHECKED_IN = "checked_in", "Checked in"
+        NO_SHOW = "no_show", "No show"
+
+    class ParticipationType(models.TextChoices):
+        ATTENDEE = "attendee", "Attendee"
+        SPEAKER = "speaker", "Speaker"
+        VOLUNTEER = "volunteer", "Volunteer"
+
+    class VerificationStatus(models.TextChoices):
+        VERIFIED = "verified", "Verified"
+        REVOKED = "revoked", "Revoked"
+
+    registration = models.OneToOneField(
+        EventRegistration,
+        on_delete=models.CASCADE,
+        related_name="participation_record",
+    )
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name="participation_records",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="participation_records",
+    )
+    organizer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="verified_participation_records",
+    )
+    attendance_status = models.CharField(
+        max_length=20,
+        choices=AttendanceStatus.choices,
+        default=AttendanceStatus.CHECKED_IN,
+    )
+    participation_type = models.CharField(
+        max_length=20,
+        choices=ParticipationType.choices,
+        default=ParticipationType.ATTENDEE,
+    )
+    verification_status = models.CharField(
+        max_length=20,
+        choices=VerificationStatus.choices,
+        default=VerificationStatus.VERIFIED,
+    )
+    verified_at = models.DateTimeField()
+    record_id = models.UUIDField(unique=True)
+    public_verification_code = models.CharField(max_length=64, unique=True, db_index=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-verified_at",)
+        indexes = [
+            models.Index(fields=("user", "verification_status")),
+            models.Index(fields=("event", "attendance_status")),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id}: {self.event_id}: {self.verification_status}"
+
+
+class EventNotification(models.Model):
+    class NotificationType(models.TextChoices):
+        REGISTRATION_CONFIRMED = "registration_confirmed", "Registration confirmed"
+        REGISTRATION_CANCELLED = "registration_cancelled", "Registration cancelled"
+        EVENT_APPROVED = "event_approved", "Event approved"
+        EVENT_REJECTED = "event_rejected", "Event rejected"
+        ORGANIZER_NEW_REGISTRATION = "organizer_new_registration", "New registration"
+        EVENT_REMINDER_PENDING = "event_reminder_pending", "Event reminder pending"
+        CHECK_IN_CONFIRMED = "check_in_confirmed", "Check-in confirmed"
+        PARTICIPATION_VERIFIED = "participation_verified", "Participation verified"
+
+    class Channel(models.TextChoices):
+        INTERNAL = "internal", "Internal"
+        TELEGRAM = "telegram", "Telegram"
+
+    class DeliveryStatus(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SKIPPED = "skipped", "Skipped"
+        FAILED = "failed", "Failed"
+
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="notifications")
+    registration = models.ForeignKey(
+        EventRegistration,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="notifications",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="event_notifications_created",
+    )
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="event_notifications",
+    )
+    notification_type = models.CharField(max_length=64, choices=NotificationType.choices)
+    channel = models.CharField(
+        max_length=20,
+        choices=Channel.choices,
+        default=Channel.INTERNAL,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=DeliveryStatus.choices,
+        default=DeliveryStatus.PENDING,
+    )
+    payload = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=("recipient", "status")),
+            models.Index(fields=("event", "notification_type")),
+        ]

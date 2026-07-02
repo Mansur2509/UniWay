@@ -1,4 +1,8 @@
+import csv
+
+from django.db import transaction
 from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_datetime
 from rest_framework import generics, status
@@ -11,10 +15,18 @@ from rest_framework.viewsets import ModelViewSet
 
 from common.permissions import IsAdminOrReadOnly, IsAdminRole, IsOrganizerOrAdmin
 
-from .models import Event, EventCategory, EventRegistration
+from .models import (
+    Event,
+    EventCategory,
+    EventRegistration,
+    EventTicket,
+    ParticipationRecord,
+)
 from .serializers import (
     EventCategorySerializer,
+    EventFormFieldSerializer,
     EventModerationLogSerializer,
+    ParticipationRecordSerializer,
     EventRegistrationSerializer,
     EventRejectionSerializer,
     EventSerializer,
@@ -24,14 +36,17 @@ from .serializers import (
 )
 from .services import (
     ACTIVE_REGISTRATION_STATUSES,
+    ORGANIZER_EDITABLE_STATUSES,
     approve_event,
     archive_event,
     cancel_event_registration,
     cancel_owned_event,
+    check_in_registration,
     public_event_queryset,
     register_for_event,
     reject_event,
     submit_event_for_review,
+    validate_form_fields_payload,
     validate_event_is_editable,
 )
 
@@ -89,7 +104,12 @@ class EventRegistrationView(APIView):
 
     def post(self, request, slug):
         event = get_object_or_404(Event.objects.all(), slug=slug)
-        registration, created = register_for_event(event=event, user=request.user)
+        answers = request.data.get("answers") if hasattr(request.data, "get") else None
+        registration, created = register_for_event(
+            event=event,
+            user=request.user,
+            answers=answers,
+        )
         serializer = EventRegistrationSerializer(
             registration,
             context={"request": request},
@@ -135,8 +155,22 @@ class MyEventRegistrationListView(generics.ListAPIView):
                 "event__location",
                 "event__source",
                 "event__organizer",
+                "ticket",
             )
+            .prefetch_related("answers__field")
             .order_by("event__starts_at")
+        )
+
+
+class MyParticipationRecordListView(generics.ListAPIView):
+    serializer_class = ParticipationRecordSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return (
+            ParticipationRecord.objects.filter(user=self.request.user)
+            .select_related("event", "event__organizer")
+            .order_by("-verified_at")
         )
 
 
@@ -225,9 +259,234 @@ class OrganizerEventRegistrationListView(generics.ListAPIView):
         return event
 
     def get_queryset(self):
-        return EventRegistration.objects.filter(
+        return (
+            EventRegistration.objects.filter(
+                event=self.get_event(),
+            )
+            .select_related("ticket", "participation_record")
+            .prefetch_related("answers__field")
+            .order_by("-created_at")
+        )
+
+
+class OrganizerEventFormView(generics.GenericAPIView):
+    permission_classes = [IsOrganizerOrAdmin]
+    lookup_field = "slug"
+
+    def get_queryset(self):
+        return organizer_event_queryset(self.request.user).prefetch_related("form_fields")
+
+    def get(self, request, *args, **kwargs):
+        event = self.get_object()
+        return Response(
+            {
+                "event": event.slug,
+                "can_edit": event.moderation_status in ORGANIZER_EDITABLE_STATUSES,
+                "fields": EventFormFieldSerializer(
+                    event.form_fields.all().order_by("order", "id"),
+                    many=True,
+                ).data,
+            }
+        )
+
+    @transaction.atomic
+    def put(self, request, *args, **kwargs):
+        event = self.get_object()
+        validate_event_is_editable(event)
+        fields_payload = request.data.get("fields", [])
+        if not isinstance(fields_payload, list):
+            raise ValidationError({"fields": "Fields must be a list."})
+        normalized_fields = validate_form_fields_payload(fields_payload)
+        event.form_fields.all().delete()
+        for field in normalized_fields:
+            event.form_fields.create(**field)
+        return Response(
+            {
+                "event": event.slug,
+                "can_edit": True,
+                "fields": EventFormFieldSerializer(
+                    event.form_fields.all().order_by("order", "id"),
+                    many=True,
+                ).data,
+            }
+        )
+
+
+class OrganizerEventCheckInView(generics.GenericAPIView):
+    serializer_class = OrganizerParticipantSerializer
+    permission_classes = [IsOrganizerOrAdmin]
+
+    def get_event(self):
+        event = get_object_or_404(
+            organizer_event_queryset(self.request.user),
+            slug=self.kwargs["slug"],
+        )
+        if event.moderation_status != Event.Status.PUBLISHED:
+            raise ValidationError(
+                {"status": "Check-in is available only for published events."}
+            )
+        return event
+
+    def post(self, request, *args, **kwargs):
+        registration = check_in_registration(
             event=self.get_event(),
-        ).order_by("-created_at")
+            registration_id=self.kwargs["registration_id"],
+            actor=request.user,
+        )
+        registration = (
+            EventRegistration.objects.select_related("ticket", "participation_record")
+            .prefetch_related("answers__field")
+            .get(pk=registration.pk)
+        )
+        return Response(self.get_serializer(registration).data)
+
+
+class OrganizerEventTicketVerifyView(generics.GenericAPIView):
+    serializer_class = OrganizerParticipantSerializer
+    permission_classes = [IsOrganizerOrAdmin]
+
+    def post(self, request, *args, **kwargs):
+        event = get_object_or_404(
+            organizer_event_queryset(request.user),
+            slug=kwargs["slug"],
+        )
+        code = str(request.data.get("code", "")).strip()
+        if not code:
+            raise ValidationError({"code": "Ticket code is required."})
+        ticket = (
+            EventTicket.objects.select_related("registration", "registration__user")
+            .filter(event=event, code=code)
+            .first()
+        )
+        if not ticket:
+            raise ValidationError({"code": "Ticket was not found for this event."})
+        registration = (
+            EventRegistration.objects.select_related("ticket", "participation_record")
+            .prefetch_related("answers__field")
+            .get(pk=ticket.registration_id)
+        )
+        return Response(self.get_serializer(registration).data)
+
+
+class OrganizerEventParticipantsExportView(generics.GenericAPIView):
+    permission_classes = [IsOrganizerOrAdmin]
+
+    def get_event(self):
+        event = get_object_or_404(
+            organizer_event_queryset(self.request.user).prefetch_related("form_fields"),
+            slug=self.kwargs["slug"],
+        )
+        if event.moderation_status != Event.Status.PUBLISHED:
+            raise ValidationError(
+                {"status": "Exports are available only for published events."}
+            )
+        return event
+
+    def get(self, request, *args, **kwargs):
+        event = self.get_event()
+        fields = list(event.form_fields.all().order_by("order", "id"))
+        registrations = (
+            EventRegistration.objects.filter(event=event)
+            .select_related("ticket")
+            .prefetch_related("answers__field")
+            .order_by("-created_at")
+        )
+
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = (
+            f'attachment; filename="{event.slug}-participants.csv"'
+        )
+        writer = csv.writer(response)
+        header = [
+            "participant_name",
+            "email",
+            "telegram_username",
+            "registration_status",
+            "payment_status",
+            "ticket_status",
+            "checked_in_at",
+            "registered_at",
+        ] + [field.label for field in fields]
+        writer.writerow(header)
+        for registration in registrations:
+            answers_by_field = {
+                answer.field_id: answer.value for answer in registration.answers.all()
+            }
+            ticket = getattr(registration, "ticket", None)
+            writer.writerow(
+                [
+                    registration.registration_data.get("full_name", ""),
+                    registration.contact_snapshot.get("email", ""),
+                    registration.contact_snapshot.get("telegram_username", ""),
+                    registration.status,
+                    registration.payment_status,
+                    ticket.status if ticket else "",
+                    ticket.checked_in_at.isoformat() if ticket and ticket.checked_in_at else "",
+                    registration.created_at.isoformat(),
+                    *[answers_by_field.get(field.id, "") for field in fields],
+                ]
+            )
+        return response
+
+
+class OrganizerEventAnalyticsView(APIView):
+    permission_classes = [IsOrganizerOrAdmin]
+
+    def get(self, request):
+        events = organizer_event_queryset(request.user)
+        registrations = EventRegistration.objects.filter(event__in=events)
+        total_registrations = registrations.count()
+        checked_in_count = registrations.filter(status=EventRegistration.Status.ATTENDED).count()
+        total_capacity = 0
+        published_with_capacity = 0
+        for event in events:
+            if event.capacity:
+                total_capacity += event.capacity
+                published_with_capacity += event.registrations.filter(
+                    status__in=ACTIVE_REGISTRATION_STATUSES
+                ).count()
+        by_event = (
+            events.annotate(
+                registration_count=Count(
+                    "registrations",
+                    filter=Q(registrations__status__in=ACTIVE_REGISTRATION_STATUSES),
+                ),
+                checked_in_count=Count(
+                    "registrations",
+                    filter=Q(registrations__status=EventRegistration.Status.ATTENDED),
+                ),
+            )
+            .order_by("-starts_at")
+            .values("slug", "title", "registration_count", "checked_in_count")[:10]
+        )
+        return Response(
+            {
+                "total_events": events.count(),
+                "draft_count": events.filter(moderation_status=Event.Status.DRAFT).count(),
+                "pending_count": events.filter(
+                    moderation_status=Event.Status.PENDING_REVIEW
+                ).count(),
+                "published_count": events.filter(
+                    moderation_status=Event.Status.PUBLISHED
+                ).count(),
+                "rejected_count": events.filter(moderation_status=Event.Status.REJECTED).count(),
+                "cancelled_count": events.filter(moderation_status=Event.Status.CANCELLED).count(),
+                "archived_count": events.filter(moderation_status=Event.Status.ARCHIVED).count(),
+                "total_registrations": total_registrations,
+                "checked_in_count": checked_in_count,
+                "attendance_rate": (
+                    round((checked_in_count / total_registrations) * 100, 1)
+                    if total_registrations
+                    else None
+                ),
+                "capacity_fill_percentage": (
+                    round((published_with_capacity / total_capacity) * 100, 1)
+                    if total_capacity
+                    else None
+                ),
+                "registrations_by_event": list(by_event),
+            }
+        )
 
 
 class OrganizerEventArchiveView(generics.GenericAPIView):
