@@ -361,13 +361,24 @@ Example item:
 
 ### GET `/api/events/{slug}/`
 
-Authenticated. Returns one published public event or HTTP 404.
+Authenticated. Returns one published public event or HTTP 404. Detail responses include organizer-defined `registration_form_fields` ordered by `order`. If the current user already has an active registration with a ticket, `registration_ticket` is included for that user only.
 
 ### POST `/api/events/{slug}/register/`
 
 Authenticated and scoped-throttled. Creates an active registration and snapshots the user's current profile/contact data. Rejects duplicate active registration, unpublished/private/cancelled events, passed deadlines, started events, and full capacity.
 
-No request body is required.
+No request body is required unless the event defines custom registration fields. When custom fields exist, answers are submitted by field id:
+
+```json
+{
+  "answers": {
+    "14": "student@example.com",
+    "15": ["Research", "Debate"]
+  }
+}
+```
+
+Required organizer-defined fields are validated before the registration is accepted.
 
 Returns HTTP 201 for a new registration or HTTP 200 when a previously cancelled registration is reactivated.
 
@@ -387,6 +398,19 @@ Returns HTTP 201 for a new registration or HTTP 200 when a previously cancelled 
     "telegram_username": "@student_example",
     "phone": "+998 90 123 45 67"
   },
+  "ticket": {
+    "code": "EVT-A1B2C3D4",
+    "status": "active",
+    "issued_at": "2026-06-22T10:00:00Z",
+    "checked_in_at": null
+  },
+  "answers": [
+    {
+      "field": 14,
+      "field_label": "Contact email",
+      "value": "student@example.com"
+    }
+  ],
   "created_at": "2026-06-22T10:00:00Z",
   "updated_at": "2026-06-22T10:00:00Z"
 }
@@ -401,6 +425,14 @@ Authenticated and scoped-throttled. Changes the current user's active `registere
 ### GET `/api/events/my-registrations/`
 
 Authenticated. Returns the current user's active registered, waitlisted, or attended events.
+
+### GET `/api/events/participation-records/`
+
+Authenticated. Returns the current user's verified event participation records, including event title, event slug, verification status, verified timestamp, and optional certificate URL.
+
+### GET `/api/events/my-notifications/`
+
+Authenticated. Returns recent internal event notifications for the current user. These records are an in-app notification foundation only; they do not send external Telegram, email, or SMS messages.
 
 ## Organizer event management
 
@@ -458,9 +490,17 @@ GET returns organizer-owned events with moderation capabilities. POST creates a 
 
 Responses include `status`, `moderation_note`, `can_edit`, `can_submit`, and `can_view_participants`. Slugs and ownership are server-controlled.
 
+### GET `/api/organizer/events/analytics/`
+
+Returns aggregate metrics for organizer-owned events: total events, published count, registrations, checked-in registrations, and attendance rate.
+
 ### GET/PATCH `/api/organizer/events/{slug}/`
 
 Returns or updates an organizer-owned event. Organizers may edit `draft`, `pending_review`, and `rejected` events. `organizer`, slug, lifecycle status, and moderation data are read-only.
+
+### GET/PUT `/api/organizer/events/{slug}/form/`
+
+Returns or replaces the event's custom registration form fields. Only draft, pending, and rejected events are editable by the owner/admin. Fields are bounded, ordered, and typed; raw answers are stored separately from the event definition.
 
 ### POST `/api/organizer/events/{slug}/submit/`
 
@@ -486,11 +526,33 @@ Available only for organizer-owned published events. Returns privacy-limited par
   "telegram_username": "@student_example",
   "status": "registered",
   "payment_status": "not_required",
+  "ticket_status": "active",
+  "checked_in_at": null,
+  "participation_verified": false,
+  "answers": [
+    {
+      "field": 14,
+      "field_label": "Contact email",
+      "value": "student@example.com"
+    }
+  ],
   "created_at": "2026-06-22T10:00:00Z"
 }
 ```
 
-Phone, academic profile data, raw `registration_data`, and raw `contact_snapshot` are not returned.
+Phone, academic profile data, raw `registration_data`, and raw `contact_snapshot` are not returned. Custom answers are limited to organizer-defined form fields for that event.
+
+### GET `/api/organizer/events/{slug}/registrations/export/`
+
+Owner/admin only. Returns a CSV export of the same privacy-limited participant projection.
+
+### POST `/api/organizer/events/{slug}/registrations/{registration_id}/check-in/`
+
+Owner/admin only. Marks a participant as attended, marks the ticket as checked in, creates or updates the participation record, and returns the updated participant projection. Repeating the same check-in is idempotent.
+
+### POST `/api/organizer/events/{slug}/tickets/verify/`
+
+Owner/admin only. Accepts `{"code": "EVT-A1B2C3D4"}` and returns whether the ticket belongs to that event and can be checked in.
 
 ### GET `/api/organizer/event-categories/`
 
@@ -524,10 +586,17 @@ All moderation endpoints require an admin role. A moderator cannot approve or re
 | POST | `/api/events/{slug}/register/` | Authenticated | Register using a profile/contact snapshot |
 | POST/DELETE | `/api/events/{slug}/cancel-registration/` | Authenticated | Cancel own active registration |
 | GET | `/api/events/my-registrations/` | Authenticated | List own active registrations |
+| GET | `/api/events/participation-records/` | Authenticated | List own verified participation records |
+| GET | `/api/events/my-notifications/` | Authenticated | List own internal event notifications |
 | GET/POST | `/api/organizer/events/` | Organizer/admin | List managed events or create a draft |
+| GET | `/api/organizer/events/analytics/` | Organizer/admin | Aggregate owned-event metrics |
 | GET/PATCH | `/api/organizer/events/{slug}/` | Owner/admin | Read or update an editable event |
+| GET/PUT | `/api/organizer/events/{slug}/form/` | Owner/admin | Read or replace custom registration form fields |
 | POST | `/api/organizer/events/{slug}/submit/` | Owner/admin | Submit draft or rejected event |
 | GET | `/api/organizer/events/{slug}/registrations/` | Owner/admin | Privacy-limited participant list |
+| GET | `/api/organizer/events/{slug}/registrations/export/` | Owner/admin | CSV export of privacy-limited participant list |
+| POST | `/api/organizer/events/{slug}/registrations/{id}/check-in/` | Owner/admin | Idempotently check in a participant |
+| POST | `/api/organizer/events/{slug}/tickets/verify/` | Owner/admin | Verify a ticket code for the event |
 | POST | `/api/organizer/events/{slug}/cancel/` | Owner/admin | Cancel a published event |
 | POST | `/api/organizer/events/{slug}/archive/` | Owner/admin | Archive an unpublished event |
 | GET | `/api/admin/events/pending/` | Admin | Moderation queue |

@@ -1,7 +1,8 @@
 import type {
   EventDetails,
   EventFilters,
-  EventRegistration
+  EventRegistration,
+  ParticipationRecord
 } from "@/entities/event";
 import { apiRequest, normalizePaginatedResponse } from "@/shared/api/client";
 
@@ -39,10 +40,14 @@ export function getEventRequest(slug: string) {
   });
 }
 
-export function registerForEventRequest(slug: string) {
+export function registerForEventRequest(
+  slug: string,
+  answers?: Record<string, unknown>
+) {
   return apiRequest<EventRegistration>(`/${encodeURIComponent(slug)}/register/`, {
     base: "events",
-    method: "POST"
+    method: "POST",
+    body: answers ? { answers } : undefined
   });
 }
 
@@ -61,4 +66,17 @@ export async function getMyEventRegistrationsRequest(pagination: PaginationParam
     base: "events"
   });
   return normalizePaginatedResponse<EventRegistration>(response, "event registrations");
+}
+
+export async function getParticipationRecordsRequest(pagination: PaginationParams = {}) {
+  const response = await apiRequest<unknown>(
+    `/participation-records/${buildEventQuery(pagination)}`,
+    {
+      base: "events"
+    }
+  );
+  return normalizePaginatedResponse<ParticipationRecord>(
+    response,
+    "participation records"
+  );
 }

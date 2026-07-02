@@ -97,13 +97,13 @@ Before a live founder review, walk through this path:
 2. Try one invalid login and confirm a clean error message appears.
 3. Register a new account and confirm it lands in the required onboarding flow before showing the app shell.
 4. Complete onboarding or sign in as `student.demo@eduverse.local`, then review `/dashboard`, `/profile`, `/events`, `/events/my`, and at least one event detail page.
-5. Sign in as `organizer.demo@eduverse.local` and review `/organizer/events`, draft/edit/submit flows, event status clarity, and participant visibility.
+5. Sign in as `organizer.demo@eduverse.local` and review `/organizer/events`, draft/edit/submit flows, custom registration form editing, event status clarity, participants, CSV export, ticket verification, and check-in.
 6. Sign in as `admin.demo@eduverse.local` and review `/admin/events/moderation`, including the pending fictional event.
 7. Review `/pricing`, `/universities`, `/roadmap`, `/essays`, `/exams`, `/finance`, `/activities`, and `/research` as honest preview pages.
 8. Check a narrow/mobile viewport for horizontal overflow, readable cards, and reachable navigation.
 9. Confirm Event Map/catalog remains visible on the Free plan and does not imply paid gating.
 
-Known V1 demo limitations: payments, QR tickets, Telegram notifications, custom organizer forms, Google Sheets export, AI gateway, and real map tiles are intentionally deferred. Demo records are fictional and admissions guidance must be verified against official sources.
+Known V1 demo limitations: payments, external Telegram delivery, QR image rendering/scanning, Google Sheets export, AI gateway, and real map tiles are intentionally deferred. Demo records are fictional and admissions guidance must be verified against official sources.
 
 ## Suggested review routes
 

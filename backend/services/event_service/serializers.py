@@ -7,8 +7,9 @@ from .models import (
     EventFormField,
     EventLocation,
     EventModerationLog,
-    EventRegistrationAnswer,
+    EventNotification,
     EventRegistration,
+    EventRegistrationAnswer,
     EventSource,
     EventSubmission,
     EventTicket,
@@ -105,6 +106,25 @@ class ParticipationRecordSerializer(serializers.ModelSerializer):
             "record_id",
             "public_verification_code",
             "starts_at",
+            "created_at",
+        )
+        read_only_fields = fields
+
+
+class EventNotificationSerializer(serializers.ModelSerializer):
+    event_title = serializers.CharField(source="event.title", read_only=True)
+    event_slug = serializers.CharField(source="event.slug", read_only=True)
+
+    class Meta:
+        model = EventNotification
+        fields = (
+            "id",
+            "notification_type",
+            "channel",
+            "status",
+            "payload",
+            "event_title",
+            "event_slug",
             "created_at",
         )
         read_only_fields = fields
@@ -216,7 +236,7 @@ class PublicEventSerializer(serializers.ModelSerializer):
 
 class EventRegistrationSerializer(serializers.ModelSerializer):
     event = PublicEventSerializer(read_only=True)
-    ticket = EventTicketSerializer(read_only=True)
+    ticket = serializers.SerializerMethodField()
     answers = EventRegistrationAnswerSerializer(many=True, read_only=True)
 
     class Meta:
@@ -234,6 +254,11 @@ class EventRegistrationSerializer(serializers.ModelSerializer):
             "updated_at",
         )
         read_only_fields = fields
+
+    def get_ticket(self, obj):
+        if not hasattr(obj, "ticket"):
+            return None
+        return EventTicketSerializer(obj.ticket).data
 
 
 class OrganizerEventSerializer(serializers.ModelSerializer):

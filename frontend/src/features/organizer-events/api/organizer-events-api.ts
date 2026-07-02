@@ -1,6 +1,9 @@
 import type {
   EventCategory,
   EventModerationLog,
+  EventFormField,
+  OrganizerEventAnalytics,
+  OrganizerEventForm,
   OrganizerEvent,
   OrganizerEventInput,
   OrganizerParticipant
@@ -36,6 +39,12 @@ export async function getOrganizerEventsRequest(params: PaginationParams = {}) {
   return normalizePaginatedResponse<OrganizerEvent>(response, "organizer events");
 }
 
+export function getOrganizerEventAnalyticsRequest() {
+  return apiRequest<OrganizerEventAnalytics>("/events/analytics/", {
+    base: "organizer"
+  });
+}
+
 export function createOrganizerEventRequest(input: OrganizerEventInput) {
   return apiRequest<OrganizerEvent>("/events/", {
     base: "organizer",
@@ -58,6 +67,23 @@ export function updateOrganizerEventRequest(
     base: "organizer",
     method: "PATCH",
     body: input
+  });
+}
+
+export function getOrganizerEventFormRequest(slug: string) {
+  return apiRequest<OrganizerEventForm>(`/events/${encodeURIComponent(slug)}/form/`, {
+    base: "organizer"
+  });
+}
+
+export function saveOrganizerEventFormRequest(
+  slug: string,
+  fields: EventFormField[]
+) {
+  return apiRequest<OrganizerEventForm>(`/events/${encodeURIComponent(slug)}/form/`, {
+    base: "organizer",
+    method: "PUT",
+    body: { fields }
   });
 }
 
@@ -92,6 +118,37 @@ export async function getOrganizerEventParticipantsRequest(
     { base: "organizer" }
   );
   return normalizePaginatedResponse<OrganizerParticipant>(response, "event participants");
+}
+
+export function checkInParticipantRequest(slug: string, registrationId: number) {
+  return apiRequest<OrganizerParticipant>(
+    `/events/${encodeURIComponent(slug)}/registrations/${registrationId}/check-in/`,
+    {
+      base: "organizer",
+      method: "POST"
+    }
+  );
+}
+
+export function verifyEventTicketRequest(slug: string, code: string) {
+  return apiRequest<OrganizerParticipant>(
+    `/events/${encodeURIComponent(slug)}/tickets/verify/`,
+    {
+      base: "organizer",
+      method: "POST",
+      body: { code }
+    }
+  );
+}
+
+export function exportOrganizerEventParticipantsRequest(slug: string) {
+  return apiRequest<Blob>(
+    `/events/${encodeURIComponent(slug)}/registrations/export/`,
+    {
+      base: "organizer",
+      responseType: "blob"
+    }
+  );
 }
 
 export async function getPendingEventsRequest(params: PaginationParams = {}) {

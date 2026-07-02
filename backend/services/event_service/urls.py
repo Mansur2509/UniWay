@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     EventRegistrationCancelView,
     EventRegistrationView,
+    MyEventNotificationListView,
     MyEventRegistrationListView,
     MyParticipationRecordListView,
     PublicEventDetailView,
@@ -18,6 +19,11 @@ urlpatterns = [
         "participation-records/",
         MyParticipationRecordListView.as_view(),
         name="participation-records",
+    ),
+    path(
+        "my-notifications/",
+        MyEventNotificationListView.as_view(),
+        name="my-notifications",
     ),
     path("<slug:slug>/", PublicEventDetailView.as_view(), name="detail"),
     path("<slug:slug>/register/", EventRegistrationView.as_view(), name="register"),

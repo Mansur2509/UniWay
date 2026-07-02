@@ -71,7 +71,10 @@ University XLSX imports are the first beta upload workflow. They are admin/staff
 - A partial unique constraint permits only one active registration per user/event.
 - Cancelled registrations can be reactivated; this avoids duplicate active rows while retaining lifecycle history.
 - Profile and contact data are copied as a snapshot so later profile edits do not silently alter the submitted registration.
-- Capacity is an application/database transaction control, not a distributed reservation system. TICKETS-001 or a future high-scale task must define stronger inventory semantics before paid or high-demand launches.
+- Custom registration answers are validated against organizer-defined field definitions and are returned only to the registering student or the owner/admin participant view.
+- Ticket codes are attendance identifiers. Check-in and ticket verification require owner/admin access, are scoped to one event, and must be idempotent.
+- Internal event notification records are in-app records only; they do not send Telegram, email, or SMS without a separate integration.
+- Capacity is an application/database transaction control, not a distributed reservation system. A future high-scale or paid-ticketing task must define stronger inventory semantics before paid or high-demand launches.
 
 ## Organizer and moderation controls
 
@@ -82,7 +85,7 @@ University XLSX imports are the first beta upload workflow. They are admin/staff
 - A moderator cannot approve or reject an event they own.
 - Rejection requires a bounded non-empty reason, and every lifecycle transition creates an audit record.
 - Submission and moderation endpoints use dedicated scoped throttles.
-- Participant responses are privacy projections. They omit phone, academic profile data, and raw JSON snapshots.
+- Participant responses and CSV exports are privacy projections. They omit phone, academic profile data, and raw JSON snapshots.
 - UI role guards are not authorization controls; all enforcement remains in DRF permissions, object-scoped querysets, serializers, and domain services.
 - Event URLs and descriptions remain untrusted content. The client does not inject organizer HTML and opens source links separately.
 

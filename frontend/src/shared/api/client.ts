@@ -45,6 +45,7 @@ type ApiOptions = Omit<RequestInit, "body"> & {
     | "universityImport";
   retryOnUnauthorized?: boolean;
   timeoutMs?: number;
+  responseType?: "json" | "blob";
 };
 
 // Classifies *why* a request failed so callers can pick a localized message
@@ -253,6 +254,7 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
     base = "api",
     retryOnUnauthorized = true,
     timeoutMs = REQUEST_TIMEOUT_MS,
+    responseType = "json",
     body,
     ...requestOptions
   } = options;
@@ -325,6 +327,26 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
         retryOnUnauthorized: false
       });
     }
+  }
+
+  if (responseType === "blob") {
+    if (!response.ok) {
+      let errorData: unknown;
+      try {
+        errorData = await parseResponse(response);
+      } catch {
+        errorData = undefined;
+      }
+      throw new ApiError(
+        getErrorMessage(
+          errorData,
+          `EduVerse API request failed with status ${response.status}.`
+        ),
+        response.status,
+        errorData
+      );
+    }
+    return (await response.blob()) as T;
   }
 
   const data = await parseResponse(response);

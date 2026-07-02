@@ -7,8 +7,8 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import EmailValidator
 from django.db import transaction
 from django.db.models import Count, Q
-from django.utils.dateparse import parse_date
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.utils.text import slugify
 from rest_framework import serializers
 
@@ -195,7 +195,7 @@ def normalize_answer_value(field: EventFormField, raw_value):
         try:
             decimal_value = Decimal(str(raw_value).strip())
         except (InvalidOperation, ValueError):
-            raise serializers.ValidationError({str(field.id): "Enter a valid number."})
+            raise serializers.ValidationError({str(field.id): "Enter a valid number."}) from None
         return str(decimal_value.normalize())
 
     if field.field_type == EventFormField.FieldType.DATE:
@@ -209,7 +209,7 @@ def normalize_answer_value(field: EventFormField, raw_value):
         try:
             EmailValidator()(value)
         except DjangoValidationError:
-            raise serializers.ValidationError({str(field.id): "Enter a valid email address."})
+            raise serializers.ValidationError({str(field.id): "Enter a valid email address."}) from None
         return value
 
     if field.field_type == EventFormField.FieldType.PHONE:
@@ -264,7 +264,11 @@ def _generate_public_verification_code() -> str:
     return f"part_{secrets.token_urlsafe(18)}"
 
 
-def ensure_ticket_for_registration(registration: EventRegistration) -> EventTicket:
+def ensure_ticket_for_registration(
+    registration: EventRegistration,
+    *,
+    reactivate_cancelled: bool = True,
+) -> EventTicket:
     ticket, created = EventTicket.objects.get_or_create(
         registration=registration,
         defaults={
@@ -274,7 +278,11 @@ def ensure_ticket_for_registration(registration: EventRegistration) -> EventTick
             "status": EventTicket.Status.ACTIVE,
         },
     )
-    if not created and ticket.status != EventTicket.Status.ACTIVE:
+    if (
+        not created
+        and reactivate_cancelled
+        and ticket.status in (EventTicket.Status.CANCELLED, EventTicket.Status.EXPIRED)
+    ):
         ticket.status = EventTicket.Status.ACTIVE
         ticket.code = _generate_ticket_code()
         ticket.checked_in_at = None
@@ -668,7 +676,7 @@ def check_in_registration(
         raise serializers.ValidationError({"registration": "This registration cannot be checked in."})
 
     now = timezone.now()
-    ticket = ensure_ticket_for_registration(registration)
+    ticket = ensure_ticket_for_registration(registration, reactivate_cancelled=False)
     if ticket.status == EventTicket.Status.CANCELLED:
         raise serializers.ValidationError({"ticket": "Cancelled tickets cannot be checked in."})
 

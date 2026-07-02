@@ -1,7 +1,7 @@
 import csv
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_datetime
@@ -18,6 +18,7 @@ from common.permissions import IsAdminOrReadOnly, IsAdminRole, IsOrganizerOrAdmi
 from .models import (
     Event,
     EventCategory,
+    EventNotification,
     EventRegistration,
     EventTicket,
     ParticipationRecord,
@@ -26,12 +27,13 @@ from .serializers import (
     EventCategorySerializer,
     EventFormFieldSerializer,
     EventModerationLogSerializer,
-    ParticipationRecordSerializer,
+    EventNotificationSerializer,
     EventRegistrationSerializer,
     EventRejectionSerializer,
     EventSerializer,
     OrganizerEventSerializer,
     OrganizerParticipantSerializer,
+    ParticipationRecordSerializer,
     PublicEventSerializer,
 )
 from .services import (
@@ -46,8 +48,8 @@ from .services import (
     register_for_event,
     reject_event,
     submit_event_for_review,
-    validate_form_fields_payload,
     validate_event_is_editable,
+    validate_form_fields_payload,
 )
 
 
@@ -171,6 +173,24 @@ class MyParticipationRecordListView(generics.ListAPIView):
             ParticipationRecord.objects.filter(user=self.request.user)
             .select_related("event", "event__organizer")
             .order_by("-verified_at")
+        )
+
+
+class MyEventNotificationListView(generics.ListAPIView):
+    """Recent activity for the current user: registration/ticket updates for
+    students, moderation/new-registration updates for organizers. A single
+    endpoint is safe because `recipient` is always set to the party the
+    notification concerns, never a third party.
+    """
+
+    serializer_class = EventNotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return (
+            EventNotification.objects.filter(recipient=self.request.user)
+            .select_related("event")
+            .order_by("-created_at")
         )
 
 

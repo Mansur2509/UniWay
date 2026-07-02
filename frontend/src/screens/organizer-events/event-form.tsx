@@ -1,6 +1,6 @@
 "use client";
 
-import { Send } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Send, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   type FormEvent,
@@ -13,17 +13,21 @@ import {
 import {
   ModerationStatusBadge,
   type EventCategory,
+  type EventFormField,
+  type EventFormFieldType,
   type OrganizerEvent,
   type OrganizerEventInput
 } from "@/entities/event";
 import {
   createOrganizerEventRequest,
   getOrganizerEventCategoriesRequest,
+  getOrganizerEventFormRequest,
   getOrganizerEventRequest,
+  saveOrganizerEventFormRequest,
   submitOrganizerEventRequest,
   updateOrganizerEventRequest
 } from "@/features/organizer-events";
-import { useI18n } from "@/shared/i18n";
+import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { useUnsavedChangesGuard } from "@/shared/lib/use-unsaved-changes-guard";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
@@ -79,6 +83,19 @@ const emptyForm: EventFormState = {
   venue: "",
   officialSourceUrl: ""
 };
+
+const formFieldTypes: EventFormFieldType[] = [
+  "short_text",
+  "long_text",
+  "single_choice",
+  "multiple_choice",
+  "number",
+  "date",
+  "email",
+  "phone",
+  "telegram",
+  "url"
+];
 
 function toDateTimeInput(value: string | null) {
   if (!value) {
@@ -581,6 +598,18 @@ export function OrganizerEventFormScreen({ slug }: { slug?: string }) {
           </Button>
         </div>
       </form>
+      {event ? (
+        <EventRegistrationFormBuilder isEditable={isEditable} slug={event.slug} />
+      ) : (
+        <Card>
+          <h2 className="text-2xl font-semibold">
+            {t("organizer.formBuilder.title")}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            {t("organizer.formBuilder.createDraftFirst")}
+          </p>
+        </Card>
+      )}
       <UnsavedChangesDialog
         description={t("common.unsaved.description")}
         isSaving={isSaving}
@@ -594,6 +623,374 @@ export function OrganizerEventFormScreen({ slug }: { slug?: string }) {
         title={t("common.unsaved.title")}
       />
     </div>
+  );
+}
+
+function createDraftField(order: number): EventFormField {
+  return {
+    id: -Date.now() - order,
+    field_type: "short_text",
+    label: "",
+    help_text: "",
+    is_required: false,
+    order,
+    choices: [],
+    validation: {}
+  };
+}
+
+function fieldNeedsChoices(fieldType: EventFormFieldType) {
+  return fieldType === "single_choice" || fieldType === "multiple_choice";
+}
+
+function EventRegistrationFormBuilder({
+  slug,
+  isEditable
+}: {
+  slug: string;
+  isEditable: boolean;
+}) {
+  const { t } = useI18n();
+  const [fields, setFields] = useState<EventFormField[]>([]);
+  const [savedFields, setSavedFields] = useState<EventFormField[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const loadFields = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(false);
+    try {
+      const response = await getOrganizerEventFormRequest(slug);
+      setFields(response.fields);
+      setSavedFields(response.fields);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    void loadFields();
+  }, [loadFields]);
+
+  const hasUnsavedChanges =
+    isEditable && JSON.stringify(fields) !== JSON.stringify(savedFields);
+  const unsavedGuard = useUnsavedChangesGuard({
+    browserMessage: t("common.unsaved.browserMessage"),
+    isDirty: hasUnsavedChanges
+  });
+
+  function updateField<Key extends keyof EventFormField>(
+    index: number,
+    key: Key,
+    value: EventFormField[Key]
+  ) {
+    setSaved(false);
+    setFields((current) =>
+      current.map((field, fieldIndex) => {
+        if (fieldIndex !== index) {
+          return field;
+        }
+        const nextField = { ...field, [key]: value };
+        if (key === "field_type" && !fieldNeedsChoices(value as EventFormFieldType)) {
+          nextField.choices = [];
+        }
+        return nextField;
+      })
+    );
+  }
+
+  function addField() {
+    setSaved(false);
+    setFields((current) => [...current, createDraftField(current.length)]);
+  }
+
+  function removeField(index: number) {
+    setSaved(false);
+    setFields((current) =>
+      current.filter((_, fieldIndex) => fieldIndex !== index).map((field, order) => ({
+        ...field,
+        order
+      }))
+    );
+  }
+
+  function moveField(index: number, direction: -1 | 1) {
+    setSaved(false);
+    setFields((current) => {
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= current.length) {
+        return current;
+      }
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next.map((field, order) => ({ ...field, order }));
+    });
+  }
+
+  async function saveFields() {
+    setIsSaving(true);
+    setSaveError(false);
+    setSaved(false);
+    try {
+      const response = await saveOrganizerEventFormRequest(
+        slug,
+        fields.map((field, order) => ({ ...field, order }))
+      );
+      setFields(response.fields);
+      setSavedFields(response.fields);
+      setSaved(true);
+      return true;
+    } catch {
+      setSaveError(true);
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <Card>
+        <p className="text-sm text-muted-foreground">
+          {t("organizer.formBuilder.loading")}
+        </p>
+      </Card>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <Card className="border-danger/35 bg-danger/10">
+        <p className="text-sm text-danger" role="alert">
+          {t("organizer.formBuilder.loadError")}
+        </p>
+        <Button className="mt-4" onClick={() => void loadFields()} type="button">
+          {t("events.actions.retry")}
+        </Button>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+        <div>
+          <h2 className="text-2xl font-semibold">
+            {t("organizer.formBuilder.title")}
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+            {t("organizer.formBuilder.description")}
+          </p>
+        </div>
+        {isEditable ? (
+          <Button onClick={addField} type="button" variant="secondary">
+            <Plus aria-hidden className="mr-2 size-4" />
+            {t("organizer.formBuilder.addField")}
+          </Button>
+        ) : null}
+      </div>
+
+      {fields.length === 0 ? (
+        <div className="mt-6 rounded-sm border bg-elevated/55 p-5">
+          <p className="text-sm font-semibold">
+            {t("organizer.formBuilder.emptyTitle")}
+          </p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            {t("organizer.formBuilder.emptyDescription")}
+          </p>
+        </div>
+      ) : (
+        <div className="mt-6 space-y-4">
+          {fields.map((field, index) => (
+            <div className="rounded-sm border bg-elevated/35 p-4" key={field.id}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm font-semibold">
+                  {t("organizer.formBuilder.fieldNumber", {
+                    count: index + 1
+                  })}
+                </p>
+                {isEditable ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      disabled={index === 0}
+                      onClick={() => moveField(index, -1)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <ArrowUp aria-hidden className="mr-1.5 size-3.5" />
+                      {t("organizer.formBuilder.moveUp")}
+                    </Button>
+                    <Button
+                      disabled={index === fields.length - 1}
+                      onClick={() => moveField(index, 1)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <ArrowDown aria-hidden className="mr-1.5 size-3.5" />
+                      {t("organizer.formBuilder.moveDown")}
+                    </Button>
+                    <Button
+                      className="text-danger"
+                      onClick={() => removeField(index)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Trash2 aria-hidden className="mr-1.5 size-3.5" />
+                      {t("organizer.formBuilder.remove")}
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <TextField
+                  disabled={!isEditable}
+                  label={t("organizer.formBuilder.fieldLabel")}
+                  onChange={(value) => updateField(index, "label", value)}
+                  required
+                  value={field.label}
+                />
+                <SelectField
+                  disabled={!isEditable}
+                  label={t("organizer.formBuilder.fieldType")}
+                  onChange={(value) =>
+                    updateField(index, "field_type", value as EventFormFieldType)
+                  }
+                  options={formFieldTypes.map((fieldType) => ({
+                    label: t(
+                      `organizer.formBuilder.type.${fieldType}` as TranslationKey
+                    ),
+                    value: fieldType
+                  }))}
+                  value={field.field_type}
+                />
+                <TextField
+                  disabled={!isEditable}
+                  label={t("organizer.formBuilder.helpText")}
+                  onChange={(value) => updateField(index, "help_text", value)}
+                  value={field.help_text}
+                />
+                <label className="flex items-center gap-2 self-end text-sm font-semibold">
+                  <input
+                    checked={field.is_required}
+                    disabled={!isEditable}
+                    onChange={(event) =>
+                      updateField(index, "is_required", event.target.checked)
+                    }
+                    type="checkbox"
+                  />
+                  {t("organizer.formBuilder.required")}
+                </label>
+                {fieldNeedsChoices(field.field_type) ? (
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-semibold">
+                      {t("organizer.formBuilder.choices")}
+                    </span>
+                    <textarea
+                      className={`${fieldClassName} min-h-24 py-3`}
+                      disabled={!isEditable}
+                      onChange={(event) =>
+                        updateField(
+                          index,
+                          "choices",
+                          event.target.value
+                            .split("\n")
+                            .map((choice) => choice.trim())
+                            .filter(Boolean)
+                        )
+                      }
+                      value={field.choices.join("\n")}
+                    />
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      {t("organizer.formBuilder.choicesHelp")}
+                    </span>
+                  </label>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {fields.length > 0 ? (
+        <div className="mt-6 rounded-sm border bg-card p-4">
+          <h3 className="text-lg font-semibold">
+            {t("organizer.formBuilder.previewTitle")}
+          </h3>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {fields.map((field) => (
+              <div className="rounded-sm border bg-elevated/35 p-3" key={`preview-${field.id}`}>
+                <p className="text-sm font-semibold">
+                  {field.label || t("organizer.formBuilder.untitledField")}
+                  {field.is_required ? " *" : ""}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t(`organizer.formBuilder.type.${field.field_type}` as TranslationKey)}
+                </p>
+                {field.help_text ? (
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    {field.help_text}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {saveError ? (
+        <p className="mt-4 text-sm text-danger" role="alert">
+          {t("organizer.formBuilder.saveError")}
+        </p>
+      ) : null}
+      {saved ? (
+        <p className="mt-4 text-sm text-success" role="status">
+          {t("organizer.formBuilder.saved")}
+        </p>
+      ) : null}
+
+      {isEditable ? (
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Button disabled={isSaving} onClick={() => void saveFields()} type="button">
+            {isSaving
+              ? t("organizer.actions.saving")
+              : t("organizer.formBuilder.save")}
+          </Button>
+          <Button
+            disabled={isSaving || !hasUnsavedChanges}
+            onClick={() => {
+              setFields(savedFields);
+              setSaveError(false);
+              setSaved(false);
+            }}
+            type="button"
+            variant="secondary"
+          >
+            {t("organizer.formBuilder.cancelChanges")}
+          </Button>
+        </div>
+      ) : null}
+
+      <UnsavedChangesDialog
+        description={t("common.unsaved.description")}
+        isSaving={isSaving}
+        leaveWithoutSavingLabel={t("common.unsaved.leaveWithoutSaving")}
+        onLeaveWithoutSaving={unsavedGuard.leaveWithoutSaving}
+        onSaveAndLeave={saveFields}
+        onStay={unsavedGuard.stay}
+        open={unsavedGuard.isPromptOpen}
+        saveAndLeaveLabel={t("common.unsaved.saveAndLeave")}
+        stayLabel={t("common.unsaved.stay")}
+        title={t("common.unsaved.title")}
+      />
+    </Card>
   );
 }
 

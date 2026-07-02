@@ -106,7 +106,24 @@ export function MyEventsScreen() {
           getItemKey={(registration) => registration.id}
           items={registrations}
           onPageChange={setCurrentPage}
-          renderItem={(registration) => <EventCard event={registration.event} />}
+          renderItem={(registration) => (
+            <div className="space-y-3">
+              <EventCard event={registration.event} />
+              {registration.ticket ? (
+                <Card className="p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                    {t("events.ticket.title")}
+                  </p>
+                  <p className="mt-2 break-all font-mono text-xs">
+                    {registration.ticket.code}
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    {t("events.ticket.doNotShare")}
+                  </p>
+                </Card>
+              ) : null}
+            </div>
+          )}
           totalCount={totalCount}
           totalPages={totalPages}
         />

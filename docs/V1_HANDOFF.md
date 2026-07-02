@@ -37,7 +37,7 @@ The app is gated by backend-confirmed auth and onboarding. Demo users exist for 
 - SAT/IELTS/AP banks are not production-ready.
 - AI gateway is not implemented yet.
 - Payments are not implemented yet.
-- Forms, QR tickets, Telegram notifications, and Google Sheets export are not implemented yet.
+- Payments, external Telegram delivery, QR image rendering/scanning, and Google Sheets export are not implemented yet.
 
 ## Known risks
 
@@ -48,7 +48,7 @@ The app is gated by backend-confirmed auth and onboarding. Demo users exist for 
 
 ## What not to touch next
 
-- Do not start FORMS-001, UNIVERSITY-001, AI, payments, QR tickets, Telegram, Google Sheets, or new modules before founder visual review.
+- Do not start UNIVERSITY-001, AI, payments, external Telegram delivery, Google Sheets, or new modules before founder visual review.
 - Do not change the auth guard or onboarding gate unless founder review finds a blocking issue.
 - Do not replace the current V1 academic visual direction.
 - Do not add dependencies or internet-dependent tooling during the freeze.

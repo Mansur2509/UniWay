@@ -7,11 +7,13 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ModerationStatusBadge,
   type OrganizerEvent,
+  type OrganizerEventAnalytics,
   type PaginatedResponse
 } from "@/entities/event";
 import {
   archiveOrganizerEventRequest,
   cancelOrganizerEventRequest,
+  getOrganizerEventAnalyticsRequest,
   getOrganizerEventsRequest,
   submitOrganizerEventRequest
 } from "@/features/organizer-events";
@@ -24,6 +26,7 @@ import { DEFAULT_PAGE_SIZE, PaginationControls } from "@/shared/ui/pagination";
 export function OrganizerEventsScreen() {
   const { locale, t } = useI18n();
   const [events, setEvents] = useState<OrganizerEvent[]>([]);
+  const [analytics, setAnalytics] = useState<OrganizerEventAnalytics | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,10 +38,16 @@ export function OrganizerEventsScreen() {
     setIsLoading(true);
     setHasError(false);
     try {
-      const response: PaginatedResponse<OrganizerEvent> =
-        await getOrganizerEventsRequest({ page: currentPage, page_size: DEFAULT_PAGE_SIZE });
+      const [response, analyticsResponse]: [
+        PaginatedResponse<OrganizerEvent>,
+        OrganizerEventAnalytics
+      ] = await Promise.all([
+        getOrganizerEventsRequest({ page: currentPage, page_size: DEFAULT_PAGE_SIZE }),
+        getOrganizerEventAnalyticsRequest()
+      ]);
       setEvents(response.results);
       setTotalCount(response.count);
+      setAnalytics(analyticsResponse);
     } catch {
       setHasError(true);
     } finally {
@@ -51,11 +60,16 @@ export function OrganizerEventsScreen() {
   }, [loadEvents]);
 
   const statusCounts = {
-    pending: events.filter((event) => event.status === "pending_review").length,
-    published: events.filter((event) => event.status === "published").length,
-    needsAction: events.filter((event) =>
-      ["draft", "rejected"].includes(event.status)
-    ).length
+    pending:
+      analytics?.pending_count ??
+      events.filter((event) => event.status === "pending_review").length,
+    published:
+      analytics?.published_count ??
+      events.filter((event) => event.status === "published").length,
+    needsAction:
+      analytics !== null
+        ? analytics.draft_count + analytics.rejected_count
+        : events.filter((event) => ["draft", "rejected"].includes(event.status)).length
   };
   const totalPages = Math.max(1, Math.ceil(totalCount / DEFAULT_PAGE_SIZE));
   const pageStart = totalCount ? (currentPage - 1) * DEFAULT_PAGE_SIZE + 1 : 0;
@@ -132,6 +146,20 @@ export function OrganizerEventsScreen() {
               [t("organizer.statusSummary.total"), totalCount],
               [t("organizer.statusSummary.pending"), statusCounts.pending],
               [t("organizer.statusSummary.published"), statusCounts.published],
+              [
+                t("organizer.statusSummary.registrations"),
+                analytics?.total_registrations ?? 0
+              ],
+              [
+                t("organizer.statusSummary.checkedIn"),
+                analytics?.checked_in_count ?? 0
+              ],
+              [
+                t("organizer.statusSummary.attendanceRate"),
+                analytics?.attendance_rate === null || analytics?.attendance_rate === undefined
+                  ? t("events.value.notSet")
+                  : `${analytics.attendance_rate}%`
+              ],
               [t("organizer.statusSummary.needsAction"), statusCounts.needsAction]
             ].map(([label, value]) => (
               <Card className="p-4" key={label}>

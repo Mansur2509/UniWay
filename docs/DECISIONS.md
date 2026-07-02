@@ -95,7 +95,7 @@ Test scores remain a validated JSON object during the profile foundation stage b
 
 Event registration stores private profile and contact snapshots rather than relying only on live profile joins. This preserves what the student submitted at registration time and prepares stable payloads for future organizer forms, exports, tickets, and notifications.
 
-Only one active registration per user/event is allowed through a partial unique constraint. Cancelled registrations may be reactivated. Capacity and lifecycle checks run transactionally, while payment, QR, Telegram, custom forms, and distributed inventory remain deferred.
+Only one active registration per user/event is allowed through a partial unique constraint. Cancelled registrations may be reactivated. Capacity and lifecycle checks run transactionally. Organizer custom forms, ticket codes, check-in, participation records, and internal notification records now live in the event service; payment, external Telegram delivery, QR image rendering/scanning, and distributed inventory remain deferred.
 
 ## ADR-014: Explicit organizer event state machine and maker-checker moderation
 
@@ -104,7 +104,7 @@ Only one active registration per user/event is allowed through a partial unique 
 
 Organizer event creation is draft-first. Submission, approval, rejection, cancellation, and archival are explicit transactional service operations rather than arbitrary status field updates. Each transition writes an `EventModerationLog`, and rejection requires a reason.
 
-Publication requires an admin action, and moderators cannot approve or reject events they own. Organizer participant access uses a privacy-limited projection instead of returning raw registration snapshots. Custom forms, exports, Telegram notifications, QR tickets, anti-abuse expansion, and payment processing remain separate future tasks.
+Publication requires an admin action, and moderators cannot approve or reject events they own. Organizer participant access uses a privacy-limited projection instead of returning raw registration snapshots. Custom form answers, CSV export, ticket-code check-in, participation records, and internal notifications are owner/admin scoped. External Telegram delivery, QR image rendering/scanning, anti-abuse expansion, and payment processing remain separate future tasks.
 
 ## ADR-015: Beta preview uses real completed slices and honest module previews
 
@@ -352,3 +352,14 @@ Editable EduVerse workflows should never trap the user or silently discard work.
 The pattern is intentionally client-side UX only. Backend authorization, ownership, validation, and moderation rules remain authoritative. Forms still reset loading states in `finally` blocks and surface request errors instead of leaving buttons stuck. Screens with special semantics can adapt the same guard: onboarding saves the current profile draft before logout, organizer event drafts save before returning to the list, and the essay editor protects the unsaved draft buffer when switching essays.
 
 Profile onboarding JSON list validation was also narrowed from a blanket 120-character cap to field-appropriate caps. Short taxonomy fields remain short, while activity/research/support/career entries can contain normal admissions-detail text. Structured profile item descriptions continue to use their existing 1000-1500 character model-backed limits. This is a validation-behavior change only and requires no migration.
+
+## ADR-036: Event organizer infrastructure stays owner-scoped and payment-free
+
+- **Status:** Accepted
+- **Date:** 2026-07-02
+
+EduVerse event infrastructure now supports organizer-defined registration form fields, student answers, ticket codes, idempotent check-in, verified participation records, privacy-limited CSV participant export, aggregate organizer analytics, and internal event notification records.
+
+These capabilities remain inside the authenticated event workflow. Organizers can manage only owned events, admins can manage any event, student-facing records are self-only, and all participant exports use the same privacy-limited projection as the participant API. Ticket codes are attendance identifiers, not payment inventory or admissions credentials.
+
+External Telegram delivery, QR image rendering/scanning, paid ticketing, and high-demand distributed inventory are intentionally deferred until separate security, abuse, and operational controls exist.

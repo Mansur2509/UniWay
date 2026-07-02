@@ -12,7 +12,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 
-import type { EventDetails } from "@/entities/event";
+import type { EventDetails, EventFormField } from "@/entities/event";
 import { useAuth } from "@/features/auth/model/auth-context";
 import {
   cancelEventRegistrationRequest,
@@ -24,6 +24,7 @@ import { formatDateTime } from "@/shared/lib/date-time";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
+import { fieldClassName } from "@/shared/ui/field";
 
 function priceText(event: EventDetails, t: ReturnType<typeof useI18n>["t"]) {
   if (event.price_type === "paid" && event.price_amount) {
@@ -45,6 +46,7 @@ export function EventDetailScreen({ slug }: { slug: string }) {
   const [hasError, setHasError] = useState(false);
   const [actionError, setActionError] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<"registered" | "cancelled" | null>(null);
+  const [registrationAnswers, setRegistrationAnswers] = useState<Record<string, unknown>>({});
 
   const loadEvent = useCallback(async () => {
     setIsLoading(true);
@@ -76,8 +78,9 @@ export function EventDetailScreen({ slug }: { slug: string }) {
         await cancelEventRegistrationRequest(slug);
         setActionSuccess("cancelled");
       } else {
-        await registerForEventRequest(slug);
+        await registerForEventRequest(slug, registrationAnswers);
         setActionSuccess("registered");
+        setRegistrationAnswers({});
       }
       setEvent(await getEventRequest(slug));
     } catch {
@@ -186,6 +189,45 @@ export function EventDetailScreen({ slug }: { slug: string }) {
                   })
                 : t("events.registration.profileSnapshot")}
             </p>
+            {!isRegistered && event.registration_form_fields.length > 0 ? (
+              <div className="mt-5 space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold">
+                    {t("events.registration.customFormTitle")}
+                  </h3>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {t("events.registration.customFormDescription")}
+                  </p>
+                </div>
+                {event.registration_form_fields.map((field) => (
+                  <RegistrationField
+                    field={field}
+                    key={field.id}
+                    onChange={(value) =>
+                      setRegistrationAnswers((current) => ({
+                        ...current,
+                        [String(field.id)]: value
+                      }))
+                    }
+                    t={t}
+                    value={registrationAnswers[String(field.id)]}
+                  />
+                ))}
+              </div>
+            ) : null}
+            {event.registration_ticket ? (
+              <div className="mt-5 rounded-sm border bg-elevated/60 p-3">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                  {t("events.ticket.title")}
+                </p>
+                <p className="mt-2 break-all font-mono text-xs">
+                  {event.registration_ticket.code}
+                </p>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  {t("events.ticket.doNotShare")}
+                </p>
+              </div>
+            ) : null}
             <Button
               className="mt-5 w-full"
               disabled={isSubmitting}
@@ -240,6 +282,117 @@ export function EventDetailScreen({ slug }: { slug: string }) {
       <p className="text-xs leading-5 text-muted-foreground">{t("events.disclaimer")}</p>
     </div>
   );
+}
+
+function RegistrationField({
+  field,
+  value,
+  onChange,
+  t
+}: {
+  field: EventFormField;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  t: ReturnType<typeof useI18n>["t"];
+}) {
+  const label = `${field.label}${field.is_required ? " *" : ""}`;
+  const stringValue = typeof value === "string" ? value : "";
+
+  if (field.field_type === "long_text") {
+    return (
+      <label className="block">
+        <span className="text-sm font-semibold">{label}</span>
+        <textarea
+          className={`${fieldClassName} min-h-28 py-3`}
+          onChange={(event) => onChange(event.target.value)}
+          required={field.is_required}
+          value={stringValue}
+        />
+        {field.help_text ? <FieldHelp text={field.help_text} /> : null}
+      </label>
+    );
+  }
+
+  if (field.field_type === "single_choice") {
+    return (
+      <label className="block">
+        <span className="text-sm font-semibold">{label}</span>
+        <select
+          className={fieldClassName}
+          onChange={(event) => onChange(event.target.value)}
+          required={field.is_required}
+          value={stringValue}
+        >
+          <option value="">{t("events.registration.chooseOption")}</option>
+          {field.choices.map((choice) => (
+            <option key={choice} value={choice}>
+              {choice}
+            </option>
+          ))}
+        </select>
+        {field.help_text ? <FieldHelp text={field.help_text} /> : null}
+      </label>
+    );
+  }
+
+  if (field.field_type === "multiple_choice") {
+    const selectedValues = Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string")
+      : [];
+    return (
+      <fieldset>
+        <legend className="text-sm font-semibold">{label}</legend>
+        <div className="mt-2 space-y-2">
+          {field.choices.map((choice) => (
+            <label className="flex items-center gap-2 text-sm" key={choice}>
+              <input
+                checked={selectedValues.includes(choice)}
+                onChange={(event) => {
+                  onChange(
+                    event.target.checked
+                      ? [...selectedValues, choice]
+                      : selectedValues.filter((item) => item !== choice)
+                  );
+                }}
+                type="checkbox"
+              />
+              {choice}
+            </label>
+          ))}
+        </div>
+        {field.help_text ? <FieldHelp text={field.help_text} /> : null}
+      </fieldset>
+    );
+  }
+
+  const inputType =
+    field.field_type === "number"
+      ? "number"
+      : field.field_type === "date"
+        ? "date"
+        : field.field_type === "email"
+          ? "email"
+          : field.field_type === "url"
+            ? "url"
+            : "text";
+
+  return (
+    <label className="block">
+      <span className="text-sm font-semibold">{label}</span>
+      <input
+        className={fieldClassName}
+        onChange={(event) => onChange(event.target.value)}
+        required={field.is_required}
+        type={inputType}
+        value={stringValue}
+      />
+      {field.help_text ? <FieldHelp text={field.help_text} /> : null}
+    </label>
+  );
+}
+
+function FieldHelp({ text }: { text: string }) {
+  return <span className="mt-1 block text-xs leading-5 text-muted-foreground">{text}</span>;
 }
 
 function DetailItem({
