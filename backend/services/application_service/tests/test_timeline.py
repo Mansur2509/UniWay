@@ -195,6 +195,25 @@ class ApplicationTimelineApiTests(APITestCase):
         self.assertEqual(sat["threshold"], 1510)
         self.assertEqual(sat["severity"], "significant_gap")
 
+    def test_toefl_links_to_official_ets_site_when_planned(self):
+        university = _create_university()
+        application = self._create_application(university)
+        profile, _ = ensure_profile_records(self.user)
+        profile.exam_plans = {"toefl": {"planned_retake": True}}
+        profile.save(update_fields=["exam_plans"])
+        data = self._timeline(application)
+        toefl = next(entry for entry in data["linked_exams"] if entry["exam"] == "TOEFL")
+        self.assertEqual(toefl["source_url"], "https://www.ets.org/toefl")
+
+    def test_ielts_falls_back_to_official_site_without_university_source(self):
+        university = _create_university(
+            ielts_minimum="6.5", admissions_url="", official_website=""
+        )
+        application = self._create_application(university)
+        data = self._timeline(application)
+        ielts = next(entry for entry in data["linked_exams"] if entry["exam"] == "IELTS")
+        self.assertEqual(ielts["source_url"], "https://www.ielts.org")
+
     def test_exam_after_deadline_is_flagged(self):
         university = _create_university(sat_p75=1510)
         application = self._create_application(

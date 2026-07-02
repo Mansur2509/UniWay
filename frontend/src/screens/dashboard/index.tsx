@@ -338,6 +338,23 @@ export function DashboardScreen() {
     [applications]
   );
 
+  const nextMilestones = useMemo(() => {
+    const open = applications.flatMap((application) =>
+      (application.milestones ?? [])
+        .filter((milestone) => milestone.status === "todo" || milestone.status === "in_progress")
+        .map((milestone) => ({ milestone, application }))
+    );
+    open.sort((left, right) => {
+      if (left.milestone.due_date && right.milestone.due_date) {
+        return left.milestone.due_date.localeCompare(right.milestone.due_date);
+      }
+      if (left.milestone.due_date) return -1;
+      if (right.milestone.due_date) return 1;
+      return 0;
+    });
+    return open.slice(0, 3);
+  }, [applications]);
+
   const hasExamEvidence =
     plannedExams.length > 0 ||
     Boolean(
@@ -645,7 +662,7 @@ export function DashboardScreen() {
         title={t("dashboard.suggestions.title")}
       />
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <Card className="p-4">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
             {t("dashboard.applicationsWidget.title")}
@@ -748,6 +765,58 @@ export function DashboardScreen() {
           ) : null}
           <Button asChild className="mt-3" size="sm" variant="ghost">
             <Link href="/roadmap">{t("dashboard.deadlineWidget.open")}</Link>
+          </Button>
+        </Card>
+
+        <Card className="p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+            {t("dashboard.milestonesWidget.title")}
+          </p>
+          {nextMilestones.length === 0 ? (
+            <p className="mt-3 text-xs text-muted-foreground">
+              {applications.length === 0
+                ? t("dashboard.milestonesWidget.emptyNoApplications")
+                : t("dashboard.milestonesWidget.emptyNoMilestones")}
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-2 text-xs">
+              {nextMilestones.map(({ milestone, application }) => {
+                const days = milestone.due_date
+                  ? Math.round(
+                      (new Date(`${milestone.due_date}T00:00:00`).getTime() -
+                        new Date(new Date().toDateString()).getTime()) /
+                        86_400_000
+                    )
+                  : null;
+                const urgency = urgencyForDays(days);
+                return (
+                  <li key={milestone.id}>
+                    <Link
+                      className="block rounded-sm px-1 py-1 hover:bg-elevated"
+                      href="/applications"
+                    >
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="truncate font-semibold">{milestone.title}</span>
+                        {milestone.due_date && urgency !== "unknown" ? (
+                          <span
+                            className={`shrink-0 rounded-sm border px-1.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide ${DASHBOARD_URGENCY_STYLES[urgency]}`}
+                          >
+                            {t(`applications.urgency.${urgency}` as TranslationKey)}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="mt-0.5 block truncate text-muted-foreground">
+                        {application.university_name}
+                        {milestone.due_date ? ` · ${formatDate(milestone.due_date, locale)}` : ""}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <Button asChild className="mt-3" size="sm" variant="ghost">
+            <Link href="/applications">{t("dashboard.milestonesWidget.open")}</Link>
           </Button>
         </Card>
 

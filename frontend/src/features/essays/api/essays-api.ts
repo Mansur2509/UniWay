@@ -48,6 +48,14 @@ export function deleteEssayRequest(id: number) {
   return apiRequest<void>(`/${id}/`, { base: "essays", method: "DELETE" });
 }
 
+export function generateEssaySuggestionsRequest() {
+  return apiRequest<{
+    created_count: number;
+    existing_count: number;
+    essays: EssayWorkspace[];
+  }>("/generate-suggestions/", { base: "essays", method: "POST" });
+}
+
 export function generateEssayFeedbackRequest(id: number) {
   return apiRequest<{ detail: string; feedback: EssayFeedback; essay: EssayWorkspace }>(
     `/${id}/feedback/`,

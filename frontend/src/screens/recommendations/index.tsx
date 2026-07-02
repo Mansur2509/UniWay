@@ -494,6 +494,7 @@ export function RecommendationsScreen() {
                   {t(`universities.fit.category.${category}` as TranslationKey)}
                 </span>
                 <span className="text-sm font-normal text-muted-foreground">({list.length})</span>
+                <HelpTooltip label={t(`recommendations.help.category.${category}` as TranslationKey)} />
               </h2>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {list.map((item) => (
@@ -622,7 +623,10 @@ function RecommendationCard({
 
       <div className="grid grid-cols-2 gap-2 text-xs">
         <div>
-          <p className="font-semibold text-muted-foreground">{t("recommendations.card.cost")}</p>
+          <p className="flex items-center gap-1 font-semibold text-muted-foreground">
+            {t("recommendations.card.cost")}
+            <HelpTooltip label={t("recommendations.help.costConfidence")} />
+          </p>
           <p>
             {item.estimated_total_cost_usd
               ? `$${Number(item.estimated_total_cost_usd).toLocaleString()}`
@@ -763,6 +767,7 @@ function RecommendationCard({
             <p className="mt-1">
               {t("recommendations.card.deadlineConfidence")}:{" "}
               {t(`applications.confidence.${item.deadline_confidence}` as TranslationKey)}
+              <HelpTooltip className="ml-1" label={t("recommendations.help.deadlineConfidence")} />
               {item.deadline_cycle_label
                 ? ` · ${t("applications.deadlines.cycleLabel", { cycle: item.deadline_cycle_label })}`
                 : ""}

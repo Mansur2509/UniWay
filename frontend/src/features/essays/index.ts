@@ -3,6 +3,7 @@ export {
   createEssayRevisionTaskRequest,
   deleteEssayRequest,
   generateEssayFeedbackRequest,
+  generateEssaySuggestionsRequest,
   getEssayFeedbackRequest,
   getEssayRequest,
   getEssaysRequest,

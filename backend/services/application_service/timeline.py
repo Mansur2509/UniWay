@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from services.exam_content_service.models import OfficialExamDate
+from services.exam_content_service.official_links import official_exam_link
 from services.university_service.deadline_normalization import (
     normalize_university_deadline,
 )
@@ -428,7 +429,9 @@ def _linked_exams(application, profile, today: date) -> list[dict]:
             }
         )
 
-    # IELTS — threshold from university; no official-date support in scope.
+    # IELTS — threshold from university; no verified official-date dataset,
+    # so fall back to the university's own source and then the official
+    # IELTS site rather than leaving the student with no link at all.
     ielts_threshold = university.ielts_competitive or university.ielts_minimum
     ielts_threshold_label = "competitive" if university.ielts_competitive else (
         "minimum" if university.ielts_minimum else None
@@ -440,6 +443,7 @@ def _linked_exams(application, profile, today: date) -> list[dict]:
             if (student_ielts is not None and ielts_threshold)
             else None
         )
+        ielts_link = official_exam_link("IELTS")
         entries.append(
             {
                 "exam": "IELTS",
@@ -451,14 +455,18 @@ def _linked_exams(application, profile, today: date) -> list[dict]:
                 "official_test_date": None,
                 "official_test_date_confidence": None,
                 "registration_deadline": None,
-                "source_url": _source_url_for_field(university, "ielts_minimum"),
+                "source_url": _source_url_for_field(university, "ielts_minimum")
+                or (ielts_link["source_url"] if ielts_link else ""),
                 "scores_arrive_before_deadline": None,
             }
         )
 
-    # TOEFL — planning only when a score exists or is planned.
+    # TOEFL — planning only when a score exists or is planned. No verified
+    # official-date dataset; link to the official ETS TOEFL site instead of
+    # inventing a date.
     student_toefl = _to_float(_profile_score(profile, "toefl"))
     if student_toefl is not None or "TOEFL" in planned:
+        toefl_link = official_exam_link("TOEFL")
         entries.append(
             {
                 "exam": "TOEFL",
@@ -470,7 +478,7 @@ def _linked_exams(application, profile, today: date) -> list[dict]:
                 "official_test_date": None,
                 "official_test_date_confidence": None,
                 "registration_deadline": None,
-                "source_url": "",
+                "source_url": toefl_link["source_url"] if toefl_link else "",
                 "scores_arrive_before_deadline": None,
             }
         )

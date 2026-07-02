@@ -10,12 +10,21 @@ export type EssayType =
   | "other";
 
 export type EssayStatus =
+  | "suggested"
+  | "planned"
   | "not_started"
   | "drafting"
   | "needs_revision"
   | "reviewed"
   | "ready"
-  | "submitted";
+  | "submitted"
+  | "skipped";
+
+export type EssayPriority = "low" | "medium" | "high" | "urgent";
+
+export type EssayPromptVerificationStatus = "verified" | "needs_verification" | "missing";
+
+export type EssayPromptConfidence = "low" | "medium" | "high";
 
 export type EssayOverallLabel = "weak" | "developing" | "solid" | "strong" | "excellent";
 
@@ -68,11 +77,20 @@ export type EssayWorkspace = {
   university: number | null;
   university_name: string | null;
   university_slug: string | null;
+  application: number | null;
+  application_university_name: string | null;
+  application_round: string | null;
   prompt_text: string;
   word_limit: number | null;
   draft_text: string;
   status: EssayStatus;
+  priority: EssayPriority;
+  due_date: string | null;
+  prompt_verification_status: EssayPromptVerificationStatus;
+  prompt_confidence: EssayPromptConfidence;
   source_url: string;
+  notes: string;
+  suggestion_key: string;
   last_reviewed_at: string | null;
   latest_feedback: EssayFeedback | null;
   revision_tasks: EssayRevisionTask[];
@@ -85,11 +103,17 @@ export type EssayWorkspaceInput = {
   title: string;
   essay_type?: EssayType;
   university?: number | null;
+  application?: number | null;
   prompt_text?: string;
   word_limit?: number | null;
   draft_text?: string;
   status?: EssayStatus;
+  priority?: EssayPriority;
+  due_date?: string | null;
+  prompt_verification_status?: EssayPromptVerificationStatus;
+  prompt_confidence?: EssayPromptConfidence;
   source_url?: string;
+  notes?: string;
 };
 
 export type EssayRevisionTaskInput = {
@@ -118,12 +142,17 @@ export const ESSAY_TYPES: EssayType[] = [
 ];
 
 export const ESSAY_STATUSES: EssayStatus[] = [
+  "suggested",
+  "planned",
   "not_started",
   "drafting",
   "needs_revision",
   "reviewed",
   "ready",
-  "submitted"
+  "submitted",
+  "skipped"
 ];
+
+export const ESSAY_PRIORITIES: EssayPriority[] = ["low", "medium", "high", "urgent"];
 
 export { EssayCard } from "./ui/essay-card";

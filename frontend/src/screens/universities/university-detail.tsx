@@ -829,6 +829,13 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
                           })}
                         </p>
                       ) : null}
+                      {university.currency_conversion_date ? (
+                        <p className="text-xs text-muted-foreground">
+                          {t("universities.cost.conversionDate", {
+                            date: formatDate(university.currency_conversion_date, locale)
+                          })}
+                        </p>
+                      ) : null}
                     </div>
                   </DetailItem>
                   <DetailItem label={t("universities.fields.scholarshipAvailable")}>

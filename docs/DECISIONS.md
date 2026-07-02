@@ -363,3 +363,14 @@ EduVerse event infrastructure now supports organizer-defined registration form f
 These capabilities remain inside the authenticated event workflow. Organizers can manage only owned events, admins can manage any event, student-facing records are self-only, and all participant exports use the same privacy-limited projection as the participant API. Ticket codes are attendance identifiers, not payment inventory or admissions credentials.
 
 External Telegram delivery, QR image rendering/scanning, paid ticketing, and high-demand distributed inventory are intentionally deferred until separate security, abuse, and operational controls exist.
+
+## ADR-037: Deadline-cycle normalization and cost context wording
+
+- **Status:** Accepted
+- **Date:** 2026-07-02
+
+University application deadlines can have a verified month/day but a stale source year. EduVerse now treats the stored value as source context and derives the user-facing planning date from `StudentProfile.expected_graduation_year`: August-December deadlines belong to `graduation_year - 1`, and January-July deadlines belong to `graduation_year`. The raw `source_date` remains visible in API payloads where relevant, but planning logic (`days_remaining`, urgency, recommendations, roadmap, suggestions, and application timeline checkpoints) uses only the normalized user-cycle date. If the profile has no expected graduation year, EduVerse does not treat the stale source year as current-cycle guidance; planning dates remain unknown until the student adds the graduation year.
+
+Grade normalization now explicitly supports 10-point and 20-point scales with the same proportional comparison model used for 5-point/local scales. The conversion remains approximate and confidence-bounded; raw GPA values are preserved separately from normalized 4.0/100-point comparison values.
+
+Recommendation payloads still expose the internal `cost_risk` code for filtering, but the UI labels it as cost context / review-needed information rather than "low cost" or "high cost" affordability. EduVerse has no student budget model yet, so it must not imply affordability certainty from catalog cost data alone.

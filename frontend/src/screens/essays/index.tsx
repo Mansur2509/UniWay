@@ -1,9 +1,15 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Plus, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, Plus, RefreshCw, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { EssayCard, type EssayRevisionTask, type EssayWorkspace } from "@/entities/essay";
+import {
+  ESSAY_PRIORITIES,
+  ESSAY_STATUSES,
+  EssayCard,
+  type EssayRevisionTask,
+  type EssayWorkspace
+} from "@/entities/essay";
 import type { SuggestedItem } from "@/entities/suggestion";
 import type { SavedUniversity } from "@/entities/university";
 import {
@@ -11,6 +17,7 @@ import {
   createEssayRevisionTaskRequest,
   deleteEssayRequest,
   generateEssayFeedbackRequest,
+  generateEssaySuggestionsRequest,
   getEssaysRequest,
   updateEssayRequest,
   updateEssayRevisionTaskRequest
@@ -25,13 +32,15 @@ import {
 } from "@/features/suggestions";
 import { getShortlistRequest } from "@/features/universities";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
+import { formatDate } from "@/shared/lib/date-time";
 import { useUnsavedChangesGuard } from "@/shared/lib/use-unsaved-changes-guard";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { fieldClassName } from "@/shared/ui/field";
+import { HelpTooltip } from "@/shared/ui/help-tooltip";
 import { LoadingNotice } from "@/shared/ui/loading-notice";
-import { PaginatedList } from "@/shared/ui/pagination";
+import { PaginationControls } from "@/shared/ui/pagination";
 import { UnsavedChangesDialog } from "@/shared/ui/unsaved-changes-dialog";
 
 const SCORE_FIELDS: Array<{
@@ -56,8 +65,37 @@ const LABEL_STYLES: Record<string, string> = {
 
 const ESSAYS_PAGE_SIZE = 5;
 
+type Translate = ReturnType<typeof useI18n>["t"];
+
+function groupEssays(essays: EssayWorkspace[], t: Translate) {
+  const groups = new Map<string, { key: string; label: string; items: EssayWorkspace[] }>();
+  essays.forEach((essay) => {
+    const universityLabel =
+      essay.application_university_name ?? essay.university_name ?? t("essays.groups.general");
+    const key = essay.application
+      ? `application:${essay.application}`
+      : essay.university
+        ? `university:${essay.university}`
+        : "general";
+    const label =
+      essay.application && essay.application_round
+        ? t("essays.groups.application", {
+            university: universityLabel,
+            round: essay.application_round
+          })
+        : universityLabel;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.items.push(essay);
+    } else {
+      groups.set(key, { key, label, items: [essay] });
+    }
+  });
+  return [...groups.values()];
+}
+
 export function EssaysScreen() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [essays, setEssays] = useState<EssayWorkspace[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [suggestions, setSuggestions] = useState<SuggestedItem[]>([]);
@@ -65,6 +103,7 @@ export function EssaysScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [filter, setFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEssay, setEditingEssay] = useState<EssayWorkspace | null>(null);
   const [selectedEssayId, setSelectedEssayId] = useState<number | null>(null);
@@ -75,6 +114,11 @@ export function EssaysScreen() {
   const [pendingTaskId, setPendingTaskId] = useState<number | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [isRefreshingSuggestions, setIsRefreshingSuggestions] = useState(false);
+  const [isGeneratingEssaySuggestions, setIsGeneratingEssaySuggestions] = useState(false);
+  const [essaySuggestionNotice, setEssaySuggestionNotice] = useState<{
+    created: number;
+    existing: number;
+  } | null>(null);
 
   const loadEssays = useCallback(async () => {
     setIsLoading(true);
@@ -137,16 +181,26 @@ export function EssaysScreen() {
   }, [essays]);
 
   const filteredEssays = useMemo(() => {
-    if (filter === "all") return essays;
-    if (filter === "common_app") return essays.filter((essay) => essay.essay_type === "common_app");
-    const universityId = Number(filter);
-    return essays.filter((essay) => essay.university === universityId);
-  }, [essays, filter]);
+    let result = essays;
+    if (filter === "common_app") {
+      result = result.filter((essay) => essay.essay_type === "common_app");
+    } else if (filter === "suggested") {
+      result = result.filter((essay) => essay.status === "suggested" || essay.status === "planned");
+    } else if (filter !== "all") {
+      const universityId = Number(filter);
+      result = result.filter((essay) => essay.university === universityId);
+    }
+    if (priorityFilter !== "all") {
+      result = result.filter((essay) => essay.priority === priorityFilter);
+    }
+    return result;
+  }, [essays, filter, priorityFilter]);
   const totalEssayPages = Math.max(1, Math.ceil(filteredEssays.length / ESSAYS_PAGE_SIZE));
   const visibleEssays = filteredEssays.slice(
     (currentPage - 1) * ESSAYS_PAGE_SIZE,
     currentPage * ESSAYS_PAGE_SIZE
   );
+  const groupedVisibleEssays = useMemo(() => groupEssays(visibleEssays, t), [visibleEssays, t]);
 
   useEffect(() => {
     if (currentPage > totalEssayPages) {
@@ -160,7 +214,11 @@ export function EssaysScreen() {
       essay_type: values.essay_type,
       university: values.university,
       prompt_text: values.prompt_text,
-      word_limit: values.word_limit ? Number(values.word_limit) : null
+      word_limit: values.word_limit ? Number(values.word_limit) : null,
+      due_date: values.due_date || null,
+      source_url: values.source_url,
+      notes: values.notes,
+      priority: values.priority
     };
     if (editingEssay) {
       const updated = await updateEssayRequest(editingEssay.id, payload);
@@ -295,6 +353,29 @@ export function EssaysScreen() {
     }
   }
 
+  async function handleGenerateEssaySuggestions() {
+    setIsGeneratingEssaySuggestions(true);
+    setActionError(false);
+    setEssaySuggestionNotice(null);
+    try {
+      const response = await generateEssaySuggestionsRequest();
+      const refreshed = await getEssaysRequest({ page_size: 100 });
+      setEssays(refreshed.results);
+      setCurrentPage(1);
+      setEssaySuggestionNotice({
+        created: response.created_count,
+        existing: response.existing_count
+      });
+      if (!selectedEssayId && response.essays[0]) {
+        setSelectedEssayId(response.essays[0].id);
+      }
+    } catch {
+      setActionError(true);
+    } finally {
+      setIsGeneratingEssaySuggestions(false);
+    }
+  }
+
   async function handleAddSuggestion(suggestion: SuggestedItem) {
     setActionError(false);
     try {
@@ -347,24 +428,54 @@ export function EssaysScreen() {
               {t("essays.list.description")}
             </p>
           </div>
-          <Button
-            onClick={() => {
-              setEditingEssay(null);
-              setIsFormOpen(true);
-            }}
-            type="button"
-          >
-            <Plus aria-hidden className="mr-2 size-4" />
-            {t("essays.actions.newEssay")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={isGeneratingEssaySuggestions}
+              onClick={() => void handleGenerateEssaySuggestions()}
+              type="button"
+              variant="secondary"
+            >
+              <RefreshCw aria-hidden className="mr-2 size-4" />
+              {isGeneratingEssaySuggestions
+                ? t("essays.actions.generatingSuggestions")
+                : t("essays.actions.generateSuggestions")}
+            </Button>
+            <Button
+              onClick={() => {
+                setEditingEssay(null);
+                setIsFormOpen(true);
+              }}
+              type="button"
+            >
+              <Plus aria-hidden className="mr-2 size-4" />
+              {t("essays.actions.newEssay")}
+            </Button>
+          </div>
         </div>
       </section>
+
+      {essaySuggestionNotice ? (
+        <Card className="border-success/30 bg-success/10">
+          <p className="text-sm text-success">
+            {t("essays.suggestionGeneration.notice", {
+              created: essaySuggestionNotice.created,
+              existing: essaySuggestionNotice.existing
+            })}
+          </p>
+        </Card>
+      ) : null}
 
       {actionError ? (
         <Card className="border-danger/35 bg-danger/10">
           <p className="text-sm text-danger" role="alert">
             {t("essays.states.actionError")}
           </p>
+        </Card>
+      ) : null}
+
+      {essays.length > 0 && essays.every((essay) => essay.prompt_verification_status !== "verified") ? (
+        <Card className="border-warning/35 bg-warning/10">
+          <p className="text-sm text-warning">{t("essays.states.noVerifiedPrompts")}</p>
         </Card>
       ) : null}
 
@@ -413,6 +524,17 @@ export function EssaysScreen() {
         >
           {t("essays.filters.commonApp")}
         </Button>
+        <Button
+          onClick={() => {
+            setFilter("suggested");
+            setCurrentPage(1);
+          }}
+          size="sm"
+          type="button"
+          variant={filter === "suggested" ? "primary" : "ghost"}
+        >
+          {t("essays.filters.suggested")}
+        </Button>
         {universityFilters.map(([id, name]) => (
           <Button
             key={id}
@@ -429,30 +551,91 @@ export function EssaysScreen() {
         ))}
       </div>
 
-      {filteredEssays.length === 0 ? (
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-muted-foreground">
+          {t("essays.filters.priority")}
+        </span>
+        <Button
+          onClick={() => {
+            setPriorityFilter("all");
+            setCurrentPage(1);
+          }}
+          size="sm"
+          type="button"
+          variant={priorityFilter === "all" ? "primary" : "ghost"}
+        >
+          {t("essays.filters.all")}
+        </Button>
+        {ESSAY_PRIORITIES.map((priority) => (
+          <Button
+            key={priority}
+            onClick={() => {
+              setPriorityFilter(priority);
+              setCurrentPage(1);
+            }}
+            size="sm"
+            type="button"
+            variant={priorityFilter === priority ? "primary" : "ghost"}
+          >
+            {t(`essays.priority.${priority}` as TranslationKey)}
+          </Button>
+        ))}
+      </div>
+
+      {essays.length === 0 ? (
+        <Card>
+          <p className="text-sm text-muted-foreground">
+            {shortlist.length === 0
+              ? t("essays.states.noApplicationsYet")
+              : t("essays.states.readyToGenerate")}
+          </p>
+        </Card>
+      ) : filteredEssays.length === 0 ? (
         <Card>
           <p className="text-sm text-muted-foreground">{t("essays.states.emptyFilter")}</p>
         </Card>
       ) : (
         <div className="grid gap-5 lg:grid-cols-[20rem_1fr]">
-          <PaginatedList
-            currentPage={currentPage}
-            getItemKey={(essay) => essay.id}
-            items={visibleEssays}
-            onPageChange={setCurrentPage}
-            pageSize={ESSAYS_PAGE_SIZE}
-            totalCount={filteredEssays.length}
-            totalPages={totalEssayPages}
-            renderItem={(essay) => (
-              <EssayCard
-                essay={essay}
-                isSelected={essay.id === selectedEssayId}
-                onSelect={(item) =>
-                  draftGuard.requestLeave(() => setSelectedEssayId(item.id))
-                }
+          <div className="space-y-4">
+            {totalEssayPages <= 1 ? (
+              <p className="text-sm font-semibold text-muted-foreground">
+                {t("pagination.showingRange", {
+                  start: 1,
+                  end: filteredEssays.length,
+                  total: filteredEssays.length
+                })}
+              </p>
+            ) : null}
+            {groupedVisibleEssays.map((group) => (
+              <section className="space-y-2" key={group.key}>
+                <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                  {group.label}
+                </h2>
+                <div className="space-y-3">
+                  {group.items.map((essay) => (
+                    <EssayCard
+                      essay={essay}
+                      isSelected={essay.id === selectedEssayId}
+                      key={essay.id}
+                      onSelect={(item) =>
+                        draftGuard.requestLeave(() => setSelectedEssayId(item.id))
+                      }
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+            {totalEssayPages > 1 ? (
+              <PaginationControls
+                currentPage={currentPage}
+                itemsOnPage={visibleEssays.length}
+                onPageChange={setCurrentPage}
+                pageSize={ESSAYS_PAGE_SIZE}
+                totalCount={filteredEssays.length}
+                totalPages={totalEssayPages}
               />
-            )}
-          />
+            ) : null}
+          </div>
 
           <div>
             {!selectedEssay ? (
@@ -468,6 +651,11 @@ export function EssaysScreen() {
                       {selectedEssay.prompt_text ? (
                         <p className="mt-1 text-sm leading-5 text-muted-foreground">
                           {selectedEssay.prompt_text}
+                        </p>
+                      ) : null}
+                      {selectedEssay.notes ? (
+                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                          {selectedEssay.notes}
                         </p>
                       ) : null}
                     </div>
@@ -494,6 +682,42 @@ export function EssaysScreen() {
                     </div>
                   </div>
 
+                  <div className="mt-4 grid gap-3 rounded-sm border bg-surface p-3 text-xs text-muted-foreground sm:grid-cols-2">
+                    <div>
+                      <span className="font-semibold text-foreground">
+                        {t("essays.editor.promptStatus")}
+                      </span>
+                      <p>
+                        {t(`essays.verification.${selectedEssay.prompt_verification_status}` as TranslationKey)}
+                        {" · "}
+                        {t(`essays.confidence.${selectedEssay.prompt_confidence}` as TranslationKey)}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-foreground">
+                        {t("essays.editor.dueDate")}
+                      </span>
+                      <p>
+                        {selectedEssay.due_date
+                          ? formatDate(selectedEssay.due_date, locale)
+                          : t("essays.editor.noDueDate")}
+                      </p>
+                    </div>
+                    {selectedEssay.source_url ? (
+                      <a
+                        className="inline-flex items-center gap-1 font-semibold text-primary hover:text-primary-hover"
+                        href={selectedEssay.source_url}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        {t("essays.editor.source")}
+                        <ExternalLink aria-hidden className="size-3" />
+                      </a>
+                    ) : (
+                      <span>{t("essays.editor.noSource")}</span>
+                    )}
+                  </div>
+
                   <label className="mt-4 block">
                     <span className="text-xs font-semibold">{t("essays.editor.draftLabel")}</span>
                     <textarea
@@ -503,8 +727,18 @@ export function EssaysScreen() {
                       value={draftText}
                     />
                   </label>
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span
+                      className={
+                        selectedEssay.word_limit
+                          ? liveWordCount > selectedEssay.word_limit
+                            ? "font-semibold text-danger"
+                            : liveWordCount >= selectedEssay.word_limit * 0.9
+                              ? "font-semibold text-warning"
+                              : "text-muted-foreground"
+                          : "text-muted-foreground"
+                      }
+                    >
                       {selectedEssay.word_limit
                         ? t("essays.editor.wordCountWithLimit", {
                             count: liveWordCount,
@@ -512,7 +746,30 @@ export function EssaysScreen() {
                           })
                         : t("essays.editor.wordCount", { count: liveWordCount })}
                     </span>
+                    <HelpTooltip label={t("essays.help.wordLimit")} />
+                    {!selectedEssay.word_limit && selectedEssay.prompt_verification_status !== "verified" ? (
+                      <span className="text-muted-foreground">
+                        {t("essays.editor.wordLimitNeedsVerification")}
+                      </span>
+                    ) : null}
                   </div>
+
+                  <label className="mt-3 block max-w-xs">
+                    <span className="text-xs font-semibold">{t("essays.editor.statusLabel")}</span>
+                    <select
+                      className={fieldClassName}
+                      onChange={(event) =>
+                        void handleStatusChange(event.target.value as EssayWorkspace["status"])
+                      }
+                      value={selectedEssay.status}
+                    >
+                      {ESSAY_STATUSES.map((statusValue) => (
+                        <option key={statusValue} value={statusValue}>
+                          {t(`essays.status.${statusValue}` as TranslationKey)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Button

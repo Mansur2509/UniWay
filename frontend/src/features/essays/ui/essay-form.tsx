@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 
-import { ESSAY_TYPES, type EssayType, type EssayWorkspace } from "@/entities/essay";
+import {
+  ESSAY_PRIORITIES,
+  ESSAY_TYPES,
+  type EssayPriority,
+  type EssayType,
+  type EssayWorkspace
+} from "@/entities/essay";
 import type { SavedUniversity } from "@/entities/university";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { useUnsavedChangesGuard } from "@/shared/lib/use-unsaved-changes-guard";
@@ -17,6 +23,10 @@ export type EssayFormValues = {
   university: number | null;
   prompt_text: string;
   word_limit: string;
+  due_date: string;
+  source_url: string;
+  notes: string;
+  priority: EssayPriority;
 };
 
 export function EssayForm({
@@ -38,7 +48,11 @@ export function EssayForm({
     essay_type: essay?.essay_type ?? "common_app",
     university: essay?.university ?? null,
     prompt_text: essay?.prompt_text ?? "",
-    word_limit: essay?.word_limit ? String(essay.word_limit) : ""
+    word_limit: essay?.word_limit ? String(essay.word_limit) : "",
+    due_date: essay?.due_date ?? "",
+    source_url: essay?.source_url ?? "",
+    notes: essay?.notes ?? "",
+    priority: essay?.priority ?? "medium"
   });
   const [values, setValues] = useState<EssayFormValues>(initialValues);
   const [error, setError] = useState<string | null>(null);
@@ -135,17 +149,71 @@ export function EssayForm({
             value={values.prompt_text}
           />
         </label>
-        <label className="block sm:w-48">
-          <span className="text-xs font-semibold">{t("essays.form.wordLimit")}</span>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-xs font-semibold">{t("essays.form.wordLimit")}</span>
+            <input
+              className={fieldClassName}
+              inputMode="numeric"
+              min={0}
+              onChange={(event) =>
+                setValues((current) => ({ ...current, word_limit: event.target.value }))
+              }
+              type="number"
+              value={values.word_limit}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold">{t("essays.form.dueDate")}</span>
+            <input
+              className={fieldClassName}
+              onChange={(event) =>
+                setValues((current) => ({ ...current, due_date: event.target.value }))
+              }
+              type="date"
+              value={values.due_date}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold">{t("essays.form.priority")}</span>
+            <select
+              className={fieldClassName}
+              onChange={(event) =>
+                setValues((current) => ({
+                  ...current,
+                  priority: event.target.value as EssayPriority
+                }))
+              }
+              value={values.priority}
+            >
+              {ESSAY_PRIORITIES.map((priority) => (
+                <option key={priority} value={priority}>
+                  {t(`essays.priority.${priority}` as TranslationKey)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <label className="block">
+          <span className="text-xs font-semibold">{t("essays.form.sourceUrl")}</span>
           <input
             className={fieldClassName}
-            inputMode="numeric"
-            min={0}
             onChange={(event) =>
-              setValues((current) => ({ ...current, word_limit: event.target.value }))
+              setValues((current) => ({ ...current, source_url: event.target.value }))
             }
-            type="number"
-            value={values.word_limit}
+            type="url"
+            value={values.source_url}
+          />
+        </label>
+        <label className="block">
+          <span className="text-xs font-semibold">{t("essays.form.notes")}</span>
+          <textarea
+            className={fieldClassName}
+            onChange={(event) =>
+              setValues((current) => ({ ...current, notes: event.target.value }))
+            }
+            rows={2}
+            value={values.notes}
           />
         </label>
         {error ? (
