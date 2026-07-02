@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -448,7 +449,19 @@ export function ApplicationsScreen() {
 
       {applications.length === 0 ? (
         <Card>
-          <p className="text-sm text-muted-foreground">{t("applications.states.empty")}</p>
+          <p className="text-sm font-semibold">{t("applications.states.emptyTitle")}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{t("applications.states.empty")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("applications.states.emptyAction")}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button asChild size="sm" variant="secondary">
+              <Link href="/recommendations">{t("navigation.recommendations")}</Link>
+            </Button>
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/universities">{t("navigation.universities")}</Link>
+            </Button>
+          </div>
         </Card>
       ) : (
         <div className="space-y-4">

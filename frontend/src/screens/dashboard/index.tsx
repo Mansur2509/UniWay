@@ -83,6 +83,27 @@ const DASHBOARD_URGENCY_STYLES: Record<DashboardUrgency, string> = {
   unknown: "border-muted-foreground/30 bg-surface text-muted-foreground"
 };
 
+const PROFILE_SECTION_HREFS: Record<string, string> = {
+  profile: "/profile",
+  academics: "/profile#profile-foundation-education",
+  exams: "/profile#profile-foundation-tests",
+  activities: "/profile#profile-section-activities",
+  leadership: "/profile#profile-section-activities",
+  essays: "/profile#profile-section-essays",
+  timeline: "/profile#profile-foundation-education",
+  honors: "/profile#profile-section-honors",
+  olympiads: "/profile#profile-section-olympiads",
+  sports: "/profile#profile-section-sports",
+  research: "/profile#profile-section-research",
+  portfolio: "/profile#profile-section-portfolio",
+  volunteering: "/profile#profile-section-volunteering",
+  recommenders: "/profile#profile-section-recommenders"
+};
+
+function profileSectionHref(component: string) {
+  return PROFILE_SECTION_HREFS[component] ?? "/profile";
+}
+
 export function DashboardScreen() {
   const { user } = useAuth();
   const { locale, t } = useI18n();
@@ -315,6 +336,55 @@ export function DashboardScreen() {
     [applications]
   );
 
+  const hasExamEvidence =
+    plannedExams.length > 0 ||
+    Boolean(
+      profile &&
+        Object.values(profile.test_scores).some((value) =>
+          Array.isArray(value)
+            ? value.length > 0
+            : value !== null && value !== undefined && String(value).trim().length > 0
+        )
+    );
+  const workflowSteps: Array<{
+    key: string;
+    titleKey: TranslationKey;
+    href: string;
+    isDone: boolean;
+  }> = [
+    {
+      key: "profile",
+      titleKey: "dashboard.workflow.step.profile",
+      href: "/profile",
+      isDone: completionPercentage >= 80
+    },
+    {
+      key: "exams",
+      titleKey: "dashboard.workflow.step.exams",
+      href: "/profile#profile-foundation-tests",
+      isDone: hasExamEvidence
+    },
+    {
+      key: "recommendations",
+      titleKey: "dashboard.workflow.step.recommendations",
+      href: "/recommendations",
+      isDone: topRecommendations.length > 0
+    },
+    {
+      key: "events",
+      titleKey: "dashboard.workflow.step.events",
+      href: "/events",
+      isDone: registrations.length > 0
+    },
+    {
+      key: "applications",
+      titleKey: "dashboard.workflow.step.applications",
+      href: "/applications",
+      isDone: applications.length > 0
+    }
+  ];
+  const nextWorkflowStep = workflowSteps.find((step) => !step.isDone) ?? workflowSteps[0];
+
   return (
     <div className="space-y-3">
       <section className="overflow-hidden rounded-sm border bg-card shadow-card">
@@ -347,15 +417,46 @@ export function DashboardScreen() {
               {t("dashboard.nextAction.label")}
             </p>
             <h2 className="mt-1.5 text-lg font-semibold">
-              {completionPercentage < 70
-                ? t("dashboard.nextAction.profile")
-                : registrations.length === 0
-                  ? t("dashboard.nextAction.event")
-                  : t("dashboard.nextAction.roadmap")}
+              {nextWorkflowStep ? t(nextWorkflowStep.titleKey) : t("dashboard.nextAction.roadmap")}
             </h2>
             <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
               {t("dashboard.nextAction.description")}
             </p>
+            {nextWorkflowStep ? (
+              <Button asChild className="mt-3" size="sm" variant="secondary">
+                <Link href={nextWorkflowStep.href}>{t("dashboard.nextAction.open")}</Link>
+              </Button>
+            ) : null}
+            <ol className="mt-4 space-y-2">
+              {workflowSteps.map((step, index) => {
+                const isNext = nextWorkflowStep?.key === step.key && !step.isDone;
+                return (
+                  <li
+                    className="flex items-center justify-between gap-3 rounded-sm border bg-card px-3 py-2 text-xs"
+                    key={step.key}
+                  >
+                    <Link className="font-semibold hover:text-primary-hover" href={step.href}>
+                      {index + 1}. {t(step.titleKey)}
+                    </Link>
+                    <span
+                      className={`shrink-0 rounded-sm border px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-wide ${
+                        step.isDone
+                          ? "border-success/35 bg-success/10 text-success"
+                          : isNext
+                            ? "border-accent/35 bg-accent/10 text-accent"
+                            : "border-muted-foreground/25 bg-surface text-muted-foreground"
+                      }`}
+                    >
+                      {step.isDone
+                        ? t("dashboard.workflow.status.done")
+                        : isNext
+                          ? t("dashboard.workflow.status.next")
+                          : t("dashboard.workflow.status.open")}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
           </div>
         </div>
       </section>
@@ -548,9 +649,10 @@ export function DashboardScreen() {
             {t("dashboard.applicationsWidget.title")}
           </p>
           {applications.length === 0 ? (
-            <p className="mt-3 text-xs text-muted-foreground">
-              {t("dashboard.applicationsWidget.empty")}
-            </p>
+            <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+              <p>{t("dashboard.applicationsWidget.empty")}</p>
+              <p>{t("dashboard.applicationsWidget.emptyAction")}</p>
+            </div>
           ) : (
             <dl className="mt-3 space-y-1.5 text-xs">
               <DashboardCountRow
@@ -581,7 +683,10 @@ export function DashboardScreen() {
             {t("dashboard.essaysWidget.title")}
           </p>
           {essays.length === 0 ? (
-            <p className="mt-3 text-xs text-muted-foreground">{t("dashboard.essaysWidget.empty")}</p>
+            <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+              <p>{t("dashboard.essaysWidget.empty")}</p>
+              <p>{t("dashboard.essaysWidget.emptyAction")}</p>
+            </div>
           ) : (
             <dl className="mt-3 space-y-1.5 text-xs">
               <DashboardCountRow
@@ -651,9 +756,19 @@ export function DashboardScreen() {
           {readiness && readiness.improvements.length > 0 ? (
             <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
               {readiness.improvements.slice(0, 4).map((component) => (
-                <li className="flex items-center gap-1.5" key={component}>
-                  <AlertTriangle aria-hidden className="size-3 shrink-0 text-warning" />
-                  {t(`admissions.component.${component}` as TranslationKey)}
+                <li key={component}>
+                  <Link
+                    className="flex items-center justify-between gap-2 rounded-sm px-1 py-1 hover:bg-elevated"
+                    href={profileSectionHref(component)}
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <AlertTriangle aria-hidden className="size-3 shrink-0 text-warning" />
+                      <span className="truncate">
+                        {t(`admissions.component.${component}` as TranslationKey)}
+                      </span>
+                    </span>
+                    <ArrowRight aria-hidden className="size-3 shrink-0" />
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -670,9 +785,10 @@ export function DashboardScreen() {
             {t("dashboard.recommendationsWidget.title")}
           </p>
           {topRecommendations.length === 0 ? (
-            <p className="mt-3 text-xs text-muted-foreground">
-              {t("dashboard.recommendationsWidget.empty")}
-            </p>
+            <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+              <p>{t("dashboard.recommendationsWidget.empty")}</p>
+              <p>{t("dashboard.recommendationsWidget.context")}</p>
+            </div>
           ) : (
             <ul className="mt-3 space-y-1.5 text-xs">
               {topRecommendations.map((item) => (

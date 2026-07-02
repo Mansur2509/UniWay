@@ -21,6 +21,7 @@ export type ProfileItemField = {
 };
 
 interface ProfileItemSectionProps<T extends { id: number }> {
+  id?: string;
   title: TranslationKey;
   description: TranslationKey;
   items: T[];
@@ -30,9 +31,12 @@ interface ProfileItemSectionProps<T extends { id: number }> {
   onDelete: (id: number) => Promise<void>;
   isLoading?: boolean;
   itemDisplay: (item: T) => React.ReactNode;
+  statusLabel?: string;
+  statusTone?: "complete" | "missing";
 }
 
 export function ProfileItemSection<T extends { id: number }>({
+  id,
   title,
   description,
   items,
@@ -42,6 +46,8 @@ export function ProfileItemSection<T extends { id: number }>({
   onDelete,
   isLoading,
   itemDisplay,
+  statusLabel,
+  statusTone = "missing",
 }: ProfileItemSectionProps<T>) {
   const { t } = useI18n();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -140,17 +146,30 @@ export function ProfileItemSection<T extends { id: number }>({
 
   if (isLoading) {
     return (
-      <Card className="p-4">
+      <Card className="p-4" id={id}>
         <p className="text-xs text-muted-foreground">{t("common.loading")}</p>
       </Card>
     );
   }
 
   return (
-    <Card className="p-4">
+    <Card className="scroll-mt-24 p-4" id={id}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h3 className="text-lg font-semibold">{t(title)}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-lg font-semibold">{t(title)}</h3>
+            {statusLabel ? (
+              <span
+                className={`rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${
+                  statusTone === "complete"
+                    ? "border-success/35 bg-success/10 text-success"
+                    : "border-warning/35 bg-warning/10 text-warning"
+                }`}
+              >
+                {statusLabel}
+              </span>
+            ) : null}
+          </div>
           <p className="mt-1 text-xs text-muted-foreground">{t(description)}</p>
         </div>
         <Button

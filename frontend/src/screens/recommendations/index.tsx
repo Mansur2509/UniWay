@@ -65,6 +65,20 @@ const URGENCY_BADGE_STYLES: Record<Urgency, string> = {
   unknown: "border-muted-foreground/30 bg-surface text-muted-foreground"
 };
 
+const PROFILE_SIGNAL_HREFS: Record<string, string> = {
+  profile_gpa: "/profile#profile-foundation-education",
+  profile_sat: "/profile#profile-foundation-tests",
+  profile_ielts: "/profile#profile-foundation-tests",
+  profile_curriculum: "/profile#profile-foundation-education",
+  profile_intended_major: "/profile#profile-foundation-admissions",
+  profile_activities: "/profile#profile-section-activities",
+  profile_essays: "/profile#profile-section-essays"
+};
+
+function profileSignalHref(code: string) {
+  return PROFILE_SIGNAL_HREFS[code] ?? "/profile";
+}
+
 function badgeClass(base: string) {
   return `inline-flex items-center rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${base}`;
 }
@@ -199,6 +213,17 @@ export function RecommendationsScreen() {
     () => Array.from(new Set(items.map((item) => item.university.country))).sort(),
     [items]
   );
+  const missingProfileSignals = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          items.flatMap((item) =>
+            item.missing_data.filter((code) => String(code).startsWith("profile_"))
+          )
+        )
+      ).slice(0, 5),
+    [items]
+  );
 
   const filtered = useMemo(
     () =>
@@ -280,6 +305,38 @@ export function RecommendationsScreen() {
           <p className="text-sm">{t("recommendations.listLimited")}</p>
         </Card>
       ) : null}
+
+      <Card className="border-accent/25 bg-elevated/35 p-4">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+          <div>
+            <p className="text-sm font-semibold">{t("recommendations.profileDepth.title")}</p>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
+              {t("recommendations.profileDepth.description")}
+            </p>
+          </div>
+          <Button asChild size="sm" variant="secondary">
+            <Link href="/profile">{t("recommendations.profileDepth.action")}</Link>
+          </Button>
+        </div>
+        {missingProfileSignals.length > 0 ? (
+          <ul className="mt-3 flex flex-wrap gap-2 text-xs">
+            {missingProfileSignals.map((code) => (
+              <li key={code}>
+                <Link
+                  className="inline-flex items-center rounded-sm border bg-card px-2 py-1 font-semibold text-muted-foreground hover:text-primary-hover"
+                  href={profileSignalHref(code)}
+                >
+                  {t(`universities.fit.missingFields.${code}` as TranslationKey)}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-3 text-xs text-muted-foreground">
+            {t("recommendations.profileDepth.complete")}
+          </p>
+        )}
+      </Card>
 
       {actionError ? (
         <Card className="border-danger/35 bg-danger/10">

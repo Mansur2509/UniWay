@@ -241,6 +241,9 @@ export function EventsScreen() {
           <p className="mt-2 text-sm text-muted-foreground">
             {t("events.states.emptyDescription")}
           </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("events.states.emptyAction")}
+          </p>
           {hasActiveFilters ? (
             <Button className="mt-4" onClick={clearFilters} type="button" variant="secondary">
               {t("events.actions.clearFilters")}

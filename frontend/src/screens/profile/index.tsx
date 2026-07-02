@@ -55,7 +55,7 @@ import {
   recommenderDisplay
 } from "@/features/profile/lib/profile-items-config";
 import { ProfileItemSection } from "@/features/profile/ui/profile-item-section";
-import { useI18n } from "@/shared/i18n";
+import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { useUnsavedChangesGuard } from "@/shared/lib/use-unsaved-changes-guard";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -225,16 +225,18 @@ function Field({
 }
 
 function ProfileSection({
+  id,
   title,
   description,
   children
 }: {
+  id?: string;
   title: string;
   description: string;
   children: ReactNode;
 }) {
   return (
-    <Card className="p-5">
+    <Card className="scroll-mt-24 p-5" id={id}>
       <h2 className="text-lg font-semibold">{title}</h2>
       <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
         {description}
@@ -482,6 +484,26 @@ export function ProfileScreen() {
     );
   }
 
+  const structuredSections: Array<{
+    id: string;
+    title: TranslationKey;
+    count: number;
+  }> = [
+    { id: "profile-section-activities", title: "profile.sections.activities", count: activities.length },
+    { id: "profile-section-honors", title: "profile.sections.honors", count: honors.length },
+    { id: "profile-section-olympiads", title: "profile.sections.olympiads", count: olympiads.length },
+    { id: "profile-section-sports", title: "profile.sections.sports", count: sports.length },
+    { id: "profile-section-research", title: "profile.sections.research", count: research.length },
+    { id: "profile-section-volunteering", title: "profile.sections.volunteering", count: volunteering.length },
+    { id: "profile-section-recommenders", title: "profile.sections.recommenders", count: recommenders.length },
+    { id: "profile-section-essays", title: "profile.sections.essays", count: essays.length },
+    { id: "profile-section-portfolio", title: "profile.sections.portfolio", count: portfolio.length }
+  ];
+
+  const sectionStatusLabel = (count: number) =>
+    count > 0 ? t("profile.navigation.complete") : t("profile.navigation.needsEvidence");
+  const sectionStatusTone = (count: number) => (count > 0 ? "complete" : "missing");
+
   return (
     <form className="mx-auto max-w-6xl space-y-4" onSubmit={handleSubmit}>
       <section className="grid gap-4 rounded-sm border bg-card p-5 shadow-card lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start">
@@ -533,8 +555,51 @@ export function ProfileScreen() {
         </div>
       </section>
 
+      <Card className="p-4">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+              {t("profile.navigation.eyebrow")}
+            </p>
+            <h2 className="mt-1 text-lg font-semibold">{t("profile.navigation.title")}</h2>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
+              {t("profile.navigation.description")}
+            </p>
+          </div>
+          <Button asChild size="sm" variant="secondary">
+            <a href="#profile-section-activities">{t("profile.navigation.start")}</a>
+          </Button>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {structuredSections.map((section) => (
+            <a
+              className="flex items-center justify-between gap-3 rounded-sm border bg-elevated/35 px-3 py-2 text-xs transition-colors hover:bg-elevated"
+              href={`#${section.id}`}
+              key={section.id}
+            >
+              <span className="font-semibold">{t(section.title)}</span>
+              <span className="flex shrink-0 items-center gap-1.5">
+                <span className="text-muted-foreground">
+                  {t("profile.navigation.itemCount", { count: section.count })}
+                </span>
+                <span
+                  className={`rounded-sm border px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-wide ${
+                    section.count > 0
+                      ? "border-success/35 bg-success/10 text-success"
+                      : "border-warning/35 bg-warning/10 text-warning"
+                  }`}
+                >
+                  {sectionStatusLabel(section.count)}
+                </span>
+              </span>
+            </a>
+          ))}
+        </div>
+      </Card>
+
       <ProfileSection
         description={t("profile.sections.personalHelp")}
+        id="profile-foundation-personal"
         title={t("profile.sections.personal")}
       >
         <Field label={t("auth.fullName")}>
@@ -577,6 +642,7 @@ export function ProfileScreen() {
 
       <ProfileSection
         description={t("profile.sections.educationHelp")}
+        id="profile-foundation-education"
         title={t("profile.sections.education")}
       >
         <Field label={t("profile.schoolOrUniversity")} wide>
@@ -701,6 +767,7 @@ export function ProfileScreen() {
 
       <ProfileSection
         description={t("profile.sections.admissionsHelp")}
+        id="profile-foundation-admissions"
         title={t("profile.sections.admissions")}
       >
         <Field label={t("profile.intendedDegree")}>
@@ -764,6 +831,7 @@ export function ProfileScreen() {
 
       <ProfileSection
         description={t("profile.sections.testsHelp")}
+        id="profile-foundation-tests"
         title={t("profile.sections.tests")}
       >
         <Field label={t("profile.test.sat")}>
@@ -835,6 +903,7 @@ export function ProfileScreen() {
 
       <ProfileSection
         description={t("profile.sections.preferencesHelp")}
+        id="profile-foundation-preferences"
         title={t("profile.sections.preferences")}
       >
         <Field helper={t("profile.languagesHelp")} label={t("profile.languages")}>
@@ -855,6 +924,7 @@ export function ProfileScreen() {
 
       <ProfileSection
         description={t("profile.sections.contactHelp")}
+        id="profile-foundation-contact"
         title={t("profile.sections.contact")}
       >
         <Field helper={t("profile.telegramHelp")} label={t("profile.telegram")}>
@@ -880,100 +950,127 @@ export function ProfileScreen() {
       <div className="space-y-4 border-t pt-4">
         <ProfileItemSection
           description="profile.sections.activitiesHelp"
+          id="profile-section-activities"
           items={activities}
           fields={activityFields}
           onAdd={createItem("activities", setActivities)}
           onUpdate={updateItem("activities", setActivities)}
           onDelete={deleteItem("activities", setActivities)}
           itemDisplay={activityDisplay}
+          statusLabel={sectionStatusLabel(activities.length)}
+          statusTone={sectionStatusTone(activities.length)}
           title="profile.sections.activities"
           isLoading={itemsLoading}
         />
         <ProfileItemSection
           description="profile.sections.honorsHelp"
+          id="profile-section-honors"
           items={honors}
           fields={honorFields}
           onAdd={createItem("honors", setHonors)}
           onUpdate={updateItem("honors", setHonors)}
           onDelete={deleteItem("honors", setHonors)}
           itemDisplay={honorDisplay}
+          statusLabel={sectionStatusLabel(honors.length)}
+          statusTone={sectionStatusTone(honors.length)}
           title="profile.sections.honors"
           isLoading={itemsLoading}
         />
         <ProfileItemSection
           description="profile.sections.olympiadsHelp"
+          id="profile-section-olympiads"
           items={olympiads}
           fields={olympiadFields}
           onAdd={createItem("olympiads", setOlympiads)}
           onUpdate={updateItem("olympiads", setOlympiads)}
           onDelete={deleteItem("olympiads", setOlympiads)}
           itemDisplay={olympiadDisplay}
+          statusLabel={sectionStatusLabel(olympiads.length)}
+          statusTone={sectionStatusTone(olympiads.length)}
           title="profile.sections.olympiads"
           isLoading={itemsLoading}
         />
         <ProfileItemSection
           description="profile.sections.sportsHelp"
+          id="profile-section-sports"
           items={sports}
           fields={sportFields}
           onAdd={createItem("sports", setSports)}
           onUpdate={updateItem("sports", setSports)}
           onDelete={deleteItem("sports", setSports)}
           itemDisplay={sportDisplay}
+          statusLabel={sectionStatusLabel(sports.length)}
+          statusTone={sectionStatusTone(sports.length)}
           title="profile.sections.sports"
           isLoading={itemsLoading}
         />
         <ProfileItemSection
           description="profile.sections.researchHelp"
+          id="profile-section-research"
           items={research}
           fields={researchFields}
           onAdd={createItem("research-projects", setResearch)}
           onUpdate={updateItem("research-projects", setResearch)}
           onDelete={deleteItem("research-projects", setResearch)}
           itemDisplay={researchDisplay}
+          statusLabel={sectionStatusLabel(research.length)}
+          statusTone={sectionStatusTone(research.length)}
           title="profile.sections.research"
           isLoading={itemsLoading}
         />
         <ProfileItemSection
           description="profile.sections.essaysHelp"
+          id="profile-section-essays"
           items={essays}
           fields={essayFields}
           onAdd={createItem("essays", setEssays)}
           onUpdate={updateItem("essays", setEssays)}
           onDelete={deleteItem("essays", setEssays)}
           itemDisplay={essayDisplay}
+          statusLabel={sectionStatusLabel(essays.length)}
+          statusTone={sectionStatusTone(essays.length)}
           title="profile.sections.essays"
           isLoading={itemsLoading}
         />
         <ProfileItemSection
           description="profile.sections.portfolioHelp"
+          id="profile-section-portfolio"
           items={portfolio}
           fields={portfolioFields}
           onAdd={createItem("portfolio-projects", setPortfolio)}
           onUpdate={updateItem("portfolio-projects", setPortfolio)}
           onDelete={deleteItem("portfolio-projects", setPortfolio)}
           itemDisplay={portfolioDisplay}
+          statusLabel={sectionStatusLabel(portfolio.length)}
+          statusTone={sectionStatusTone(portfolio.length)}
           title="profile.sections.portfolio"
           isLoading={itemsLoading}
         />
         <ProfileItemSection
           description="profile.sections.volunteeringHelp"
+          id="profile-section-volunteering"
           items={volunteering}
           fields={volunteerFields}
           onAdd={createItem("volunteering", setVolunteering)}
           onUpdate={updateItem("volunteering", setVolunteering)}
           onDelete={deleteItem("volunteering", setVolunteering)}
           itemDisplay={volunteerDisplay}
+          statusLabel={sectionStatusLabel(volunteering.length)}
+          statusTone={sectionStatusTone(volunteering.length)}
           title="profile.sections.volunteering"
           isLoading={itemsLoading}
         />
         <ProfileItemSection
           description="profile.sections.recommendersHelp"
+          id="profile-section-recommenders"
           items={recommenders}
           fields={recommenderFields}
           onAdd={createItem("recommenders", setRecommenders)}
           onUpdate={updateItem("recommenders", setRecommenders)}
           onDelete={deleteItem("recommenders", setRecommenders)}
           itemDisplay={recommenderDisplay}
+          statusLabel={sectionStatusLabel(recommenders.length)}
+          statusTone={sectionStatusTone(recommenders.length)}
           title="profile.sections.recommenders"
           isLoading={itemsLoading}
         />
