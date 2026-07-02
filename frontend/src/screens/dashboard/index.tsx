@@ -192,6 +192,8 @@ export function DashboardScreen() {
           .sort((a, b) => b.fit_score - a.fit_score)
           .slice(0, 3)
       );
+    } else {
+      setHasPartialError(true);
     }
     setIsLoading(false);
   }, []);

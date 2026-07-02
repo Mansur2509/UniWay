@@ -18,6 +18,7 @@ from .models import (
 from .services import (
     ACTIVE_REGISTRATION_STATUSES,
     ORGANIZER_EDITABLE_STATUSES,
+    event_infrastructure_tables_available,
     generate_unique_event_slug,
 )
 
@@ -210,6 +211,8 @@ class PublicEventSerializer(serializers.ModelSerializer):
         return registration.status if registration else None
 
     def _current_registration(self, obj):
+        if not event_infrastructure_tables_available():
+            return None
         request = self.context.get("request")
         if not request or not request.user.is_authenticated:
             return None
@@ -224,10 +227,16 @@ class PublicEventSerializer(serializers.ModelSerializer):
         )
 
     def get_registration_form_fields(self, obj):
+        if not self.context.get("include_event_registration_extras"):
+            return []
+        if not event_infrastructure_tables_available():
+            return []
         fields = obj.form_fields.all().order_by("order", "id")
         return EventFormFieldSerializer(fields, many=True).data
 
     def get_registration_ticket(self, obj):
+        if not self.context.get("include_event_registration_extras"):
+            return None
         registration = self._current_registration(obj)
         if not registration or not hasattr(registration, "ticket"):
             return None
@@ -237,7 +246,7 @@ class PublicEventSerializer(serializers.ModelSerializer):
 class EventRegistrationSerializer(serializers.ModelSerializer):
     event = PublicEventSerializer(read_only=True)
     ticket = serializers.SerializerMethodField()
-    answers = EventRegistrationAnswerSerializer(many=True, read_only=True)
+    answers = serializers.SerializerMethodField()
 
     class Meta:
         model = EventRegistration
@@ -256,9 +265,20 @@ class EventRegistrationSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_ticket(self, obj):
+        if not self.context.get("include_event_registration_extras"):
+            return None
+        if not event_infrastructure_tables_available():
+            return None
         if not hasattr(obj, "ticket"):
             return None
         return EventTicketSerializer(obj.ticket).data
+
+    def get_answers(self, obj):
+        if not self.context.get("include_event_registration_extras"):
+            return []
+        if not event_infrastructure_tables_available():
+            return []
+        return EventRegistrationAnswerSerializer(obj.answers.all(), many=True).data
 
 
 class OrganizerEventSerializer(serializers.ModelSerializer):

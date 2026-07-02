@@ -158,227 +158,274 @@ export function UniversitiesScreen() {
       </section>
 
       <Card>
-        <form className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" onSubmit={handleSubmit}>
-          <label className="block">
-            <span className="text-sm font-semibold">{t("universities.filters.search")}</span>
-            <div className="relative">
-              <Search
-                aria-hidden
-                className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-              <input
-                className={`${fieldClassName} pl-10`}
-                onChange={(event) =>
-                  setFilters((current) => ({ ...current, search: event.target.value }))
-                }
-                placeholder={t("universities.filters.searchPlaceholder")}
-                value={filters.search}
-              />
+        <form className="space-y-5" onSubmit={handleSubmit}>
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold">
+              {t("universities.filters.group.searchLocation")}
+            </h2>
+            <div className="grid gap-3 md:grid-cols-3">
+              <label className="block">
+                <span className="text-sm font-semibold">{t("universities.filters.search")}</span>
+                <div className="relative">
+                  <Search
+                    aria-hidden
+                    className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  />
+                  <input
+                    className={`${fieldClassName} pl-10`}
+                    onChange={(event) =>
+                      setFilters((current) => ({ ...current, search: event.target.value }))
+                    }
+                    placeholder={t("universities.filters.searchPlaceholder")}
+                    value={filters.search}
+                  />
+                </div>
+              </label>
+              <label className="block">
+                <span className="text-sm font-semibold">{t("universities.filters.country")}</span>
+                <input
+                  className={fieldClassName}
+                  onChange={(event) =>
+                    setFilters((current) => ({ ...current, country: event.target.value }))
+                  }
+                  placeholder={t("universities.filters.countryPlaceholder")}
+                  value={filters.country}
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm font-semibold">{t("universities.filters.city")}</span>
+                <input
+                  className={fieldClassName}
+                  onChange={(event) =>
+                    setFilters((current) => ({ ...current, city: event.target.value }))
+                  }
+                  placeholder={t("universities.filters.cityPlaceholder")}
+                  value={filters.city}
+                />
+              </label>
             </div>
-          </label>
-          <label className="block">
-            <span className="text-sm font-semibold">{t("universities.filters.country")}</span>
-            <input
-              className={fieldClassName}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, country: event.target.value }))
-              }
-              placeholder={t("universities.filters.countryPlaceholder")}
-              value={filters.country}
-            />
-          </label>
-          <label className="block">
-            <span className="text-sm font-semibold">{t("universities.filters.city")}</span>
-            <input
-              className={fieldClassName}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, city: event.target.value }))
-              }
-              placeholder={t("universities.filters.cityPlaceholder")}
-              value={filters.city}
-            />
-          </label>
-          <label className="block">
-            <span className="text-sm font-semibold">
-              {t("universities.filters.institutionType")}
-            </span>
-            <select
-              className={fieldClassName}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  institution_type: event.target.value
-                }))
-              }
-              value={filters.institution_type}
-            >
-              <option value="">{t("universities.filters.all")}</option>
-              <option value="public">{t("universities.institutionType.public")}</option>
-              <option value="private">{t("universities.institutionType.private")}</option>
-            </select>
-          </label>
-          <label className="flex items-center gap-2 self-end pb-2.5">
-            <input
-              checked={filters.scholarship_available === "true"}
-              className="size-4"
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  scholarship_available: event.target.checked ? "true" : ""
-                }))
-              }
-              type="checkbox"
-            />
-            <span className="text-sm font-semibold">
-              {t("universities.filters.scholarshipAvailable")}
-            </span>
-          </label>
-          <label className="block">
-            <span className="text-sm font-semibold">
-              {t("universities.filters.verificationStatus")}
-            </span>
-            <select
-              className={fieldClassName}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  verification_status: event.target.value
-                }))
-              }
-              value={filters.verification_status}
-            >
-              <option value="">{t("universities.filters.verificationAny")}</option>
-              <option value="verified">{t("universities.filters.verificationVerified")}</option>
-              <option value="partial">{t("universities.filters.verificationPartial")}</option>
-              <option value="estimated">{t("universities.filters.verificationEstimated")}</option>
-            </select>
-          </label>
-          <label className="flex items-center gap-2 self-end pb-2.5">
-            <input
-              checked={filters.include_demo === "true"}
-              className="size-4"
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  include_demo: event.target.checked ? "true" : ""
-                }))
-              }
-              type="checkbox"
-            />
-            <span className="text-sm font-semibold">
-              {t("universities.filters.includeDemo")}
-            </span>
-          </label>
-          <label className="block">
-            <span className="inline-flex items-center gap-1.5 text-sm font-semibold">
-              {t("universities.filters.ieltsAtMost")}
-              <HelpTooltip label={t("universities.filters.ieltsAtMostHelp")} />
-            </span>
-            <input
-              className={fieldClassName}
-              inputMode="decimal"
-              max={9}
-              min={4}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  ielts_minimum__lte: event.target.value
-                }))
-              }
-              step={0.5}
-              type="number"
-              value={filters.ielts_minimum__lte}
-            />
-          </label>
-          <div className="block">
-            <span className="inline-flex items-center gap-1.5 text-sm font-semibold">
-              {t("universities.filters.satRange")}
-              <HelpTooltip label={t("universities.filters.satRangeHelp")} />
-            </span>
-            <div className="flex gap-2">
-              <input
-                aria-label={t("universities.filters.satFrom")}
-                className={fieldClassName}
-                inputMode="numeric"
-                max={1600}
-                min={400}
-                onChange={(event) =>
-                  setFilters((current) => ({
-                    ...current,
-                    sat_average__gte: event.target.value
-                  }))
-                }
-                placeholder={t("universities.filters.satFrom")}
-                step={10}
-                type="number"
-                value={filters.sat_average__gte}
-              />
-              <input
-                aria-label={t("universities.filters.satTo")}
-                className={fieldClassName}
-                inputMode="numeric"
-                max={1600}
-                min={400}
-                onChange={(event) =>
-                  setFilters((current) => ({
-                    ...current,
-                    sat_average__lte: event.target.value
-                  }))
-                }
-                placeholder={t("universities.filters.satTo")}
-                step={10}
-                type="number"
-                value={filters.sat_average__lte}
-              />
+          </section>
+
+          <section className="space-y-3 border-t pt-4">
+            <h2 className="text-sm font-semibold">
+              {t("universities.filters.group.institutionProfile")}
+            </h2>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <label className="block">
+                <span className="text-sm font-semibold">
+                  {t("universities.filters.institutionType")}
+                </span>
+                <select
+                  className={fieldClassName}
+                  onChange={(event) =>
+                    setFilters((current) => ({
+                      ...current,
+                      institution_type: event.target.value
+                    }))
+                  }
+                  value={filters.institution_type}
+                >
+                  <option value="">{t("universities.filters.all")}</option>
+                  <option value="public">{t("universities.institutionType.public")}</option>
+                  <option value="private">{t("universities.institutionType.private")}</option>
+                </select>
+              </label>
             </div>
-          </div>
-          <label className="block">
-            <span className="inline-flex items-center gap-1.5 text-sm font-semibold">
-              {t("universities.filters.gpaAtMost")}
-              <HelpTooltip label={t("universities.filters.gpaAtMostHelp")} />
-            </span>
-            <input
-              className={fieldClassName}
-              inputMode="decimal"
-              max={4}
-              min={0}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  gpa_average__lte: event.target.value
-                }))
-              }
-              step={0.1}
-              type="number"
-              value={filters.gpa_average__lte}
-            />
-          </label>
-          <label className="block">
-            <span className="text-sm font-semibold">{t("universities.filters.sort")}</span>
-            <select
-              className={fieldClassName}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, ordering: event.target.value }))
-              }
-              value={filters.ordering}
-            >
-              <option value="">{t("universities.filters.defaultSort")}</option>
-              <option value="tuition_usd_amount">{t("universities.filters.tuitionUsdLowHigh")}</option>
-              <option value="-tuition_usd_amount">{t("universities.filters.tuitionUsdHighLow")}</option>
-              <option value="total_cost_usd_amount">{t("universities.filters.totalUsdLowHigh")}</option>
-              <option value="-total_cost_usd_amount">{t("universities.filters.totalUsdHighLow")}</option>
-              <option value="qs_ranking">{t("universities.filters.qsHighLow")}</option>
-              <option value="-qs_ranking">{t("universities.filters.qsLowHigh")}</option>
-              <option value="acceptance_rate">{t("universities.filters.mostSelective")}</option>
-              <option value="-acceptance_rate">{t("universities.filters.leastSelective")}</option>
-            </select>
-          </label>
-          <div className="flex flex-wrap gap-3 md:col-span-2 xl:col-span-3">
-            <Button type="submit">{t("universities.actions.applyFilters")}</Button>
-            <Button onClick={clearFilters} type="button" variant="ghost">
-              {t("universities.actions.clearFilters")}
-            </Button>
-          </div>
+          </section>
+
+          <section className="space-y-3 border-t pt-4">
+            <h2 className="text-sm font-semibold">
+              {t("universities.filters.group.academicRequirements")}
+            </h2>
+            <div className="grid gap-3 md:grid-cols-3">
+              <label className="block">
+                <span className="inline-flex items-center gap-1.5 text-sm font-semibold">
+                  {t("universities.filters.ieltsAtMost")}
+                  <HelpTooltip label={t("universities.filters.ieltsAtMostHelp")} />
+                </span>
+                <input
+                  className={fieldClassName}
+                  inputMode="decimal"
+                  max={9}
+                  min={4}
+                  onChange={(event) =>
+                    setFilters((current) => ({
+                      ...current,
+                      ielts_minimum__lte: event.target.value
+                    }))
+                  }
+                  step={0.5}
+                  type="number"
+                  value={filters.ielts_minimum__lte}
+                />
+              </label>
+              <div className="block">
+                <span className="inline-flex items-center gap-1.5 text-sm font-semibold">
+                  {t("universities.filters.satRange")}
+                  <HelpTooltip label={t("universities.filters.satRangeHelp")} />
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    aria-label={t("universities.filters.satFrom")}
+                    className={fieldClassName}
+                    inputMode="numeric"
+                    max={1600}
+                    min={400}
+                    onChange={(event) =>
+                      setFilters((current) => ({
+                        ...current,
+                        sat_average__gte: event.target.value
+                      }))
+                    }
+                    placeholder={t("universities.filters.satFrom")}
+                    step={10}
+                    type="number"
+                    value={filters.sat_average__gte}
+                  />
+                  <input
+                    aria-label={t("universities.filters.satTo")}
+                    className={fieldClassName}
+                    inputMode="numeric"
+                    max={1600}
+                    min={400}
+                    onChange={(event) =>
+                      setFilters((current) => ({
+                        ...current,
+                        sat_average__lte: event.target.value
+                      }))
+                    }
+                    placeholder={t("universities.filters.satTo")}
+                    step={10}
+                    type="number"
+                    value={filters.sat_average__lte}
+                  />
+                </div>
+              </div>
+              <label className="block">
+                <span className="inline-flex items-center gap-1.5 text-sm font-semibold">
+                  {t("universities.filters.gpaAtMost")}
+                  <HelpTooltip label={t("universities.filters.gpaAtMostHelp")} />
+                </span>
+                <input
+                  className={fieldClassName}
+                  inputMode="decimal"
+                  max={4}
+                  min={0}
+                  onChange={(event) =>
+                    setFilters((current) => ({
+                      ...current,
+                      gpa_average__lte: event.target.value
+                    }))
+                  }
+                  step={0.1}
+                  type="number"
+                  value={filters.gpa_average__lte}
+                />
+              </label>
+            </div>
+          </section>
+
+          <section className="space-y-3 border-t pt-4">
+            <h2 className="text-sm font-semibold">
+              {t("universities.filters.group.costScholarships")}
+            </h2>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <label className="flex min-h-10 items-center gap-2 rounded-sm border bg-surface px-3 py-2">
+                <input
+                  checked={filters.scholarship_available === "true"}
+                  className="size-4 shrink-0"
+                  onChange={(event) =>
+                    setFilters((current) => ({
+                      ...current,
+                      scholarship_available: event.target.checked ? "true" : ""
+                    }))
+                  }
+                  type="checkbox"
+                />
+                <span className="text-sm font-semibold">
+                  {t("universities.filters.scholarshipAvailable")}
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <section className="space-y-3 border-t pt-4">
+            <h2 className="text-sm font-semibold">
+              {t("universities.filters.group.verificationDataQuality")}
+            </h2>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <label className="block">
+                <span className="text-sm font-semibold">
+                  {t("universities.filters.verificationStatus")}
+                </span>
+                <select
+                  className={fieldClassName}
+                  onChange={(event) =>
+                    setFilters((current) => ({
+                      ...current,
+                      verification_status: event.target.value
+                    }))
+                  }
+                  value={filters.verification_status}
+                >
+                  <option value="">{t("universities.filters.verificationAny")}</option>
+                  <option value="verified">{t("universities.filters.verificationVerified")}</option>
+                  <option value="partial">{t("universities.filters.verificationPartial")}</option>
+                  <option value="estimated">{t("universities.filters.verificationEstimated")}</option>
+                </select>
+              </label>
+              <label className="flex min-h-10 items-center gap-2 rounded-sm border bg-surface px-3 py-2 md:self-end">
+                <input
+                  checked={filters.include_demo === "true"}
+                  className="size-4 shrink-0"
+                  onChange={(event) =>
+                    setFilters((current) => ({
+                      ...current,
+                      include_demo: event.target.checked ? "true" : ""
+                    }))
+                  }
+                  type="checkbox"
+                />
+                <span className="text-sm font-semibold">
+                  {t("universities.filters.includeDemo")}
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <section className="space-y-3 border-t pt-4">
+            <h2 className="text-sm font-semibold">
+              {t("universities.filters.group.sortActions")}
+            </h2>
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+              <label className="block">
+                <span className="text-sm font-semibold">{t("universities.filters.sort")}</span>
+                <select
+                  className={fieldClassName}
+                  onChange={(event) =>
+                    setFilters((current) => ({ ...current, ordering: event.target.value }))
+                  }
+                  value={filters.ordering}
+                >
+                  <option value="">{t("universities.filters.defaultSort")}</option>
+                  <option value="tuition_usd_amount">{t("universities.filters.tuitionUsdLowHigh")}</option>
+                  <option value="-tuition_usd_amount">{t("universities.filters.tuitionUsdHighLow")}</option>
+                  <option value="total_cost_usd_amount">{t("universities.filters.totalUsdLowHigh")}</option>
+                  <option value="-total_cost_usd_amount">{t("universities.filters.totalUsdHighLow")}</option>
+                  <option value="qs_ranking">{t("universities.filters.qsHighLow")}</option>
+                  <option value="-qs_ranking">{t("universities.filters.qsLowHigh")}</option>
+                  <option value="acceptance_rate">{t("universities.filters.mostSelective")}</option>
+                  <option value="-acceptance_rate">{t("universities.filters.leastSelective")}</option>
+                </select>
+              </label>
+              <div className="flex flex-wrap gap-3">
+                <Button type="submit">{t("universities.actions.applyFilters")}</Button>
+                <Button onClick={clearFilters} type="button" variant="ghost">
+                  {t("universities.actions.clearFilters")}
+                </Button>
+              </div>
+            </div>
+          </section>
         </form>
       </Card>
 

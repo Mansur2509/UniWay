@@ -44,6 +44,7 @@ from .services import (
     cancel_event_registration,
     cancel_owned_event,
     check_in_registration,
+    event_infrastructure_tables_available,
     public_event_queryset,
     register_for_event,
     reject_event,
@@ -96,7 +97,15 @@ class PublicEventDetailView(generics.RetrieveAPIView):
     lookup_field = "slug"
 
     def get_queryset(self):
-        return public_event_queryset()
+        queryset = public_event_queryset()
+        if event_infrastructure_tables_available():
+            queryset = queryset.prefetch_related("form_fields")
+        return queryset
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["include_event_registration_extras"] = True
+        return context
 
 
 class EventRegistrationView(APIView):
@@ -114,7 +123,10 @@ class EventRegistrationView(APIView):
         )
         serializer = EventRegistrationSerializer(
             registration,
-            context={"request": request},
+            context={
+                "request": request,
+                "include_event_registration_extras": event_infrastructure_tables_available(),
+            },
         )
         return Response(
             serializer.data,
@@ -133,7 +145,10 @@ class EventRegistrationCancelView(APIView):
         return Response(
             EventRegistrationSerializer(
                 registration,
-                context={"request": request},
+                context={
+                    "request": request,
+                    "include_event_registration_extras": event_infrastructure_tables_available(),
+                },
             ).data
         )
 
@@ -146,7 +161,7 @@ class MyEventRegistrationListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return (
+        queryset = (
             EventRegistration.objects.filter(
                 user=self.request.user,
                 status__in=ACTIVE_REGISTRATION_STATUSES,
@@ -157,11 +172,17 @@ class MyEventRegistrationListView(generics.ListAPIView):
                 "event__location",
                 "event__source",
                 "event__organizer",
-                "ticket",
             )
-            .prefetch_related("answers__field")
             .order_by("event__starts_at")
         )
+        if event_infrastructure_tables_available():
+            queryset = queryset.select_related("ticket").prefetch_related("answers__field")
+        return queryset
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["include_event_registration_extras"] = event_infrastructure_tables_available()
+        return context
 
 
 class MyParticipationRecordListView(generics.ListAPIView):

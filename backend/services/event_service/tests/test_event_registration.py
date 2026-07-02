@@ -1,6 +1,9 @@
 from datetime import timedelta
+from io import StringIO
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -175,6 +178,86 @@ class EventRegistrationTests(APITestCase):
             EventRegistration.objects.filter(user=self.user, event=self.event).count(),
             1,
         )
+
+    def test_event_catalog_accepts_page_size_query(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(f"{reverse('events:list')}?page=1&page_size=21")
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["registration_form_fields"], [])
+        self.assertIsNone(response.data["results"][0]["registration_ticket"])
+
+    def test_event_catalog_empty_list_accepts_page_size_query(self):
+        Event.objects.all().delete()
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(f"{reverse('events:list')}?page=1&page_size=21")
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["results"], [])
+
+    def test_my_registrations_accepts_page_size_query_for_empty_user(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(f"{reverse('events:my-registrations')}?page=1&page_size=21")
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["results"], [])
+
+    def test_my_registrations_accepts_page_size_query_for_registered_user(self):
+        self.client.force_authenticate(self.user)
+        self.client.post(reverse("events:register", kwargs={"slug": self.event.slug}), format="json")
+
+        response = self.client.get(f"{reverse('events:my-registrations')}?page=1&page_size=21")
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["ticket"]["status"], "active")
+
+    def test_core_event_lists_skip_optional_infrastructure_when_tables_unavailable(self):
+        self.client.force_authenticate(self.user)
+        self.client.post(reverse("events:register", kwargs={"slug": self.event.slug}), format="json")
+
+        with (
+            patch(
+                "services.event_service.serializers.event_infrastructure_tables_available",
+                return_value=False,
+            ),
+            patch(
+                "services.event_service.views.event_infrastructure_tables_available",
+                return_value=False,
+            ),
+        ):
+            catalog_response = self.client.get(f"{reverse('events:list')}?page=1&page_size=21")
+            registrations_response = self.client.get(
+                f"{reverse('events:my-registrations')}?page=1&page_size=21"
+            )
+
+        self.assertEqual(catalog_response.status_code, 200, catalog_response.data)
+        self.assertEqual(registrations_response.status_code, 200, registrations_response.data)
+        self.assertEqual(catalog_response.data["results"][0]["registration_form_fields"], [])
+        self.assertIsNone(catalog_response.data["results"][0]["registration_ticket"])
+        self.assertIsNone(registrations_response.data["results"][0]["ticket"])
+        self.assertEqual(registrations_response.data["results"][0]["answers"], [])
+
+    def test_seeded_demo_student_event_lists_accept_page_size_query(self):
+        call_command("seed_demo", "--with-demo-data", stdout=StringIO())
+        demo_user = User.objects.get(email="student.demo@eduverse.local")
+        self.client.force_authenticate(demo_user)
+
+        catalog_response = self.client.get(f"{reverse('events:list')}?page=1&page_size=21")
+        registrations_response = self.client.get(
+            f"{reverse('events:my-registrations')}?page=1&page_size=21"
+        )
+
+        self.assertEqual(catalog_response.status_code, 200, catalog_response.data)
+        self.assertGreaterEqual(catalog_response.data["count"], 1)
+        self.assertEqual(registrations_response.status_code, 200, registrations_response.data)
+        self.assertGreaterEqual(registrations_response.data["count"], 1)
 
     def test_anonymous_registration_is_rejected(self):
         response = self.client.post(

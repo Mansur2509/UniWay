@@ -273,6 +273,13 @@ def _available_rounds(university: University) -> list[str]:
 
 def _application_round_info(university: University, *, essay_ready: bool, exam_ready: bool, days_remaining: int | None) -> dict:
     rounds = _available_rounds(university)
+    if days_remaining is not None and days_remaining < 0:
+        return {
+            "available_rounds": rounds,
+            "recommended_round": "unknown",
+            "reason_key": "round_deadline_passed",
+            "reason_params": {},
+        }
     if not rounds:
         return {
             "available_rounds": [],

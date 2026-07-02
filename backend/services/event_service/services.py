@@ -2,10 +2,11 @@ import re
 import secrets
 import uuid
 from decimal import Decimal, InvalidOperation
+from functools import lru_cache
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import EmailValidator
-from django.db import transaction
+from django.db import OperationalError, ProgrammingError, connection, transaction
 from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -45,6 +46,28 @@ MAX_CHOICE_COUNT = 20
 MAX_CHOICE_LENGTH = 120
 
 TELEGRAM_USERNAME_RE = re.compile(r"^@?[A-Za-z0-9_]{5,32}$")
+
+
+@lru_cache(maxsize=1)
+def event_infrastructure_tables_available() -> bool:
+    """Return whether optional event form/ticket tables are present.
+
+    Core catalog and my-registration endpoints must stay readable during a
+    deploy window where code has shipped but the new optional tables have not
+    been migrated yet. Detail/register/organizer flows still require the
+    migration for the full infrastructure feature set.
+    """
+
+    try:
+        table_names = set(connection.introspection.table_names())
+    except (OperationalError, ProgrammingError):
+        return False
+    required_tables = {
+        EventFormField._meta.db_table,
+        EventRegistrationAnswer._meta.db_table,
+        EventTicket._meta.db_table,
+    }
+    return required_tables.issubset(table_names)
 
 
 def generate_unique_event_slug(title: str) -> str:
@@ -320,7 +343,9 @@ def create_event_notification(
     channel: str = EventNotification.Channel.INTERNAL,
     payload: dict | None = None,
     status: str = EventNotification.DeliveryStatus.PENDING,
-) -> EventNotification:
+) -> EventNotification | None:
+    if not event_infrastructure_tables_available():
+        return None
     return EventNotification.objects.create(
         event=event,
         registration=registration,
@@ -559,7 +584,12 @@ def register_for_event(*, event: Event, user, answers=None) -> tuple[EventRegist
     if locked_event.capacity is not None and active_count >= locked_event.capacity:
         raise serializers.ValidationError({"event": "This event has reached capacity."})
 
-    normalized_answers = normalize_registration_answers(locked_event, answers)
+    infrastructure_available = event_infrastructure_tables_available()
+    normalized_answers = (
+        normalize_registration_answers(locked_event, answers)
+        if infrastructure_available
+        else []
+    )
     registration_data, contact_snapshot = build_registration_snapshots(user)
     cancelled_registration = (
         EventRegistration.objects.select_for_update()
@@ -581,11 +611,12 @@ def register_for_event(*, event: Event, user, answers=None) -> tuple[EventRegist
         for field, value in defaults.items():
             setattr(cancelled_registration, field, value)
         cancelled_registration.save()
-        replace_registration_answers(
-            registration=cancelled_registration,
-            normalized_answers=normalized_answers,
-        )
-        ensure_ticket_for_registration(cancelled_registration)
+        if infrastructure_available:
+            replace_registration_answers(
+                registration=cancelled_registration,
+                normalized_answers=normalized_answers,
+            )
+            ensure_ticket_for_registration(cancelled_registration)
         create_event_notification(
             event=locked_event,
             recipient=user,
@@ -599,11 +630,12 @@ def register_for_event(*, event: Event, user, answers=None) -> tuple[EventRegist
         event=locked_event,
         **defaults,
     )
-    replace_registration_answers(
-        registration=registration,
-        normalized_answers=normalized_answers,
-    )
-    ensure_ticket_for_registration(registration)
+    if infrastructure_available:
+        replace_registration_answers(
+            registration=registration,
+            normalized_answers=normalized_answers,
+        )
+        ensure_ticket_for_registration(registration)
     create_event_notification(
         event=locked_event,
         recipient=user,
@@ -639,7 +671,7 @@ def cancel_event_registration(*, event: Event, user) -> EventRegistration:
 
     registration.status = EventRegistration.Status.CANCELLED
     registration.save(update_fields=["status", "updated_at"])
-    if hasattr(registration, "ticket"):
+    if event_infrastructure_tables_available() and hasattr(registration, "ticket"):
         registration.ticket.status = EventTicket.Status.CANCELLED
         registration.ticket.save(update_fields=["status"])
     create_event_notification(

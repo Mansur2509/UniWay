@@ -206,6 +206,22 @@ class RecommendationEngineTests(APITestCase):
         self.assertEqual(item["application_round"]["recommended_round"], "unknown")
         self.assertEqual(item["application_round"]["reason_key"], "round_not_verified")
 
+    def test_past_deadline_does_not_recommend_current_cycle_round(self):
+        create_university(
+            "past-deadline-university",
+            acceptance_rate="40.00",
+            deadlines_text="Regular Decision (RD): January 1",
+            application_deadline=date.today() - timedelta(days=30),
+        )
+
+        data = self._get()
+        item = self._item_for(data, "past-deadline-university")
+
+        self.assertEqual(item["urgency"], "overdue")
+        self.assertEqual(item["application_round"]["available_rounds"], ["RD"])
+        self.assertEqual(item["application_round"]["recommended_round"], "unknown")
+        self.assertEqual(item["application_round"]["reason_key"], "round_deadline_passed")
+
     def test_round_early_too_close_when_not_ready(self):
         self.profile.essay_status = self.profile.EssayStatus.NOT_YET
         self.profile.test_scores = {"sat": 900}

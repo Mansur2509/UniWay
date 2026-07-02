@@ -495,7 +495,7 @@ export function RecommendationsScreen() {
                 </span>
                 <span className="text-sm font-normal text-muted-foreground">({list.length})</span>
               </h2>
-              <div className="flex flex-wrap gap-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {list.map((item) => (
                   <RecommendationCard
                     isExpanded={expandedSlug === item.university.slug}
@@ -544,8 +544,15 @@ function RecommendationCard({
   t: (key: TranslationKey, params?: Record<string, string | number>) => string;
 }) {
   const roundLabel = item.application_round.recommended_round;
+  const isDeadlineOverdue = item.urgency === "overdue";
+  let roundDisplay = roundLabel;
+  if (isDeadlineOverdue) {
+    roundDisplay = t("recommendations.card.needsUpdatedDeadline");
+  } else if (roundLabel === "unknown") {
+    roundDisplay = t("applications.deadlines.notVerified");
+  }
   return (
-    <Card className="flex min-w-[17rem] flex-1 flex-col gap-2.5 p-4">
+    <Card className="flex h-full min-w-0 flex-col gap-2.5 p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-base font-semibold">{item.university.name}</p>
@@ -590,7 +597,7 @@ function RecommendationCard({
             {t("recommendations.card.programs")}
           </p>
           <ul className="mt-1 space-y-1">
-            {item.recommended_programs.map((program) => (
+            {item.recommended_programs.slice(0, isExpanded ? undefined : 3).map((program) => (
               <li key={program.name}>
                 <span>{program.name}</span>
                 <span className="ml-1.5 text-muted-foreground">
@@ -599,6 +606,11 @@ function RecommendationCard({
               </li>
             ))}
           </ul>
+          {!isExpanded && item.recommended_programs.length > 3 ? (
+            <p className="mt-1 text-[0.68rem] font-semibold text-muted-foreground">
+              +{item.recommended_programs.length - 3}
+            </p>
+          ) : null}
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
@@ -628,16 +640,17 @@ function RecommendationCard({
           <span className={badgeClass(URGENCY_BADGE_STYLES[item.urgency])}>
             {t(`applications.urgency.${item.urgency}` as TranslationKey)}
           </span>
+          {isDeadlineOverdue ? (
+            <p className="mt-1 text-[0.68rem] font-semibold text-danger">
+              {t("recommendations.card.currentCycleUnavailable")}
+            </p>
+          ) : null}
         </div>
       </div>
 
       <p className="text-xs">
         {t("recommendations.card.recommendedRound")}:{" "}
-        <span className="font-semibold">
-          {roundLabel === "unknown"
-            ? t("applications.deadlines.notVerified")
-            : roundLabel}
-        </span>
+        <span className="font-semibold">{roundDisplay}</span>
       </p>
 
       {item.main_strength ? (
@@ -780,7 +793,7 @@ function RecommendationCard({
         </div>
       ) : null}
 
-      <div className="mt-1 flex flex-wrap gap-2">
+      <div className="mt-auto flex flex-wrap gap-2 pt-2">
         <Button
           disabled={item.is_shortlisted || isPending}
           onClick={onAddToShortlist}
