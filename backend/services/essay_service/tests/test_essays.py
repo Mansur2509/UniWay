@@ -1,10 +1,17 @@
+from datetime import date
+
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from services.application_service.models import ApplicationTrackerItem
 from services.essay_service.feedback_engine import generate_feedback
 from services.essay_service.models import EssayFeedback, EssayRevisionTask, EssayWorkspace
-from services.university_service.models import University
+from services.university_service.models import (
+    SavedUniversity,
+    University,
+    UniversityFieldVerification,
+)
 
 User = get_user_model()
 
@@ -267,3 +274,113 @@ class EssayWorkspaceApiTests(APITestCase):
         ):
             response = self.client.post(path)
             self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_generate_suggestions_from_shortlisted_university(self):
+        university = create_university(
+            slug="essay-source-university",
+            name="Essay Source University",
+            essay_requirements="Supplemental essay requirements are listed here.",
+            admissions_url="https://example.com/admissions",
+        )
+        UniversityFieldVerification.objects.create(
+            university=university,
+            field_name="essay_requirements",
+            status=UniversityFieldVerification.Status.VERIFIED,
+            source_url="https://example.com/admissions/essays",
+            last_verified_date=date(2026, 7, 1),
+        )
+        SavedUniversity.objects.create(user=self.user1, university=university)
+
+        self.client.force_authenticate(self.user1)
+        response = self.client.post("/api/essays/generate-suggestions/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["created_count"], 2)
+        created_titles = {essay["title"] for essay in response.data["essays"]}
+        self.assertIn("Common App personal statement", created_titles)
+        self.assertIn("Essay Source University: verify supplemental essays", created_titles)
+
+        supplement = EssayWorkspace.objects.get(
+            user=self.user1,
+            university=university,
+            essay_type=EssayWorkspace.EssayType.SUPPLEMENT,
+        )
+        self.assertEqual(
+            supplement.prompt_verification_status,
+            EssayWorkspace.VerificationStatus.VERIFIED,
+        )
+        self.assertEqual(supplement.prompt_confidence, EssayWorkspace.Confidence.HIGH)
+        self.assertEqual(supplement.status, EssayWorkspace.Status.SUGGESTED)
+        self.assertEqual(supplement.source_url, "https://example.com/admissions/essays")
+        self.assertEqual(supplement.draft_text, "")
+
+    def test_generate_suggestions_is_idempotent(self):
+        university = create_university(slug="idempotent-university")
+        SavedUniversity.objects.create(user=self.user1, university=university)
+
+        self.client.force_authenticate(self.user1)
+        first = self.client.post("/api/essays/generate-suggestions/")
+        second = self.client.post("/api/essays/generate-suggestions/")
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK, first.data)
+        self.assertEqual(second.status_code, status.HTTP_200_OK, second.data)
+        self.assertEqual(first.data["created_count"], 2)
+        self.assertEqual(second.data["created_count"], 0)
+        self.assertEqual(second.data["existing_count"], 2)
+        self.assertEqual(EssayWorkspace.objects.filter(user=self.user1).count(), 2)
+
+    def test_unverified_prompt_is_labeled_without_inventing_prompt(self):
+        university = create_university(slug="missing-prompt-university")
+        SavedUniversity.objects.create(user=self.user1, university=university)
+
+        self.client.force_authenticate(self.user1)
+        response = self.client.post("/api/essays/generate-suggestions/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        supplement = EssayWorkspace.objects.get(
+            user=self.user1,
+            university=university,
+            essay_type=EssayWorkspace.EssayType.SUPPLEMENT,
+        )
+        self.assertEqual(
+            supplement.prompt_verification_status,
+            EssayWorkspace.VerificationStatus.MISSING,
+        )
+        self.assertEqual(supplement.prompt_confidence, EssayWorkspace.Confidence.LOW)
+        self.assertIn("Prompt needs verification", supplement.prompt_text)
+
+    def test_generate_suggestions_links_tracked_application(self):
+        university = create_university(
+            slug="tracked-essay-university",
+            name="Tracked Essay University",
+        )
+        application = ApplicationTrackerItem.objects.create(
+            user=self.user1,
+            university=university,
+            deadline=date(2027, 1, 5),
+        )
+
+        self.client.force_authenticate(self.user1)
+        response = self.client.post("/api/essays/generate-suggestions/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        supplement = EssayWorkspace.objects.get(
+            user=self.user1,
+            application=application,
+            essay_type=EssayWorkspace.EssayType.SUPPLEMENT,
+        )
+        self.assertEqual(supplement.university, university)
+        self.assertEqual(supplement.due_date, date(2027, 1, 5))
+
+    def test_generated_suggestions_remain_self_only(self):
+        university = create_university(slug="self-only-suggestion-university")
+        SavedUniversity.objects.create(user=self.user1, university=university)
+
+        self.client.force_authenticate(self.user1)
+        self.client.post("/api/essays/generate-suggestions/")
+
+        self.client.force_authenticate(self.user2)
+        response = self.client.get("/api/essays/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["results"], [])

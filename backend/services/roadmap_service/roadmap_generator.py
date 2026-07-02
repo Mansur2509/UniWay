@@ -642,19 +642,35 @@ class RoadmapBuilder:
     def _essay_workspace_tasks(self):
         essays = EssayWorkspace.objects.filter(
             user=self.user,
-            status__in=(EssayWorkspace.Status.NOT_STARTED, EssayWorkspace.Status.NEEDS_REVISION),
-        ).select_related("university")
+            status__in=(
+                EssayWorkspace.Status.SUGGESTED,
+                EssayWorkspace.Status.PLANNED,
+                EssayWorkspace.Status.NOT_STARTED,
+                EssayWorkspace.Status.NEEDS_REVISION,
+            ),
+        ).select_related("university", "application")
         if not _is_demo_user(self.user):
             essays = essays.filter(Q(university__isnull=True) | Q(university__is_demo=False))
 
         for essay in essays:
-            due_date = None
-            source_url = ""
-            if essay.university and essay.university.application_deadline:
-                due_date = essay.university.application_deadline
-                source_url = _verified_source_url(essay.university, "application_deadline")
+            due_date = essay.due_date
+            source_url = essay.source_url
+            if essay.university:
+                normalized_deadline = normalize_university_deadline(
+                    essay.university,
+                    self.profile,
+                ).normalized_date
+                due_date = due_date or normalized_deadline
+                if normalized_deadline:
+                    source_url = source_url or _verified_source_url(
+                        essay.university,
+                        "application_deadline",
+                    )
 
-            if essay.status == EssayWorkspace.Status.NOT_STARTED:
+            if essay.status in (EssayWorkspace.Status.SUGGESTED, EssayWorkspace.Status.PLANNED):
+                title = f"Plan your essay: {essay.title}"
+                generated_reason = "This suggested essay has not been planned or drafted yet."
+            elif essay.status == EssayWorkspace.Status.NOT_STARTED:
                 title = f"Start your essay: {essay.title}"
                 generated_reason = "This essay draft has not been started yet."
             else:
@@ -675,6 +691,7 @@ class RoadmapBuilder:
                 ),
                 source_type=SourceType.ESSAY_STATUS,
                 linked_university=essay.university,
+                linked_application=essay.application,
                 linked_profile_section=f"essay_workspace:{essay.id}",
                 source_url=source_url,
                 generated_reason=generated_reason,

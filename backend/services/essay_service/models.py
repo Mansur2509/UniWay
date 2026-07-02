@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 
 from common.validators import validate_http_url
 
@@ -17,12 +18,31 @@ class EssayWorkspace(models.Model):
         OTHER = "other", "Other"
 
     class Status(models.TextChoices):
+        SUGGESTED = "suggested", "Suggested"
+        PLANNED = "planned", "Planned"
         NOT_STARTED = "not_started", "Not started"
         DRAFTING = "drafting", "Drafting"
         NEEDS_REVISION = "needs_revision", "Needs revision"
         REVIEWED = "reviewed", "Reviewed"
         READY = "ready", "Ready"
         SUBMITTED = "submitted", "Submitted"
+        SKIPPED = "skipped", "Skipped"
+
+    class Priority(models.TextChoices):
+        LOW = "low", "Low"
+        MEDIUM = "medium", "Medium"
+        HIGH = "high", "High"
+        URGENT = "urgent", "Urgent"
+
+    class VerificationStatus(models.TextChoices):
+        VERIFIED = "verified", "Verified"
+        NEEDS_VERIFICATION = "needs_verification", "Needs verification"
+        MISSING = "missing", "Missing"
+
+    class Confidence(models.TextChoices):
+        LOW = "low", "Low"
+        MEDIUM = "medium", "Medium"
+        HIGH = "high", "High"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="essay_workspaces"
@@ -34,20 +54,51 @@ class EssayWorkspace(models.Model):
         blank=True,
         related_name="essay_workspaces",
     )
+    application = models.ForeignKey(
+        "application_service.ApplicationTrackerItem",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="essay_workspaces",
+    )
     title = models.CharField(max_length=240)
     essay_type = models.CharField(max_length=30, choices=EssayType.choices, default=EssayType.OTHER)
     prompt_text = models.TextField(blank=True)
     word_limit = models.PositiveSmallIntegerField(null=True, blank=True)
     draft_text = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.NOT_STARTED)
+    priority = models.CharField(
+        max_length=10, choices=Priority.choices, default=Priority.MEDIUM
+    )
+    due_date = models.DateField(null=True, blank=True)
+    prompt_verification_status = models.CharField(
+        max_length=24,
+        choices=VerificationStatus.choices,
+        default=VerificationStatus.MISSING,
+    )
+    prompt_confidence = models.CharField(
+        max_length=12, choices=Confidence.choices, default=Confidence.LOW
+    )
     source_url = models.URLField(blank=True, validators=[validate_http_url])
+    notes = models.TextField(max_length=2000, blank=True)
+    suggestion_key = models.CharField(max_length=255, blank=True, db_index=True)
     last_reviewed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ("-updated_at",)
-        indexes = [models.Index(fields=("user", "status"))]
+        indexes = [
+            models.Index(fields=("user", "status")),
+            models.Index(fields=("user", "priority")),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=("user", "suggestion_key"),
+                condition=~Q(suggestion_key=""),
+                name="unique_essay_suggestion_per_user",
+            )
+        ]
 
     def __str__(self) -> str:
         return self.title

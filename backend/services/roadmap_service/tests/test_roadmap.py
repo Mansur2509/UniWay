@@ -69,6 +69,31 @@ class RoadmapGenerationTests(APITestCase):
         self.assertEqual(task.category, RoadmapTask.Category.ESSAYS)
         self.assertEqual(task.source_type, RoadmapTask.SourceType.ESSAY_STATUS)
 
+    def test_generate_roadmap_creates_task_for_suggested_application_essay(self):
+        from services.essay_service.models import EssayWorkspace
+
+        university = create_university("suggested-essay-university")
+        application = ApplicationTrackerItem.objects.create(user=self.user, university=university)
+        essay = EssayWorkspace.objects.create(
+            user=self.user,
+            university=university,
+            application=application,
+            title="Suggested supplement",
+            essay_type=EssayWorkspace.EssayType.SUPPLEMENT,
+            status=EssayWorkspace.Status.SUGGESTED,
+            due_date=self.today + timedelta(days=45),
+            source_url="https://example.com/suggested-essay-source",
+        )
+
+        plan, _ = generate_roadmap(self.user)
+        task = plan.tasks.get(dedup_key=f"essay_workspace:{essay.id}:suggested")
+
+        self.assertEqual(task.category, RoadmapTask.Category.ESSAYS)
+        self.assertEqual(task.linked_application, application)
+        self.assertEqual(task.linked_university, university)
+        self.assertEqual(task.due_date, essay.due_date)
+        self.assertEqual(task.source_url, essay.source_url)
+
     def test_generate_roadmap_skips_essay_in_progress(self):
         from services.essay_service.models import EssayWorkspace
 

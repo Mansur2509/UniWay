@@ -12,6 +12,7 @@ from .serializers import (
     EssayRevisionTaskSerializer,
     EssayWorkspaceSerializer,
 )
+from .suggestion_engine import generate_essay_suggestions
 
 
 class EssayWorkspaceViewSet(viewsets.ModelViewSet):
@@ -21,7 +22,7 @@ class EssayWorkspaceViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return (
             EssayWorkspace.objects.filter(user=self.request.user)
-            .select_related("university")
+            .select_related("university", "application", "application__university")
             .prefetch_related("feedback_entries", "revision_tasks")
         )
 
@@ -74,7 +75,11 @@ class EssayWorkspaceViewSet(viewsets.ModelViewSet):
                 )
 
         essay.last_reviewed_at = timezone.now()
-        if essay.status == EssayWorkspace.Status.NOT_STARTED and result["word_count"] > 0:
+        if essay.status in (
+            EssayWorkspace.Status.SUGGESTED,
+            EssayWorkspace.Status.PLANNED,
+            EssayWorkspace.Status.NOT_STARTED,
+        ) and result["word_count"] > 0:
             essay.status = EssayWorkspace.Status.DRAFTING
         if revision_task_payload and essay.status not in (
             EssayWorkspace.Status.SUBMITTED,
@@ -102,6 +107,22 @@ class EssayWorkspaceViewSet(viewsets.ModelViewSet):
         task = serializer.save(essay=essay)
         return Response(
             EssayRevisionTaskSerializer(task).data, status=status.HTTP_201_CREATED
+        )
+
+    @action(detail=False, methods=["post"], url_path="generate-suggestions")
+    def generate_suggestions(self, request):
+        result = generate_essay_suggestions(request.user)
+        queryset = self.get_queryset().filter(
+            id__in=[essay.id for essay in [*result.created, *result.existing]]
+        )
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(
+            {
+                "created_count": len(result.created),
+                "existing_count": len(result.existing),
+                "essays": serializer.data,
+            },
+            status=status.HTTP_200_OK,
         )
 
 
