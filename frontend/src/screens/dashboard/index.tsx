@@ -663,222 +663,234 @@ export function DashboardScreen() {
         title={t("dashboard.suggestions.title")}
       />
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="grid gap-3 lg:grid-cols-2">
         <Card className="p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
-            {t("dashboard.applicationsWidget.title")}
-          </p>
-          {applications.length === 0 ? (
-            <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-              <p>{t("dashboard.applicationsWidget.empty")}</p>
-              <p>{t("dashboard.applicationsWidget.emptyAction")}</p>
-            </div>
-          ) : (
-            <dl className="mt-3 space-y-1.5 text-xs">
-              <DashboardCountRow
-                count={applicationStatusCounts.researching}
-                label={t("applications.status.researching")}
-              />
-              <DashboardCountRow
-                count={applicationStatusCounts.preparing}
-                label={t("applications.status.preparing")}
-              />
-              <DashboardCountRow
-                count={applicationStatusCounts.submitted}
-                label={t("applications.status.submitted")}
-              />
-              <DashboardCountRow
-                count={applicationStatusCounts.awaiting_decision}
-                label={t("applications.status.awaiting_decision")}
-              />
-            </dl>
-          )}
-          <Button asChild className="mt-3" size="sm" variant="ghost">
-            <Link href="/applications">{t("dashboard.applicationsWidget.open")}</Link>
-          </Button>
-        </Card>
-
-        <Card className="p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
-            {t("dashboard.essaysWidget.title")}
-          </p>
-          {essays.length === 0 ? (
-            <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-              <p>{t("dashboard.essaysWidget.empty")}</p>
-              <p>{t("dashboard.essaysWidget.emptyAction")}</p>
-            </div>
-          ) : (
-            <dl className="mt-3 space-y-1.5 text-xs">
-              <DashboardCountRow
-                count={essayStatusCounts.not_started}
-                label={t("essays.status.not_started")}
-              />
-              <DashboardCountRow
-                count={essayStatusCounts.needs_revision}
-                label={t("essays.status.needs_revision")}
-              />
-              <DashboardCountRow count={essayStatusCounts.ready} label={t("essays.status.ready")} />
-              <DashboardCountRow
-                count={essayStatusCounts.submitted}
-                label={t("essays.status.submitted")}
-              />
-            </dl>
-          )}
-          <Button asChild className="mt-3" size="sm" variant="ghost">
-            <Link href="/essays">{t("dashboard.essaysWidget.open")}</Link>
-          </Button>
-        </Card>
-
-        <Card className="p-4">
-          <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
-            {t("dashboard.deadlineWidget.title")}
-            <HelpTooltip label={t("applications.help.deadlineConfidence")} />
-          </p>
-          {nextDeadline ? (
-            <>
-              <p className="mt-3 text-sm font-semibold">{nextDeadline.label}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {formatDate(nextDeadline.date, locale)}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:divide-x">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+                {t("dashboard.applicationsWidget.title")}
               </p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                {nextDeadlineUrgency !== "unknown" ? (
-                  <span
-                    className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${DASHBOARD_URGENCY_STYLES[nextDeadlineUrgency]}`}
-                  >
-                    {t(`applications.urgency.${nextDeadlineUrgency}` as TranslationKey)}
-                  </span>
-                ) : null}
-                {nextDeadlineDays !== null && nextDeadlineDays >= 0 ? (
-                  <span className="text-xs text-muted-foreground">
-                    {t("applications.timeline.dueIn", { count: nextDeadlineDays })}
-                  </span>
-                ) : null}
-              </div>
-            </>
-          ) : (
-            <p className="mt-3 text-xs text-muted-foreground">
-              {t("dashboard.deadlineWidget.empty")}
-            </p>
-          )}
-          {missingDeadlineCount > 0 ? (
-            <p className="mt-2 text-xs font-semibold text-warning">
-              {t("dashboard.deadlineWidget.missingDeadlines", { count: missingDeadlineCount })}
-            </p>
-          ) : null}
-          <Button asChild className="mt-3" size="sm" variant="ghost">
-            <Link href="/roadmap">{t("dashboard.deadlineWidget.open")}</Link>
-          </Button>
-        </Card>
-
-        <Card className="p-4">
-          <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
-            {t("dashboard.milestonesWidget.title")}
-            <HelpTooltip label={t("help.roadmapPriority")} />
-          </p>
-          {nextMilestones.length === 0 ? (
-            <p className="mt-3 text-xs text-muted-foreground">
-              {applications.length === 0
-                ? t("dashboard.milestonesWidget.emptyNoApplications")
-                : t("dashboard.milestonesWidget.emptyNoMilestones")}
-            </p>
-          ) : (
-            <ul className="mt-3 space-y-2 text-xs">
-              {nextMilestones.map(({ milestone, application }) => {
-                const days = milestone.due_date
-                  ? Math.round(
-                      (new Date(`${milestone.due_date}T00:00:00`).getTime() -
-                        new Date(new Date().toDateString()).getTime()) /
-                        86_400_000
-                    )
-                  : null;
-                const urgency = urgencyForDays(days);
-                return (
-                  <li key={milestone.id}>
-                    <Link
-                      className="block rounded-sm px-1 py-1 hover:bg-elevated"
-                      href="/applications"
-                    >
-                      <span className="flex items-center justify-between gap-2">
-                        <span className="truncate font-semibold">{milestone.title}</span>
-                        {milestone.due_date && urgency !== "unknown" ? (
-                          <span
-                            className={`shrink-0 rounded-sm border px-1.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide ${DASHBOARD_URGENCY_STYLES[urgency]}`}
-                          >
-                            {t(`applications.urgency.${urgency}` as TranslationKey)}
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="mt-0.5 block truncate text-muted-foreground">
-                        {application.university_name}
-                        {milestone.due_date ? ` · ${formatDate(milestone.due_date, locale)}` : ""}
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <Button asChild className="mt-3" size="sm" variant="ghost">
-            <Link href="/applications">{t("dashboard.milestonesWidget.open")}</Link>
-          </Button>
-        </Card>
-
-        <Card className="p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
-            {t("dashboard.gapsWidget.title")}
-          </p>
-          {readiness && readiness.improvements.length > 0 ? (
-            <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
-              {readiness.improvements.slice(0, 4).map((component) => (
-                <li key={component}>
-                  <Link
-                    className="flex items-center justify-between gap-2 rounded-sm px-1 py-1 hover:bg-elevated"
-                    href={profileSectionHref(component)}
-                  >
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <AlertTriangle aria-hidden className="size-3 shrink-0 text-warning" />
-                      <span className="truncate">
-                        {t(`admissions.component.${component}` as TranslationKey)}
-                      </span>
-                    </span>
-                    <ArrowRight aria-hidden className="size-3 shrink-0" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-3 text-xs text-muted-foreground">{t("dashboard.gapsWidget.empty")}</p>
-          )}
-          <Button asChild className="mt-3" size="sm" variant="ghost">
-            <Link href="/profile">{t("dashboard.gapsWidget.strengthenProfile")}</Link>
-          </Button>
-        </Card>
-
-        <Card className="p-4">
-          <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
-            {t("dashboard.recommendationsWidget.title")}
-            <HelpTooltip label={t("help.fitSubscores")} />
-          </p>
-          {topRecommendations.length === 0 ? (
-            <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-              <p>{t("dashboard.recommendationsWidget.empty")}</p>
-              <p>{t("dashboard.recommendationsWidget.context")}</p>
+              {applications.length === 0 ? (
+                <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                  <p>{t("dashboard.applicationsWidget.empty")}</p>
+                  <p>{t("dashboard.applicationsWidget.emptyAction")}</p>
+                </div>
+              ) : (
+                <dl className="mt-3 space-y-1.5 text-xs">
+                  <DashboardCountRow
+                    count={applicationStatusCounts.researching}
+                    label={t("applications.status.researching")}
+                  />
+                  <DashboardCountRow
+                    count={applicationStatusCounts.preparing}
+                    label={t("applications.status.preparing")}
+                  />
+                  <DashboardCountRow
+                    count={applicationStatusCounts.submitted}
+                    label={t("applications.status.submitted")}
+                  />
+                  <DashboardCountRow
+                    count={applicationStatusCounts.awaiting_decision}
+                    label={t("applications.status.awaiting_decision")}
+                  />
+                </dl>
+              )}
+              <Button asChild className="mt-3" size="sm" variant="ghost">
+                <Link href="/applications">{t("dashboard.applicationsWidget.open")}</Link>
+              </Button>
             </div>
-          ) : (
-            <ul className="mt-3 space-y-1.5 text-xs">
-              {topRecommendations.map((item) => (
-                <li className="flex items-center justify-between gap-2" key={item.university.slug}>
-                  <span className="truncate">{item.university.name}</span>
-                  <span className="shrink-0 rounded-sm border bg-surface px-1.5 py-0.5 text-[0.65rem] font-bold">
-                    {item.fit_score}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <Button asChild className="mt-3" size="sm" variant="ghost">
-            <Link href="/recommendations">{t("dashboard.recommendationsWidget.open")}</Link>
-          </Button>
+
+            <div className="sm:pl-4">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+                {t("dashboard.essaysWidget.title")}
+              </p>
+              {essays.length === 0 ? (
+                <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                  <p>{t("dashboard.essaysWidget.empty")}</p>
+                  <p>{t("dashboard.essaysWidget.emptyAction")}</p>
+                </div>
+              ) : (
+                <dl className="mt-3 space-y-1.5 text-xs">
+                  <DashboardCountRow
+                    count={essayStatusCounts.not_started}
+                    label={t("essays.status.not_started")}
+                  />
+                  <DashboardCountRow
+                    count={essayStatusCounts.needs_revision}
+                    label={t("essays.status.needs_revision")}
+                  />
+                  <DashboardCountRow count={essayStatusCounts.ready} label={t("essays.status.ready")} />
+                  <DashboardCountRow
+                    count={essayStatusCounts.submitted}
+                    label={t("essays.status.submitted")}
+                  />
+                </dl>
+              )}
+              <Button asChild className="mt-3" size="sm" variant="ghost">
+                <Link href="/essays">{t("dashboard.essaysWidget.open")}</Link>
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:divide-x">
+            <div>
+              <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+                {t("dashboard.deadlineWidget.title")}
+                <HelpTooltip label={t("applications.help.deadlineConfidence")} />
+              </p>
+              {nextDeadline ? (
+                <>
+                  <p className="mt-3 text-sm font-semibold">{nextDeadline.label}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {formatDate(nextDeadline.date, locale)}
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    {nextDeadlineUrgency !== "unknown" ? (
+                      <span
+                        className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${DASHBOARD_URGENCY_STYLES[nextDeadlineUrgency]}`}
+                      >
+                        {t(`applications.urgency.${nextDeadlineUrgency}` as TranslationKey)}
+                      </span>
+                    ) : null}
+                    {nextDeadlineDays !== null && nextDeadlineDays >= 0 ? (
+                      <span className="text-xs text-muted-foreground">
+                        {t("applications.timeline.dueIn", { count: nextDeadlineDays })}
+                      </span>
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {t("dashboard.deadlineWidget.empty")}
+                </p>
+              )}
+              {missingDeadlineCount > 0 ? (
+                <p className="mt-2 text-xs font-semibold text-warning">
+                  {t("dashboard.deadlineWidget.missingDeadlines", { count: missingDeadlineCount })}
+                </p>
+              ) : null}
+              <Button asChild className="mt-3" size="sm" variant="ghost">
+                <Link href="/roadmap">{t("dashboard.deadlineWidget.open")}</Link>
+              </Button>
+            </div>
+
+            <div className="sm:pl-4">
+              <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+                {t("dashboard.milestonesWidget.title")}
+                <HelpTooltip label={t("help.roadmapPriority")} />
+              </p>
+              {nextMilestones.length === 0 ? (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {applications.length === 0
+                    ? t("dashboard.milestonesWidget.emptyNoApplications")
+                    : t("dashboard.milestonesWidget.emptyNoMilestones")}
+                </p>
+              ) : (
+                <ul className="mt-3 space-y-2 text-xs">
+                  {nextMilestones.map(({ milestone, application }) => {
+                    const days = milestone.due_date
+                      ? Math.round(
+                          (new Date(`${milestone.due_date}T00:00:00`).getTime() -
+                            new Date(new Date().toDateString()).getTime()) /
+                            86_400_000
+                        )
+                      : null;
+                    const urgency = urgencyForDays(days);
+                    return (
+                      <li key={milestone.id}>
+                        <Link
+                          className="block rounded-sm px-1 py-1 hover:bg-elevated"
+                          href="/applications"
+                        >
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="truncate font-semibold">{milestone.title}</span>
+                            {milestone.due_date && urgency !== "unknown" ? (
+                              <span
+                                className={`shrink-0 rounded-sm border px-1.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide ${DASHBOARD_URGENCY_STYLES[urgency]}`}
+                              >
+                                {t(`applications.urgency.${urgency}` as TranslationKey)}
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="mt-0.5 block truncate text-muted-foreground">
+                            {application.university_name}
+                            {milestone.due_date ? ` · ${formatDate(milestone.due_date, locale)}` : ""}
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <Button asChild className="mt-3" size="sm" variant="ghost">
+                <Link href="/applications">{t("dashboard.milestonesWidget.open")}</Link>
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:divide-x">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+                {t("dashboard.gapsWidget.title")}
+              </p>
+              {readiness && readiness.improvements.length > 0 ? (
+                <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
+                  {readiness.improvements.slice(0, 4).map((component) => (
+                    <li key={component}>
+                      <Link
+                        className="flex items-center justify-between gap-2 rounded-sm px-1 py-1 hover:bg-elevated"
+                        href={profileSectionHref(component)}
+                      >
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <AlertTriangle aria-hidden className="size-3 shrink-0 text-warning" />
+                          <span className="truncate">
+                            {t(`admissions.component.${component}` as TranslationKey)}
+                          </span>
+                        </span>
+                        <ArrowRight aria-hidden className="size-3 shrink-0" />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-xs text-muted-foreground">{t("dashboard.gapsWidget.empty")}</p>
+              )}
+              <Button asChild className="mt-3" size="sm" variant="ghost">
+                <Link href="/profile">{t("dashboard.gapsWidget.strengthenProfile")}</Link>
+              </Button>
+            </div>
+
+            <div className="sm:pl-4">
+              <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+                {t("dashboard.recommendationsWidget.title")}
+                <HelpTooltip label={t("help.fitSubscores")} />
+              </p>
+              {topRecommendations.length === 0 ? (
+                <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                  <p>{t("dashboard.recommendationsWidget.empty")}</p>
+                  <p>{t("dashboard.recommendationsWidget.context")}</p>
+                </div>
+              ) : (
+                <ul className="mt-3 space-y-1.5 text-xs">
+                  {topRecommendations.map((item) => (
+                    <li className="flex items-center justify-between gap-2" key={item.university.slug}>
+                      <span className="truncate">{item.university.name}</span>
+                      <span className="shrink-0 rounded-sm border bg-surface px-1.5 py-0.5 text-[0.65rem] font-bold">
+                        {item.fit_score}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Button asChild className="mt-3" size="sm" variant="ghost">
+                <Link href="/recommendations">{t("dashboard.recommendationsWidget.open")}</Link>
+              </Button>
+            </div>
+          </div>
         </Card>
       </section>
 

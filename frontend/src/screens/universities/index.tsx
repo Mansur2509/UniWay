@@ -63,11 +63,15 @@ function AutocompleteInput({
   const { t } = useI18n();
   const [isFocused, setIsFocused] = useState(false);
   const normalizedValue = value ?? "";
-  const matches = normalizedValue.trim()
+  const trimmedValue = normalizedValue.trim();
+  // With no text yet, offer the first few options so users can browse the
+  // list (e.g. see what countries are available) instead of needing to
+  // already know a substring before anything appears.
+  const matches = trimmedValue
     ? options
-        .filter((option) => option.toLowerCase().includes(normalizedValue.trim().toLowerCase()))
+        .filter((option) => option.toLowerCase().includes(trimmedValue.toLowerCase()))
         .slice(0, MAX_SUGGESTIONS)
-    : [];
+    : options.slice(0, MAX_SUGGESTIONS);
 
   return (
     <div className="relative">
@@ -81,7 +85,7 @@ function AutocompleteInput({
         placeholder={placeholder}
         value={normalizedValue}
       />
-      {isFocused && normalizedValue.trim() ? (
+      {isFocused && options.length > 0 ? (
         <div className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-20 rounded-sm border bg-card p-1 shadow-card">
           {matches.length > 0 ? (
             matches.map((option) => (

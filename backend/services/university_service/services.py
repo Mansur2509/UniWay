@@ -415,6 +415,11 @@ def calculate_optional_evidence_fit(
         confidence = CONFIDENCE_LOW
         notes.append("evidence_weighting_needs_verification")
 
+    # Present-evidence categories first, ranked by actual contribution — a
+    # frontend "top 5" slice must reflect the strongest signals, not whatever
+    # order OPTIONAL_EVIDENCE_WEIGHTS happens to be defined in.
+    contributions.sort(key=lambda item: (item["count"] > 0, item["score"]), reverse=True)
+
     return {
         "evidence_subscore": evidence_subscore,
         "category_contributions": contributions,

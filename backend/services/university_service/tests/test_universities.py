@@ -14,7 +14,14 @@ from services.university_service.models import (
     UniversityProgram,
 )
 from services.university_service.services import calculate_university_fit
-from services.user_profile_service.models import Activity, ResearchProject
+from services.user_profile_service.models import (
+    Activity,
+    Honor,
+    Olympiad,
+    ResearchProject,
+    Sport,
+    Volunteer,
+)
 from services.user_profile_service.services import ensure_profile_records
 
 User = get_user_model()
@@ -786,6 +793,37 @@ class FitAnalysisTests(APITestCase):
             fit["profile_evidence"]["program_relevance_notes"],
         )
         self.assertIn("research", fit["profile_evidence"]["missing_evidence"])
+
+    def test_evidence_contributions_are_sorted_by_impact_not_definition_order(self):
+        # Populate 6+ of the 9 optional-evidence categories so a naive "first 5
+        # in OPTIONAL_EVIDENCE_WEIGHTS order" truncation would silently drop a
+        # category that actually scored higher than one it kept.
+        university = create_university("evidence-sort-university")
+        ResearchProject.objects.create(
+            user=self.user,
+            title="Independent research",
+            field="Biology",
+            current_stage="completed",
+        )
+        Activity.objects.create(user=self.user, title="Club lead", category="leadership")
+        Honor.objects.create(user=self.user, title="Honor roll")
+        Olympiad.objects.create(user=self.user, name="Math olympiad", subject="Math")
+        Sport.objects.create(user=self.user, sport_name="Soccer")
+        Volunteer.objects.create(user=self.user, title="Shelter volunteering")
+
+        fit = calculate_university_fit(self.profile, university)
+        contributions = fit["profile_evidence"]["category_contributions"]
+
+        present = [item for item in contributions if item["count"] > 0]
+        self.assertGreaterEqual(len(present), 6)
+        # All present-evidence entries must sort ahead of absent ones.
+        present_indexes = [
+            index for index, item in enumerate(contributions) if item["count"] > 0
+        ]
+        self.assertEqual(present_indexes, list(range(len(present_indexes))))
+        # Within the present entries, score must be non-increasing.
+        scores = [item["score"] for item in present]
+        self.assertEqual(scores, sorted(scores, reverse=True))
 
 
 class ConditionalFitTests(APITestCase):

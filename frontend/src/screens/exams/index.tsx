@@ -157,7 +157,7 @@ export function ExamsScreen() {
             <CalendarClock aria-hidden className="size-5 text-accent" />
             <h2 className="text-lg font-semibold">{t("exams.sat.title")}</h2>
           </div>
-          <ul className="mt-4 space-y-2">
+          <ul className="mt-4 max-h-[34rem] space-y-2 overflow-y-auto pr-1 scrollbar-quiet">
             {satDates.map((item) => (
               <ExamDateRow item={item} key={item.id} />
             ))}
