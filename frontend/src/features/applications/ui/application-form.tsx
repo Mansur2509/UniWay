@@ -75,6 +75,23 @@ export function ApplicationForm({
   return (
     <Card className="p-4">
       <form className="space-y-3" onSubmit={(event) => void handleSubmit(event)}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">{t("applications.form.createTitle")}</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("applications.form.closeHelp")}
+            </p>
+          </div>
+          <Button
+            disabled={isSubmitting}
+            onClick={() => unsavedGuard.requestLeave(onCancel)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            {t("common.actions.close")}
+          </Button>
+        </div>
         <label className="block">
           <span className="text-xs font-semibold">
             {t("applications.form.university")}

@@ -140,7 +140,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="block lg:hidden">
               <LanguageSwitcher compact />
             </div>
-            <SupportLink className="hidden sm:inline-flex lg:hidden" />
+            <SupportLink className="lg:hidden" />
             <button
               aria-label={t("a11y.logout")}
               className="hidden items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground sm:flex lg:hidden"

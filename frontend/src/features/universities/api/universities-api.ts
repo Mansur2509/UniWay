@@ -3,6 +3,7 @@ import type { ApplicationStrategyResponse } from "@/entities/strategy";
 import type {
   SavedUniversity,
   UniversityDetails,
+  UniversityFilterOptions,
   UniversityFilters,
   UniversityFitAnalysis
 } from "@/entities/university";
@@ -53,6 +54,10 @@ export async function getUniversitiesRequest(
     }
     throw error;
   }
+}
+
+export function getUniversityFilterOptionsRequest() {
+  return apiRequest<UniversityFilterOptions>("/universities/filter-options/", { base: "api" });
 }
 
 export function getUniversityRequest(slug: string) {

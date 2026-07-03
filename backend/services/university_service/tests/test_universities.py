@@ -14,6 +14,7 @@ from services.university_service.models import (
     UniversityProgram,
 )
 from services.university_service.services import calculate_university_fit
+from services.user_profile_service.models import Activity, ResearchProject
 from services.user_profile_service.services import ensure_profile_records
 
 User = get_user_model()
@@ -65,6 +66,8 @@ class UniversityCatalogTests(APITestCase):
         self.assertEqual(response.data["count"], 0)
         response = self.client.get("/api/v1/universities/", {"country": "Sampleton"})
         self.assertEqual(response.data["count"], 1)
+        response = self.client.get("/api/v1/universities/", {"country": "sample"})
+        self.assertEqual(response.data["count"], 1)
 
     def test_city_filter(self):
         self.client.force_authenticate(self.user)
@@ -72,6 +75,86 @@ class UniversityCatalogTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["slug"], "published-university")
+        response = self.client.get("/api/v1/universities/", {"city": "north"})
+        self.assertEqual(response.data["count"], 1)
+
+    def test_combined_country_and_city_filter(self):
+        create_university("south-sampleton-university", country="Sampleton", city="Southfield")
+        create_university("north-other-country-university", country="Otherland", city="Northfield")
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(
+            "/api/v1/universities/",
+            {"country": "sample", "city": "north"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["slug"] for item in response.data["results"]],
+            ["published-university"],
+        )
+
+    def test_filter_options_are_data_backed(self):
+        create_university(
+            "option-private-university",
+            country="United States",
+            city="Philadelphia",
+            institution_type=University.InstitutionType.PRIVATE,
+            currency_conversion_confidence="medium",
+        )
+        demo = create_university(
+            "option-demo-university",
+            country="Demo Country",
+            city="Demo City",
+            is_demo=True,
+        )
+        UniversityFieldVerification.objects.create(
+            university=self.published,
+            field_name="essay_requirements",
+            status=UniversityFieldVerification.Status.PARTIAL,
+            source_url="https://example.com/source",
+            last_verified_date=timezone.now().date(),
+        )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get("/api/v1/universities/filter-options/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("United States", response.data["countries"])
+        self.assertIn("Philadelphia", response.data["cities"])
+        self.assertIn("private", response.data["institution_types"])
+        self.assertIn("medium", response.data["cost_confidences"])
+        self.assertIn("partial", response.data["verification_statuses"])
+        slugs = [item["slug"] for item in response.data["universities"]]
+        self.assertIn("option-private-university", slugs)
+        self.assertNotIn(demo.slug, slugs)
+
+    def test_institution_scholarship_and_confidence_filters(self):
+        private_aid = create_university(
+            "private-aid-university",
+            institution_type=University.InstitutionType.PRIVATE,
+            scholarship_available=True,
+            currency_conversion_confidence="high",
+        )
+        create_university(
+            "public-no-aid-university",
+            institution_type=University.InstitutionType.PUBLIC,
+            scholarship_available=False,
+            currency_conversion_confidence="low",
+        )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(
+            "/api/v1/universities/",
+            {
+                "institution_type": "private",
+                "scholarship_available": "true",
+                "currency_conversion_confidence": "high",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([item["slug"] for item in response.data["results"]], [private_aid.slug])
 
     def test_verification_status_filter(self):
         UniversityFieldVerification.objects.create(
@@ -649,6 +732,60 @@ class FitAnalysisTests(APITestCase):
         university = create_university("auth-fit-university")
         response = self.client.get(f"/api/v1/universities/{university.slug}/fit/")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_optional_evidence_improves_profile_fit_without_dominating_academics(self):
+        self.profile.gpa = "2.80"
+        self.profile.gpa_scale = "4.00"
+        self.profile.test_scores = {"sat": 1180}
+        self.profile.intended_majors = ["Computer Science"]
+        self.profile.save()
+        university = create_university(
+            "evidence-weight-university",
+            acceptance_rate="45.00",
+            gpa_average="3.80",
+            sat_p25=1450,
+            sat_p75=1550,
+        )
+        UniversityProgram.objects.create(university=university, name="Computer Science")
+
+        weak_fit = calculate_university_fit(self.profile, university)
+        ResearchProject.objects.create(
+            user=self.user,
+            title="Independent CS research",
+            field="Computer Science",
+            current_stage="completed",
+        )
+        Activity.objects.create(
+            user=self.user,
+            title="Programming club",
+            category="leadership",
+        )
+        if hasattr(self.profile, "_optional_evidence_counts_cache"):
+            delattr(self.profile, "_optional_evidence_counts_cache")
+        stronger_fit = calculate_university_fit(self.profile, university)
+
+        self.assertGreater(
+            stronger_fit["profile_evidence"]["evidence_subscore"],
+            weak_fit["profile_evidence"]["evidence_subscore"],
+        )
+        self.assertIn(
+            "research_relevant_to_program_context",
+            stronger_fit["profile_evidence"]["program_relevance_notes"],
+        )
+        self.assertLess(stronger_fit["profile_subscore"], stronger_fit["academic_subscore"] + 60)
+        self.assertLessEqual(stronger_fit["fit_score"], 55)
+
+    def test_missing_optional_evidence_lowers_evidence_confidence(self):
+        university = create_university("unknown-evidence-policy-university")
+
+        fit = calculate_university_fit(self.profile, university)
+
+        self.assertEqual(fit["profile_evidence"]["confidence"], "low")
+        self.assertIn(
+            "evidence_weighting_needs_verification",
+            fit["profile_evidence"]["program_relevance_notes"],
+        )
+        self.assertIn("research", fit["profile_evidence"]["missing_evidence"])
 
 
 class ConditionalFitTests(APITestCase):

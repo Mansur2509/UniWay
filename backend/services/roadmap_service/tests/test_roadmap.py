@@ -197,6 +197,7 @@ class RoadmapGenerationTests(APITestCase):
         self.assertIn("Planning window only", task.evidence_note)
 
     def test_planned_sat_without_official_source_creates_verify_task(self):
+        OfficialExamDate.objects.all().delete()
         profile, _ = ensure_profile_records(self.user)
         profile.exam_plans = {
             "taken": [],
@@ -212,6 +213,7 @@ class RoadmapGenerationTests(APITestCase):
         self.assertIn("College Board", task.evidence_note)
 
     def test_verified_sat_date_uses_college_board_source(self):
+        OfficialExamDate.objects.all().delete()
         profile, _ = ensure_profile_records(self.user)
         profile.exam_plans = {
             "taken": [],
@@ -235,6 +237,31 @@ class RoadmapGenerationTests(APITestCase):
         self.assertEqual(task.due_date, official.registration_deadline)
         self.assertEqual(task.source_url, official.source_url)
         self.assertIn("Official SAT test date", task.evidence_note)
+
+    def test_partial_college_board_sat_date_is_still_used_with_status_note(self):
+        OfficialExamDate.objects.all().delete()
+        profile, _ = ensure_profile_records(self.user)
+        profile.exam_plans = {
+            "taken": [],
+            "planned": [{"name": "SAT", "exam_type": "SAT", "target_score": "1500"}],
+        }
+        profile.save()
+        official = OfficialExamDate.objects.create(
+            exam_type=OfficialExamDate.ExamType.SAT,
+            name="Partial SAT Test Date",
+            test_date=self.today + timedelta(days=90),
+            registration_deadline=self.today + timedelta(days=45),
+            academic_year=f"{self.today.year}-{self.today.year + 1}",
+            source_url="https://satsuite.collegeboard.org/sat/dates-deadlines",
+            last_verified_date=self.today,
+            verification_status=OfficialExamDate.VerificationStatus.PARTIAL,
+        )
+
+        plan, _ = generate_roadmap(self.user)
+        task = plan.tasks.get(dedup_key=f"official_exam_date:{official.id}")
+
+        self.assertEqual(task.due_date, official.registration_deadline)
+        self.assertIn("Verification status: partial", task.evidence_note)
 
     def test_ielts_plan_creates_official_link_task_not_a_fake_date(self):
         profile, _ = ensure_profile_records(self.user)

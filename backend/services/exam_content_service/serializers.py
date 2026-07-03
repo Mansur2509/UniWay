@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import AnswerChoice, Exam, ExamSection, Explanation, Question
+from .models import AnswerChoice, Exam, ExamSection, Explanation, OfficialExamDate, Question
 
 
 class AnswerChoiceSerializer(serializers.ModelSerializer):
@@ -39,3 +39,26 @@ class ExamSerializer(serializers.ModelSerializer):
         model = Exam
         fields = "__all__"
 
+
+class OfficialExamDateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OfficialExamDate
+        fields = (
+            "id",
+            "exam_type",
+            "event_kind",
+            "name",
+            "test_date",
+            "test_time",
+            "registration_deadline",
+            "late_registration_deadline",
+            "late_test_date",
+            "late_test_time",
+            "score_release_window",
+            "academic_year",
+            "region",
+            "source_url",
+            "last_verified_date",
+            "verification_status",
+            "notes",
+        )

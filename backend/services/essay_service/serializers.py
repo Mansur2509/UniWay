@@ -1,6 +1,28 @@
+import re
+
 from rest_framework import serializers
 
+from services.university_service.models import UniversityFieldVerification
+
 from .models import EssayFeedback, EssayRevisionTask, EssayWorkspace
+
+WORD_LIMIT_RE = re.compile(r"(?P<limit>\d{2,4})\s*(?:-|–)?\s*words?", re.IGNORECASE)
+
+
+def _verified_word_limit(university) -> tuple[int | None, str]:
+    if university is None or not university.essay_requirements:
+        return None, ""
+    verification = university.field_verifications.filter(
+        field_name="essay_requirements",
+        status=UniversityFieldVerification.Status.VERIFIED,
+    ).first()
+    if verification is None:
+        return None, ""
+    matches = [int(match.group("limit")) for match in WORD_LIMIT_RE.finditer(university.essay_requirements)]
+    reasonable = [limit for limit in matches if 10 <= limit <= 2000]
+    if not reasonable:
+        return None, verification.source_url
+    return max(reasonable), verification.source_url
 
 
 class EssayRevisionTaskSerializer(serializers.ModelSerializer):
@@ -117,6 +139,13 @@ class EssayWorkspaceSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("You can only link your own applications.")
         return value
 
+    def validate_word_limit(self, value):
+        if value is None:
+            return value
+        if value < 10 or value > 2000:
+            raise serializers.ValidationError("Word limit must be between 10 and 2000 words.")
+        return value
+
     def validate(self, attrs):
         application = attrs.get("application")
         university = attrs.get("university")
@@ -126,6 +155,18 @@ class EssayWorkspaceSerializer(serializers.ModelSerializer):
                     {"university": "University must match the linked application."}
                 )
             attrs["university"] = application.university
+            university = application.university
+        elif university is None and self.instance is not None:
+            university = self.instance.university
+
+        if attrs.get("word_limit") is None:
+            verified_limit, source_url = _verified_word_limit(university)
+            if verified_limit is not None:
+                attrs["word_limit"] = verified_limit
+                attrs["prompt_verification_status"] = EssayWorkspace.VerificationStatus.VERIFIED
+                attrs["prompt_confidence"] = EssayWorkspace.Confidence.HIGH
+                if source_url and not attrs.get("source_url"):
+                    attrs["source_url"] = source_url
         return attrs
 
     def get_latest_feedback(self, obj):

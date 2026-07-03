@@ -136,8 +136,8 @@ def _next_official_exam_date(exam_type: str, today: date) -> OfficialExamDate | 
     return (
         OfficialExamDate.objects.filter(
             exam_type=exam_type,
+            event_kind=OfficialExamDate.EventKind.EXAM,
             test_date__gte=today,
-            verification_status=OfficialExamDate.VerificationStatus.VERIFIED,
         )
         .order_by("test_date")
         .first()
@@ -482,13 +482,13 @@ class RoadmapBuilder:
                 f"official_exam_date_missing:{exam_type}",
                 title=f"Verify official {exam_type} dates",
                 description=(
-                    f"No verified College Board {exam_type} date is stored yet. "
+                    f"No College Board {exam_type} date is stored yet. "
                     "Check the official source before booking or planning around it."
                 ),
                 category=Category.EXAMS,
                 priority=Priority.HIGH,
                 source_type=SourceType.PROFILE_GAP,
-                generated_reason=f"You plan to take {exam_type}, but no verified official date is on file.",
+                generated_reason=f"You plan to take {exam_type}, but no official date record is on file.",
                 evidence_note="Official SAT/AP dates must come from College Board sources only.",
             )
             return
@@ -513,9 +513,13 @@ class RoadmapBuilder:
             priority=priority,
             source_type=SourceType.EXAM_PLAN,
             source_url=official_date.source_url,
-            generated_reason=f"You plan to take {exam_type}, and a verified College Board date is on file.",
+            generated_reason=(
+                f"You plan to take {exam_type}, and a College Board date record is on file "
+                f"with {official_date.verification_status} verification."
+            ),
             evidence_note=(
                 f"Official {exam_type} test date: {official_date.test_date.isoformat()}."
+                f" Verification status: {official_date.verification_status}."
                 f"{deadline_note}"
             ),
         )

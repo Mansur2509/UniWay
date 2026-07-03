@@ -227,6 +227,9 @@ class ApplicationTimelineApiTests(APITestCase):
             name="Late SAT",
             test_date=date.today() + timedelta(days=30),
             registration_deadline=date.today() + timedelta(days=15),
+            late_registration_deadline=date.today() + timedelta(days=18),
+            late_test_date=date.today() + timedelta(days=45),
+            late_test_time="12 p.m. local time",
             academic_year="2026-2027",
             source_url="https://satsuite.collegeboard.org/dates",
             last_verified_date=date.today(),
@@ -235,6 +238,11 @@ class ApplicationTimelineApiTests(APITestCase):
         data = self._timeline(application)
         sat = next(entry for entry in data["linked_exams"] if entry["exam"] == "SAT")
         self.assertFalse(sat["scores_arrive_before_deadline"])
+        self.assertEqual(
+            sat["late_registration_deadline"],
+            (date.today() + timedelta(days=18)).isoformat(),
+        )
+        self.assertEqual(sat["late_test_time"], "12 p.m. local time")
 
     def test_milestone_and_roadmap_task_appear_as_events(self):
         university = _create_university()

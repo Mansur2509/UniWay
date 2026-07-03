@@ -375,7 +375,11 @@ def _to_float(value):
 
 def _official_exam_entry(exam_type: str, today: date) -> OfficialExamDate | None:
     return (
-        OfficialExamDate.objects.filter(exam_type=exam_type, test_date__gte=today)
+        OfficialExamDate.objects.filter(
+            exam_type=exam_type,
+            event_kind=OfficialExamDate.EventKind.EXAM,
+            test_date__gte=today,
+        )
         .order_by("test_date")
         .first()
     )
@@ -424,6 +428,11 @@ def _linked_exams(application, profile, today: date) -> list[dict]:
                 "official_test_date": _iso(official.test_date if official else None),
                 "official_test_date_confidence": official.verification_status if official else None,
                 "registration_deadline": _iso(official.registration_deadline if official else None),
+                "late_registration_deadline": _iso(
+                    official.late_registration_deadline if official else None
+                ),
+                "late_test_date": _iso(official.late_test_date if official else None),
+                "late_test_time": official.late_test_time if official else "",
                 "source_url": official.source_url if official else "",
                 "scores_arrive_before_deadline": _exam_after_deadline(official, reference),
             }
@@ -495,12 +504,18 @@ def _linked_exams(application, profile, today: date) -> list[dict]:
                 "severity": None,
                 "planned_retake": True,
                 "official_test_date": _iso(official_ap.test_date if official_ap else None),
+                "official_test_time": official_ap.test_time if official_ap else "",
                 "official_test_date_confidence": (
                     official_ap.verification_status if official_ap else None
                 ),
                 "registration_deadline": _iso(
                     official_ap.registration_deadline if official_ap else None
                 ),
+                "late_registration_deadline": _iso(
+                    official_ap.late_registration_deadline if official_ap else None
+                ),
+                "late_test_date": _iso(official_ap.late_test_date if official_ap else None),
+                "late_test_time": official_ap.late_test_time if official_ap else "",
                 "source_url": official_ap.source_url if official_ap else "",
                 "scores_arrive_before_deadline": _exam_after_deadline(official_ap, reference),
             }

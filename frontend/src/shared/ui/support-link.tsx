@@ -125,6 +125,7 @@ export function SupportLink({ className }: { className?: string }) {
   return (
     <>
       <button
+        aria-label={t("support.link")}
         className={cn(
           "inline-flex min-h-9 items-center gap-2 rounded-sm border bg-surface px-3 text-xs font-semibold text-muted-foreground transition hover:border-primary/35 hover:text-foreground",
           className
@@ -133,7 +134,7 @@ export function SupportLink({ className }: { className?: string }) {
         type="button"
       >
         <MessageCircle aria-hidden className="size-4" />
-        {t("support.link")}
+        <span className="hidden sm:inline">{t("support.link")}</span>
       </button>
 
       {isOpen ? (

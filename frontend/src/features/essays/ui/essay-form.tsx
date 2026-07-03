@@ -68,6 +68,13 @@ export function EssayForm({
       setError(t("essays.form.error.titleRequired"));
       return false;
     }
+    if (values.word_limit) {
+      const wordLimit = Number(values.word_limit);
+      if (!Number.isInteger(wordLimit) || wordLimit < 10 || wordLimit > 2000) {
+        setError(t("essays.form.error.wordLimitRange"));
+        return false;
+      }
+    }
     try {
       await onSubmit(values);
       return true;
@@ -85,6 +92,25 @@ export function EssayForm({
   return (
     <Card className="p-4">
       <form className="space-y-3" onSubmit={(event) => void handleSubmit(event)}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">
+              {essay ? t("essays.form.editTitle") : t("essays.form.createTitle")}
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("essays.form.wordLimitAutoNote")}
+            </p>
+          </div>
+          <Button
+            disabled={isSubmitting}
+            onClick={() => unsavedGuard.requestLeave(onCancel)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            {t("common.actions.close")}
+          </Button>
+        </div>
         <label className="block">
           <span className="text-xs font-semibold">
             {t("essays.form.title")}
@@ -162,6 +188,11 @@ export function EssayForm({
               type="number"
               value={values.word_limit}
             />
+            <p className="mt-1 text-xs text-muted-foreground">
+              {values.word_limit
+                ? t("essays.form.manualOverride")
+                : t("essays.editor.wordLimitNeedsVerification")}
+            </p>
           </label>
           <label className="block">
             <span className="text-xs font-semibold">{t("essays.form.dueDate")}</span>

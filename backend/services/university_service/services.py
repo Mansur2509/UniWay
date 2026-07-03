@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
+from django.db.models import Count, Q
+
 from services.user_profile_service.academic_normalization import (
     CONFIDENCE_HIGH,
     CONFIDENCE_LOW,
@@ -224,6 +226,206 @@ def _structured_evidence_count(profile) -> int:
     )
     profile._structured_evidence_count_cache = count
     return count
+
+
+OPTIONAL_EVIDENCE_WEIGHTS = {
+    "activities": 0.10,
+    "honors": 0.09,
+    "olympiads": 0.10,
+    "sports": 0.05,
+    "research": 0.12,
+    "essays": 0.11,
+    "portfolio": 0.10,
+    "volunteering": 0.07,
+    "recommenders": 0.08,
+}
+
+RESEARCH_KEYWORDS = {
+    "research",
+    "science",
+    "engineering",
+    "economics",
+    "policy",
+    "psychology",
+    "biology",
+    "chemistry",
+    "physics",
+    "math",
+    "mathematics",
+    "social science",
+}
+PORTFOLIO_KEYWORDS = {
+    "computer science",
+    "cs",
+    "design",
+    "architecture",
+    "art",
+    "media",
+    "engineering",
+    "entrepreneurship",
+}
+OLYMPIAD_KEYWORDS = {
+    "math",
+    "mathematics",
+    "physics",
+    "chemistry",
+    "biology",
+    "computer science",
+    "engineering",
+}
+VOLUNTEERING_KEYWORDS = {
+    "policy",
+    "public",
+    "social",
+    "education",
+    "health",
+    "community",
+    "development",
+}
+
+
+def _optional_evidence_counts(profile) -> dict[str, int]:
+    cached = getattr(profile, "_optional_evidence_counts_cache", None)
+    if cached is not None:
+        return cached
+    user = profile.user
+    summary = (
+        user.__class__.objects.filter(pk=user.pk)
+        .annotate(
+            activities_count=Count("profile_activities", distinct=True),
+            honors_count=Count("profile_honors", distinct=True),
+            olympiads_count=Count("profile_olympiads", distinct=True),
+            sports_count=Count("profile_sports", distinct=True),
+            research_count=Count("profile_research_projects", distinct=True),
+            profile_essays_count=Count("profile_essays", distinct=True),
+            active_essay_workspaces_count=Count(
+                "essay_workspaces",
+                filter=~Q(essay_workspaces__status="skipped"),
+                distinct=True,
+            ),
+            portfolio_count=Count("profile_portfolio_projects", distinct=True),
+            volunteering_count=Count("profile_volunteering", distinct=True),
+            active_recommenders_count=Count(
+                "profile_recommenders",
+                filter=~Q(profile_recommenders__status="not_started"),
+                distinct=True,
+            ),
+        )
+        .values(
+            "activities_count",
+            "honors_count",
+            "olympiads_count",
+            "sports_count",
+            "research_count",
+            "profile_essays_count",
+            "active_essay_workspaces_count",
+            "portfolio_count",
+            "volunteering_count",
+            "active_recommenders_count",
+        )
+        .get()
+    )
+    counts = {
+        "activities": summary["activities_count"],
+        "honors": summary["honors_count"],
+        "olympiads": summary["olympiads_count"],
+        "sports": summary["sports_count"],
+        "research": summary["research_count"],
+        "essays": summary["profile_essays_count"] + summary["active_essay_workspaces_count"],
+        "portfolio": summary["portfolio_count"],
+        "volunteering": summary["volunteering_count"],
+        "recommenders": summary["active_recommenders_count"],
+    }
+    profile._optional_evidence_counts_cache = counts
+    return counts
+
+
+def _program_context_text(profile, university: University, program: str | None = None) -> str:
+    majors = profile.intended_majors or ([profile.intended_major] if profile.intended_major else [])
+    parts = [str(value) for value in majors if value]
+    if program:
+        parts.append(program)
+    parts.extend(program_obj.name for program_obj in university.programs.all())
+    return " ".join(parts).lower()
+
+
+def _keyword_relevance(text: str, keywords: set[str]) -> bool:
+    return any(keyword in text for keyword in keywords)
+
+
+def _evidence_relevance(category: str, context_text: str) -> tuple[float, str]:
+    if category == "research" and _keyword_relevance(context_text, RESEARCH_KEYWORDS):
+        return 1.25, "research_relevant_to_program_context"
+    if category == "portfolio" and _keyword_relevance(context_text, PORTFOLIO_KEYWORDS):
+        return 1.18, "portfolio_relevant_to_program_context"
+    if category == "olympiads" and _keyword_relevance(context_text, OLYMPIAD_KEYWORDS):
+        return 1.18, "olympiads_relevant_to_program_context"
+    if category == "volunteering" and _keyword_relevance(context_text, VOLUNTEERING_KEYWORDS):
+        return 1.12, "volunteering_relevant_to_program_context"
+    return 1.0, "general_conservative_weight"
+
+
+def calculate_optional_evidence_fit(
+    profile, university: University, program: str | None = None
+) -> dict:
+    """Conservative fit contribution from optional profile evidence.
+
+    This is deliberately a lower-weight readiness signal. It uses broad
+    program/major context only when available and never invents a university's
+    evidence policy.
+    """
+
+    counts = _optional_evidence_counts(profile)
+    context_text = _program_context_text(profile, university, program)
+    has_context = bool(context_text.strip())
+    contributions: list[dict] = []
+    weighted_total = 0.0
+    max_weight = sum(OPTIONAL_EVIDENCE_WEIGHTS.values())
+    missing: list[str] = []
+    notes: list[str] = []
+
+    for category, weight in OPTIONAL_EVIDENCE_WEIGHTS.items():
+        count = counts.get(category, 0)
+        if count <= 0:
+            missing.append(category)
+        base_score = 38 if count <= 0 else 56 if count == 1 else 70 if count == 2 else 82
+        multiplier, note = _evidence_relevance(category, context_text)
+        if note not in notes:
+            notes.append(note)
+        adjusted_score = _as_int_score(base_score * multiplier)
+        weighted_total += adjusted_score * weight
+        contributions.append(
+            {
+                "category": category,
+                "count": count,
+                "score": adjusted_score,
+                "weight": weight,
+                "relevance_note": note,
+            }
+        )
+
+    evidence_subscore = _as_int_score(weighted_total / max_weight)
+    if not has_context:
+        confidence = CONFIDENCE_LOW
+        notes.append("evidence_weighting_needs_verification")
+    elif university.programs.exists():
+        confidence = CONFIDENCE_MEDIUM
+        notes.append("no_verified_university_specific_evidence_policy")
+    else:
+        confidence = CONFIDENCE_LOW
+        notes.append("evidence_weighting_needs_verification")
+
+    return {
+        "evidence_subscore": evidence_subscore,
+        "category_contributions": contributions,
+        "confidence": confidence,
+        "missing_evidence": missing,
+        "program_relevance_notes": list(dict.fromkeys(notes)),
+        "weighting_note": (
+            "Optional evidence uses conservative general weights unless verified "
+            "university or program evidence-weight metadata exists."
+        ),
+    }
 
 
 def _score_profile_fit(profile, strengths: list[str], missing: list[str]) -> int:
@@ -589,7 +791,12 @@ def calculate_university_fit(profile, university: University) -> dict:
             next_actions.append("limited_data_for_category")
 
     program_score = _score_program_fit(profile, university, strengths, missing_fields)
-    profile_score = _score_profile_fit(profile, strengths, missing_fields)
+    profile_evidence = calculate_optional_evidence_fit(profile, university)
+    profile_score = profile_evidence["evidence_subscore"]
+    if profile_score >= 75:
+        strengths.append("profile_depth")
+    elif profile_score < 50:
+        missing_fields.append("profile_activities")
     essay_score = _score_essay_fit(profile, university, missing_fields)
     deadline_score = _score_deadline_fit(university, risks, missing_fields, profile)
     cost_score = _score_cost_fit(profile, university, risks, missing_fields)
@@ -683,12 +890,14 @@ def calculate_university_fit(profile, university: University) -> dict:
         "essay_subscore": essay_score,
         "deadline_subscore": deadline_score,
         "cost_subscore": cost_score,
+        "profile_evidence": profile_evidence,
         # Additive, spec-friendly aliases for the same subscores above, plus a
         # data_confidence readout — never a second, differently-weighted score.
         "subscores": {
             "academic_fit": academic_subscore,
             "program_fit": program_score,
             "profile_depth_fit": profile_score,
+            "profile_evidence": profile_score,
             "essay_readiness": essay_score,
             "timeline_readiness": deadline_score,
             "cost_context": cost_score,

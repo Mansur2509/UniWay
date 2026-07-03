@@ -4,8 +4,18 @@ import { Scale, Search, Star } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 
-import { UniversityCard, type UniversityDetails, type UniversityFilters } from "@/entities/university";
-import { getUniversitiesRequest, addToShortlistRequest, removeFromShortlistRequest } from "@/features/universities";
+import {
+  UniversityCard,
+  type UniversityDetails,
+  type UniversityFilterOptions,
+  type UniversityFilters
+} from "@/entities/university";
+import {
+  getUniversitiesRequest,
+  addToShortlistRequest,
+  removeFromShortlistRequest,
+  getUniversityFilterOptionsRequest
+} from "@/features/universities";
 import { useI18n } from "@/shared/i18n";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
@@ -33,6 +43,71 @@ const emptyFilters: UniversityFilters = {
 
 const MAX_COMPARE = 4;
 const MIN_COMPARE = 2;
+const MAX_SUGGESTIONS = 6;
+
+function AutocompleteInput({
+  className = fieldClassName,
+  label,
+  options,
+  placeholder,
+  value,
+  onChange
+}: {
+  className?: string;
+  label: string;
+  options: string[];
+  placeholder: string;
+  value: string | undefined;
+  onChange: (value: string) => void;
+}) {
+  const { t } = useI18n();
+  const [isFocused, setIsFocused] = useState(false);
+  const normalizedValue = value ?? "";
+  const matches = normalizedValue.trim()
+    ? options
+        .filter((option) => option.toLowerCase().includes(normalizedValue.trim().toLowerCase()))
+        .slice(0, MAX_SUGGESTIONS)
+    : [];
+
+  return (
+    <div className="relative">
+      <input
+        aria-autocomplete="list"
+        aria-label={label}
+        className={className}
+        onBlur={() => window.setTimeout(() => setIsFocused(false), 100)}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={() => setIsFocused(true)}
+        placeholder={placeholder}
+        value={normalizedValue}
+      />
+      {isFocused && normalizedValue.trim() ? (
+        <div className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-20 rounded-sm border bg-card p-1 shadow-card">
+          {matches.length > 0 ? (
+            matches.map((option) => (
+              <button
+                className="block w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-elevated"
+                key={option}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onChange(option);
+                  setIsFocused(false);
+                }}
+                type="button"
+              >
+                {option}
+              </button>
+            ))
+          ) : (
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">
+              {t("universities.filters.noSuggestions")}
+            </p>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export function UniversitiesScreen() {
   const router = useRouter();
@@ -41,6 +116,7 @@ export function UniversitiesScreen() {
   const [appliedFilters, setAppliedFilters] = useState<UniversityFilters>(emptyFilters);
   const [universities, setUniversities] = useState<UniversityDetails[]>([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [filterOptions, setFilterOptions] = useState<UniversityFilterOptions | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
@@ -68,6 +144,12 @@ export function UniversitiesScreen() {
   useEffect(() => {
     void loadUniversities();
   }, [loadUniversities]);
+
+  useEffect(() => {
+    getUniversityFilterOptionsRequest()
+      .then(setFilterOptions)
+      .catch(() => setFilterOptions(null));
+  }, []);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -122,6 +204,7 @@ export function UniversitiesScreen() {
     ? universities.filter((university) => university.is_shortlisted)
     : universities;
   const totalPages = Math.max(1, Math.ceil(totalCount / DEFAULT_PAGE_SIZE));
+  const universityNameOptions = filterOptions?.universities.map((item) => item.name) ?? [];
 
   return (
     <div className="space-y-6">
@@ -173,11 +256,13 @@ export function UniversitiesScreen() {
                     aria-hidden
                     className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
                   />
-                  <input
+                  <AutocompleteInput
                     className={`${fieldClassName} pl-10`}
-                    onChange={(event) =>
-                      setFilters((current) => ({ ...current, search: event.target.value }))
+                    label={t("universities.filters.search")}
+                    onChange={(value) =>
+                      setFilters((current) => ({ ...current, search: value }))
                     }
+                    options={universityNameOptions}
                     placeholder={t("universities.filters.searchPlaceholder")}
                     value={filters.search}
                   />
@@ -185,22 +270,24 @@ export function UniversitiesScreen() {
               </label>
               <label className="block">
                 <span className="text-sm font-semibold">{t("universities.filters.country")}</span>
-                <input
-                  className={fieldClassName}
-                  onChange={(event) =>
-                    setFilters((current) => ({ ...current, country: event.target.value }))
+                <AutocompleteInput
+                  label={t("universities.filters.country")}
+                  onChange={(value) =>
+                    setFilters((current) => ({ ...current, country: value }))
                   }
+                  options={filterOptions?.countries ?? []}
                   placeholder={t("universities.filters.countryPlaceholder")}
                   value={filters.country}
                 />
               </label>
               <label className="block">
                 <span className="text-sm font-semibold">{t("universities.filters.city")}</span>
-                <input
-                  className={fieldClassName}
-                  onChange={(event) =>
-                    setFilters((current) => ({ ...current, city: event.target.value }))
+                <AutocompleteInput
+                  label={t("universities.filters.city")}
+                  onChange={(value) =>
+                    setFilters((current) => ({ ...current, city: value }))
                   }
+                  options={filterOptions?.cities ?? []}
                   placeholder={t("universities.filters.cityPlaceholder")}
                   value={filters.city}
                 />

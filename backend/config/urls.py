@@ -4,7 +4,11 @@ from rest_framework.routers import DefaultRouter
 
 from common.health import HealthView
 from services.event_service.views import EventViewSet
-from services.exam_content_service.views import ExamViewSet, QuestionViewSet
+from services.exam_content_service.views import (
+    ExamViewSet,
+    OfficialExamDateViewSet,
+    QuestionViewSet,
+)
 from services.subscription_service.views import SubscriptionViewSet
 from services.university_service.views import UniversityViewSet
 from services.user_profile_service.views import ProfileViewSet
@@ -13,6 +17,7 @@ router = DefaultRouter()
 router.register("events", EventViewSet, basename="event")
 router.register("universities", UniversityViewSet, basename="university")
 router.register("exams", ExamViewSet, basename="exam")
+router.register("exam-dates", OfficialExamDateViewSet, basename="exam-date")
 router.register("questions", QuestionViewSet, basename="question")
 router.register("profiles", ProfileViewSet, basename="profile")
 router.register("subscriptions", SubscriptionViewSet, basename="subscription")

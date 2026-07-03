@@ -12,6 +12,7 @@ import { notifyAuthInvalid } from "@/shared/lib/auth-storage";
 import { useSlowLoad } from "@/shared/lib/use-slow-load";
 import { Button } from "@/shared/ui/button";
 import { LanguageSwitcher } from "@/shared/ui/language-switcher";
+import { SupportLink } from "@/shared/ui/support-link";
 import { AppShell } from "@/widgets/app-shell";
 
 import { AuthForm } from "@/features/auth/ui/auth-form";
@@ -221,6 +222,7 @@ export function AppGate({ children }: { children: ReactNode }) {
             <AuthForm mode={mode} onModeChange={setMode} />
           </div>
         </section>
+        <SupportLink className="fixed bottom-4 right-4 z-30 shadow-card" />
       </main>
     );
   }

@@ -609,6 +609,7 @@ All moderation endpoints require an admin role. A moderator cannot approve or re
 | GET | `/api/admin/university-import/jobs/{id}/` | Admin/staff | Read import job status, counters, report JSON, or error message |
 | GET | `/health/` | Public | Service health |
 | GET | `/api/v1/universities/` | Authenticated | University catalog, search/filter; excludes `is_demo=true` records unless `?include_demo=true` |
+| GET | `/api/v1/universities/filter-options/` | Authenticated | Data-backed catalog filter/autocomplete options for countries, cities, institution types, verification states, cost confidence, and university names |
 | GET | `/api/v1/universities/recommendations/` | Authenticated | Balanced 20-25 university recommendation list grouped by dream/reach/target/safety with program/cost/deadline/round context, shortlist/tracking state, and no admissions-odds language |
 | GET | `/api/v1/universities/{slug}/` | Authenticated | University detail: stats, programs, scholarships, sources, `field_verifications` |
 | GET | `/api/v1/universities/{slug}/fit/` | Authenticated | Admissions fit analysis with a 1-100 fit score and `dream`/`reach`/`competitive`/`target`/`safety` category from normalized profile data and verified university stats only |
@@ -640,6 +641,7 @@ All moderation endpoints require an admin role. A moderator cannot approve or re
 | GET/PATCH | `/profiles/me/` | Student | Legacy compatibility route under `/api/v1`; prefer `/api/profile/me/` |
 | GET | `/subscriptions/me/` | Authenticated | Current plan and counters |
 | GET | `/exams/` | Authenticated | Published exam catalog |
+| GET | `/api/v1/exam-dates/` | Authenticated | Read-only official-exam planning dates for SAT/AP, including registration deadlines, late deadlines, AP test times, source URL, and verification status |
 | GET | `/questions/` | Authenticated | Published original demo questions |
 | POST | `/ai/mentor/` | Authenticated | Placeholder; provider integration deferred |
 
@@ -649,8 +651,9 @@ Catalog list query parameters:
 
 - `page`, `page_size` use the shared DRF paginated response shape: `count`, `next`, `previous`, `results`; `page_size` is capped at 100 and the frontend standard catalog size is 21.
 - `search` searches university name, city, country, and program names across the full backend queryset, not just the current page.
-- `country`, `city`, `institution_type`, `scholarship_available`, `test_policy`, and `verification_status` narrow results. `verification_status` accepts `verified`, `partial`, or `estimated` and matches universities that have at least one field verification with that status.
+- `country` and `city` use case-insensitive partial matching; `institution_type`, `scholarship_available`, `test_policy`, and `verification_status` narrow results exactly. `verification_status` accepts `verified`, `partial`, or `estimated` and matches universities that have at least one field verification with that status.
 - `ordering` supports `name`, `country`, `created_at`, `acceptance_rate`, `qs_ranking`, `tuition_usd_amount`, and `total_cost_usd_amount`; prefix with `-` for descending order. QS ranking and USD cost sorts keep missing comparable values last.
+- `/api/v1/universities/filter-options/` returns distinct data-backed options for autocomplete/filter UIs. It follows the same demo-record visibility rule as the catalog: normal users do not see demo universities, while admins may opt into `?include_demo=true`.
 
 University records carry two complementary sourcing mechanisms:
 
@@ -667,7 +670,7 @@ Program listings expose display-safe labels alongside the stored raw text. Each 
 
 Tuition and cost fields preserve source currency separately from comparable USD values: `tuition_original_amount`, `tuition_original_currency`, `tuition_usd_amount`, `total_cost_original_amount`, `total_cost_original_currency`, `total_cost_usd_amount`, `currency_conversion_rate`, `currency_conversion_date`, `currency_conversion_source`, `currency_conversion_confidence`, and `cost_notes`. Non-USD values are converted only when a stored `ExchangeRate` exists; missing rates leave USD fields null and show a low-confidence note. University list ordering supports `tuition_usd_amount`, `-tuition_usd_amount`, `total_cost_usd_amount`, and `-total_cost_usd_amount`.
 
-The admissions fit analysis (`/api/v1/universities/{slug}/fit/`) uses normalized GPA, SAT percentile bands where available, IELTS minimum/competitive gaps, curriculum context, published acceptance rate, cost context, and profile completeness. It returns `fit_score` (1-100), `category` (`dream`/`reach`/`competitive`/`target`/`safety` or `null`), `confidence`, component subscores, `strengths`, `risks`, `missing_fields`, `missing_data`, `next_actions`, `conditional_notes`, `student_academic_context`, `cost_context`, `source_notes`, and a no-guarantee disclaimer. Ultra-selective universities below 5% acceptance are never shown as safety; a planned retake may add a conditional note but must not erase a current score gap. Response keys and UI copy use "fit", "score", "category", "strengths", "risks", "missing_fields", and "next_actions" instead of admissions-odds language.
+The admissions fit analysis (`/api/v1/universities/{slug}/fit/`) uses normalized GPA, SAT percentile bands where available, IELTS minimum/competitive gaps, curriculum context, published acceptance rate, cost context, and profile completeness. It returns `fit_score` (1-100), `category` (`dream`/`reach`/`competitive`/`target`/`safety` or `null`), `confidence`, component subscores, `strengths`, `risks`, `missing_fields`, `missing_data`, `next_actions`, `conditional_notes`, `student_academic_context`, `cost_context`, `source_notes`, `profile_evidence`, and a no-guarantee disclaimer. `profile_evidence` is a conservative optional-evidence breakdown (research, portfolio, olympiads, volunteering) with category contributions, missing evidence, confidence, and program-relevance notes; it is lower-weight than academics and never implies an admissions outcome. Ultra-selective universities below 5% acceptance are never shown as safety; a planned retake may add a conditional note but must not erase a current score gap. Response keys and UI copy use "fit", "score", "category", "strengths", "risks", "missing_fields", and "next_actions" instead of admissions-odds language.
 
 `GET /api/v1/universities/recommendations/` (`services/university_service/recommendations.py`) turns the fit engine into a full admissions-planning list rather than a single-university lookup. It computes `calculate_university_fit` for every country/region-matching candidate, folds the fit engine's `competitive` category into `reach` for list purposes only (the per-university fit endpoint's five-category output is unchanged), and returns a balanced set capped at 5 dream / 7 reach / 8 target / 6 safety (20-25 total when enough verified candidates exist). The response shape:
 
@@ -748,6 +751,8 @@ The generator additionally reads (read-only) the caller's own `EssayWorkspace` r
 
 `EssayWorkspace` embeds its own `latest_feedback` (most recent `EssayFeedback`, or `null`) and `revision_tasks[]` so the frontend can render the editor, feedback panel, and checklist from one request. It may link to `university` and optionally `application`, and carries source-aware planning fields: `status` (`suggested`, `planned`, `not_started`, `drafting`, `needs_revision`, `reviewed`, `ready`, `submitted`, `skipped`), `priority`, `due_date`, `prompt_verification_status` (`verified`, `needs_verification`, `missing`), `prompt_confidence` (`low`, `medium`, `high`), `source_url`, `notes`, and read-only `suggestion_key`.
 
+`word_limit` is validated as a realistic planning value (`10..2000`). If a linked university has a verified `essay_requirements` field that contains a parseable word limit, creating/updating an essay without a manual word limit may auto-fill that value and mark the prompt metadata as verified with the stored source URL. If no verified word limit exists, the API leaves it unset/verification-needed rather than inventing one.
+
 `POST /api/essays/generate-suggestions/` reads only the caller's own shortlisted universities and tracked applications, then creates missing `EssayWorkspace` rows with stable `suggestion_key` values. It creates a single Common App planning draft plus per-university/application supplement and scholarship verification drafts when the stored data supports those signals. Official prompts are never invented: if `essay_requirements` is missing or lacks a verification source, the draft is labeled `missing`/`needs_verification` and asks the student to check the official application portal. Existing suggestions are returned as `existing_count`; skipped or edited drafts are never overwritten or duplicated.
 
 `POST /api/essays/{id}/feedback/` runs the deterministic rule engine in `services/essay_service/feedback_engine.py` (word count, word-limit status, generic-language detection, paragraph structure, specificity, prompt-fit for why-school/why-major types, sentence-length grammar proxy) and returns `{"detail": "", "feedback": EssayFeedback, "essay": EssayWorkspace}`. It also creates/refreshes `EssayRevisionTask` rows: an existing `todo` task in the same `category` is updated in place rather than duplicated, while `completed`/`skipped` tasks are left untouched as history. No endpoint generates, writes, or rewrites essay text — every response is feedback and checklist items only.
@@ -756,7 +761,7 @@ The generator additionally reads (read-only) the caller's own `EssayWorkspace` r
 
 `ApplicationTrackerItem` embeds its `milestones[]`. Creating an application only requires `university`; all status fields (`status`, `essays_status`, `recommendations_status`, `test_scores_status`, `documents_status`, `financial_aid_status`) default to their "not started" equivalents — the API never auto-advances a status. A second `POST` for the same `(user, university)` pair returns 400. `ApplicationMilestone.linked_roadmap_task` is optional and validated to belong to the caller; it lets a milestone point at an existing roadmap task without `application_service` owning or duplicating roadmap data.
 
-## Suggestions response shapes
+## Application timeline response shapes
 
 `GET /api/applications/{id}/timeline/` returns a **derived, read-only** planning view for one tracked application, assembled fresh on each request from data that already exists (the tracker item, the linked university's verified/imported fields and scholarships, the caller's essays for that university, official College Board exam dates, linked roadmap tasks, and milestones). Nothing is persisted and no date is invented. The payload has five arrays:
 
@@ -765,6 +770,16 @@ The generator additionally reads (read-only) the caller's own `EssayWorkspace` r
 - `suggested_dates[]` — phase-aware suggested finish dates (`type`, `date`, `reason_key`, `weeks_before`, `reference_deadline`, `confidence: "estimated"`). They are only produced when a real reference deadline exists and only within the window appropriate to how far away it is, so a distant deadline never generates urgent work and an imminent one drops unrealistic long-term tasks. Add-to-roadmap remains the existing idempotent `suggestions_service` flow; these are informational.
 - `linked_essays[]` — the caller's essays for this university (`title`, `status`, `word_limit`, `word_count`, `updated_at`).
 - `linked_exams[]` — SAT/IELTS/TOEFL/AP context (`current_score`, `threshold`, `threshold_label`, `severity` reusing the fit gap-severity model, `planned_retake`, official `official_test_date`/`registration_deadline` for SAT/AP only, and `scores_arrive_before_deadline` which is `false` when an official test date is too late to help this cycle). No admission-probability language.
+
+SAT/AP entries in `linked_exams[]` may also include `late_registration_deadline`, AP `official_test_time`, `late_test_date`, and `late_test_time` when a source-backed `OfficialExamDate` record exists. These fields are planning metadata only and must be rendered with their `verification_status`/source context, not as a guarantee that the official testing body has not changed the calendar.
+
+## Official exam date response shapes
+
+`GET /api/v1/exam-dates/` returns DRF pagination by default and accepts `exam_type`, `event_kind`, `academic_year`, `verification_status`, and ordering by `test_date`, `registration_deadline`, or `late_registration_deadline`. The endpoint is read-only for authenticated users. SAT/AP dates are stored as planning metadata with `source_url`, `last_verified_date`, `verification_status`, and `notes`; partial records should be rendered with a verify-official-source warning rather than as guaranteed current College Board policy.
+
+Each record includes `exam_type`, `event_kind` (`exam`, `ordering_deadline`, `performance_task`, or `portfolio_deadline`), `name`, `test_date`, optional `test_time`, optional `registration_deadline`, optional `late_registration_deadline`, optional `late_test_date`, optional `late_test_time`, `score_release_window`, `academic_year`, `region`, `source_url`, `last_verified_date`, `verification_status`, and `notes`.
+
+## Suggestions response shapes
 
 `suggestions_service` owns persistent, self-only `SuggestedItem` records under `/api/suggestions/`. Suggestions are deterministic and rule-based; they read the caller's profile, exam plans, shortlist/tracked universities, verified university fields, essays, applications, and existing roadmap context. They never call AI, never estimate admission probability, and never invent official dates.
 

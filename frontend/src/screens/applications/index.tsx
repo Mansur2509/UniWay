@@ -627,9 +627,19 @@ export function ApplicationsScreen() {
                   : t("applications.detail.deadlineNotVerified")}
               </p>
             </div>
-            <Button onClick={() => void handleDelete(selected)} size="sm" type="button" variant="ghost">
-              {t("applications.actions.delete")}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => notesGuard.requestLeave(() => setSelectedId(null))}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                {t("common.actions.close")}
+              </Button>
+              <Button onClick={() => void handleDelete(selected)} size="sm" type="button" variant="ghost">
+                {t("applications.actions.delete")}
+              </Button>
+            </div>
           </div>
 
           <section className="rounded-sm border bg-elevated p-4">
@@ -778,6 +788,11 @@ export function ApplicationsScreen() {
               {t("common.actions.cancel")}
             </Button>
           </div>
+          {!hasUnsavedNotes ? (
+            <p className="text-xs text-muted-foreground">
+              {t("applications.detail.saveDisabledNoChanges")}
+            </p>
+          ) : null}
 
           <div>
             <div className="flex items-center gap-1.5">

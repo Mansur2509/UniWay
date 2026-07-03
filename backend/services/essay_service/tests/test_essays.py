@@ -171,6 +171,65 @@ class EssayWorkspaceApiTests(APITestCase):
         response = self.client.post("/api/essays/", {"title": "  "}, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_absurd_word_limit_is_rejected(self):
+        self.client.force_authenticate(self.user1)
+        response = self.client.post(
+            "/api/essays/",
+            {"title": "Limit check", "word_limit": 999999},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("word_limit", response.data)
+
+    def test_verified_university_word_limit_auto_fills_when_missing(self):
+        university = create_university(
+            slug="word-limit-university",
+            essay_requirements="Submit one supplemental essay of 250 words.",
+        )
+        UniversityFieldVerification.objects.create(
+            university=university,
+            field_name="essay_requirements",
+            status=UniversityFieldVerification.Status.VERIFIED,
+            source_url="https://example.com/official-essays",
+            last_verified_date=date(2026, 7, 1),
+        )
+        self.client.force_authenticate(self.user1)
+
+        response = self.client.post(
+            "/api/essays/",
+            {
+                "title": "Verified supplement",
+                "essay_type": "supplement",
+                "university": university.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["word_limit"], 250)
+        self.assertEqual(response.data["prompt_verification_status"], "verified")
+        self.assertEqual(response.data["prompt_confidence"], "high")
+        self.assertEqual(response.data["source_url"], "https://example.com/official-essays")
+
+    def test_unknown_word_limit_remains_unset_and_needs_verification(self):
+        university = create_university(slug="unknown-limit-university")
+        self.client.force_authenticate(self.user1)
+
+        response = self.client.post(
+            "/api/essays/",
+            {
+                "title": "Unknown supplement",
+                "essay_type": "supplement",
+                "university": university.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertIsNone(response.data["word_limit"])
+        self.assertEqual(response.data["prompt_verification_status"], "missing")
+
     def test_generate_feedback_creates_feedback_and_revision_tasks(self):
         self.client.force_authenticate(self.user1)
         created = self.client.post(

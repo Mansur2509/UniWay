@@ -1214,6 +1214,71 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
                   <FitSubscore label={t("universities.fit.subscore.cost")} value={fit.cost_subscore} />
                 </div>
 
+                {fit.profile_evidence ? (
+                  <div className="rounded-sm border bg-card p-3 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="font-semibold">
+                        {t("universities.fit.profileEvidence.title")}
+                      </h3>
+                      <span className="rounded-sm border bg-surface px-2 py-0.5 font-semibold uppercase tracking-wide text-muted-foreground">
+                        {t("universities.fit.confidence", {
+                          value: t(
+                            `universities.fit.confidence.${fit.profile_evidence.confidence}` as TranslationKey
+                          )
+                        })}
+                      </span>
+                    </div>
+                    <p className="mt-1 leading-5 text-muted-foreground">
+                      {t("universities.fit.profileEvidence.description")}
+                    </p>
+                    <ul className="mt-3 space-y-1.5">
+                      {fit.profile_evidence.category_contributions
+                        .filter((item) => item.count > 0)
+                        .slice(0, 5)
+                        .map((item) => (
+                          <li
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-sm bg-surface px-2 py-1.5"
+                            key={item.category}
+                          >
+                            <span>
+                              {t(
+                                `universities.fit.profileEvidence.category.${item.category}` as TranslationKey
+                              )}
+                              {" "}
+                              <span className="text-muted-foreground">
+                                {t("universities.requirements.present", { count: item.count })}
+                              </span>
+                            </span>
+                            <span className="font-semibold">{item.score}</span>
+                          </li>
+                        ))}
+                    </ul>
+                    {fit.profile_evidence.missing_evidence.length ? (
+                      <p className="mt-2 leading-5 text-muted-foreground">
+                        {t("universities.fit.profileEvidence.missing", {
+                          items: fit.profile_evidence.missing_evidence
+                            .slice(0, 4)
+                            .map((item) =>
+                              t(
+                                `universities.fit.profileEvidence.category.${item}` as TranslationKey
+                              )
+                            )
+                            .join(", ")
+                        })}
+                      </p>
+                    ) : null}
+                    <p className="mt-2 leading-5 text-muted-foreground">
+                      {fit.profile_evidence.program_relevance_notes
+                        .map((note) =>
+                          t(
+                            `universities.fit.profileEvidence.note.${note}` as TranslationKey
+                          )
+                        )
+                        .join(" ")}
+                    </p>
+                  </div>
+                ) : null}
+
                 <FitList
                   emptyKey={null}
                   icon={CheckCircle2}

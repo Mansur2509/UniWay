@@ -239,9 +239,21 @@ function ExamRow({ exam }: { exam: TimelineExam }) {
           {t("applications.linkedExams.officialDate", {
             date: formatDate(exam.official_test_date, locale)
           })}
+          {exam.official_test_time ? ` / ${exam.official_test_time}` : ""}
           {exam.registration_deadline
             ? ` · ${t("applications.linkedExams.registrationDeadline", {
                 date: formatDate(exam.registration_deadline, locale)
+              })}`
+            : ""}
+          {exam.late_registration_deadline
+            ? ` / ${t("applications.linkedExams.lateDeadline", {
+                date: formatDate(exam.late_registration_deadline, locale)
+              })}`
+            : ""}
+          {exam.late_test_date
+            ? ` / ${t("applications.linkedExams.lateTesting", {
+                date: formatDate(exam.late_test_date, locale),
+                time: exam.late_test_time || "-"
               })}`
             : ""}
         </p>

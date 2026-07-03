@@ -661,6 +661,14 @@ export function EssaysScreen() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button
+                        onClick={() => draftGuard.requestLeave(() => setSelectedEssayId(null))}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        {t("common.actions.close")}
+                      </Button>
+                      <Button
                         onClick={() => {
                           setEditingEssay(selectedEssay);
                           setIsFormOpen(true);
@@ -799,7 +807,7 @@ export function EssaysScreen() {
                       <Sparkles aria-hidden className="mr-1.5 size-3.5" />
                       {isGeneratingFeedback
                         ? t("essays.actions.analyzing")
-                        : t("essays.actions.getFeedback")}
+                        : t("essays.actions.ruleBasedCheck")}
                     </Button>
                     <Button
                       onClick={() => void handleStatusChange("ready")}
@@ -823,7 +831,12 @@ export function EssaysScreen() {
                 {selectedEssay.latest_feedback ? (
                   <Card className="bg-elevated/45 p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <h3 className="text-lg font-semibold">{t("essays.feedback.title")}</h3>
+                      <div>
+                        <h3 className="text-lg font-semibold">{t("essays.feedback.title")}</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {t("essays.feedback.ruleBasedNotice")}
+                        </p>
+                      </div>
                       <span
                         className={`rounded-sm border px-3 py-1 text-sm font-semibold ${LABEL_STYLES[selectedEssay.latest_feedback.overall_label]}`}
                       >

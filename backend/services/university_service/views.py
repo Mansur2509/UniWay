@@ -35,6 +35,7 @@ SELF_SERVICE_ACTIONS = {
     "list",
     "retrieve",
     "fit",
+    "filter_options",
     "shortlist",
     "shortlisted",
     "compare",
@@ -60,8 +61,6 @@ class UniversityViewSet(ModelViewSet):
     lookup_field = "slug"
     search_fields = ("name", "city", "country", "programs__name")
     filterset_fields = {
-        "country": ["exact"],
-        "city": ["exact"],
         "institution_type": ["exact"],
         "scholarship_available": ["exact"],
         "test_policy": ["exact"],
@@ -113,12 +112,54 @@ class UniversityViewSet(ModelViewSet):
     def filter_queryset(self, queryset):
         queryset = super().filter_queryset(queryset)
         if self.action == "list":
+            country = self.request.query_params.get("country", "").strip()
+            city = self.request.query_params.get("city", "").strip()
+            if country:
+                queryset = queryset.filter(country__icontains=country)
+            if city:
+                queryset = queryset.filter(city__icontains=city)
             queryset = self._apply_cost_status_filter(queryset)
         ordering = self.request.query_params.get("ordering", "")
         custom_ordering = UNIVERSITY_NULLS_LAST_ORDERINGS.get(ordering)
         if self.action == "list" and custom_ordering:
             return queryset.order_by(*custom_ordering)
         return queryset
+
+    @action(detail=False, methods=["get"], url_path="filter-options")
+    def filter_options(self, request):
+        queryset = University.objects.filter(is_published=True)
+        if not (request.user.is_authenticated and request.user.is_admin_role):
+            queryset = queryset.exclude(is_demo=True)
+        elif request.query_params.get("include_demo", "").lower() != "true":
+            queryset = queryset.exclude(is_demo=True)
+
+        def distinct_text(field_name: str) -> list[str]:
+            return sorted(
+                {
+                    value.strip()
+                    for value in queryset.values_list(field_name, flat=True)
+                    if isinstance(value, str) and value.strip()
+                },
+                key=str.lower,
+            )
+
+        university_suggestions = list(
+            queryset.order_by("name").values("name", "slug", "country", "city")[:200]
+        )
+        return Response(
+            {
+                "countries": distinct_text("country"),
+                "cities": distinct_text("city"),
+                "institution_types": [
+                    choice
+                    for choice, _label in University.InstitutionType.choices
+                    if queryset.filter(institution_type=choice).exists()
+                ],
+                "cost_confidences": distinct_text("currency_conversion_confidence"),
+                "verification_statuses": [choice for choice, _label in UniversityFieldVerification.Status.choices],
+                "universities": university_suggestions,
+            }
+        )
 
     def _apply_cost_status_filter(self, queryset):
         cost_status = self.request.query_params.get("cost_status", "")

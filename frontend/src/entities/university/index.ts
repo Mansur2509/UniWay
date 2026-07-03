@@ -142,6 +142,22 @@ export type UniversityFilters = {
   cost_status?: "within_budget" | "above_budget" | "needs_aid";
 };
 
+export type UniversityFilterOptionSummary = {
+  name: string;
+  slug: string;
+  country: string;
+  city: string;
+};
+
+export type UniversityFilterOptions = {
+  countries: string[];
+  cities: string[];
+  institution_types: string[];
+  cost_confidences: string[];
+  verification_statuses: string[];
+  universities: UniversityFilterOptionSummary[];
+};
+
 export type FitCategory = "dream" | "reach" | "competitive" | "target" | "safety";
 
 export type FitStrengthCode =
@@ -203,10 +219,28 @@ export type UniversityFitSubscores = {
   academic_fit: number;
   program_fit: number;
   profile_depth_fit: number;
+  profile_evidence: number;
   essay_readiness: number;
   timeline_readiness: number;
   cost_context: number;
   data_confidence: "low" | "medium" | "high";
+};
+
+export type UniversityProfileEvidenceContribution = {
+  category: string;
+  count: number;
+  score: number;
+  weight: number;
+  relevance_note: string;
+};
+
+export type UniversityProfileEvidence = {
+  evidence_subscore: number;
+  category_contributions: UniversityProfileEvidenceContribution[];
+  confidence: "low" | "medium" | "high";
+  missing_evidence: string[];
+  program_relevance_notes: string[];
+  weighting_note: string;
 };
 
 export type UniversityFitAnalysis = {
@@ -219,6 +253,7 @@ export type UniversityFitAnalysis = {
   essay_subscore: number;
   deadline_subscore: number;
   cost_subscore: number;
+  profile_evidence: UniversityProfileEvidence;
   subscores: UniversityFitSubscores;
   strengths: FitStrengthCode[];
   risks: FitRiskCode[];

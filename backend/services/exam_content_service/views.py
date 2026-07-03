@@ -3,8 +3,8 @@ from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
 from common.permissions import IsAdminOrReadOnly
 
-from .models import Exam, Question
-from .serializers import ExamSerializer, QuestionSerializer
+from .models import Exam, OfficialExamDate, Question
+from .serializers import ExamSerializer, OfficialExamDateSerializer, QuestionSerializer
 
 
 class ExamViewSet(ModelViewSet):
@@ -32,3 +32,13 @@ class QuestionViewSet(ReadOnlyModelViewSet):
         is_published=True,
         section__exam__is_published=True,
     ).select_related("section", "section__exam", "explanation").prefetch_related("answer_choices")
+
+
+class OfficialExamDateViewSet(ReadOnlyModelViewSet):
+    serializer_class = OfficialExamDateSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ("exam_type", "event_kind", "academic_year", "verification_status")
+    ordering_fields = ("test_date", "registration_deadline", "late_registration_deadline")
+
+    def get_queryset(self):
+        return OfficialExamDate.objects.all().order_by("test_date", "exam_type", "name")

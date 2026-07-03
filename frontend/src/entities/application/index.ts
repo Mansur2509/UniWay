@@ -144,8 +144,12 @@ export type TimelineExam = {
   severity: string | null;
   planned_retake: boolean;
   official_test_date: string | null;
+  official_test_time?: string;
   official_test_date_confidence: string | null;
   registration_deadline: string | null;
+  late_registration_deadline?: string | null;
+  late_test_date?: string | null;
+  late_test_time?: string;
   source_url: string;
   scores_arrive_before_deadline: boolean | null;
 };

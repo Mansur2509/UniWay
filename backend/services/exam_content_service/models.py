@@ -53,6 +53,12 @@ class OfficialExamDate(models.Model):
         SAT = "SAT", "SAT"
         AP = "AP", "AP"
 
+    class EventKind(models.TextChoices):
+        EXAM = "exam", "Exam"
+        ORDERING_DEADLINE = "ordering_deadline", "Ordering deadline"
+        PERFORMANCE_TASK = "performance_task", "Performance task"
+        PORTFOLIO_DEADLINE = "portfolio_deadline", "Portfolio deadline"
+
     class VerificationStatus(models.TextChoices):
         VERIFIED = "verified", "Verified"
         PARTIAL = "partial", "Partial"
@@ -60,9 +66,15 @@ class OfficialExamDate(models.Model):
 
     exam_type = models.CharField(max_length=8, choices=ExamType.choices, db_index=True)
     name = models.CharField(max_length=160)
+    event_kind = models.CharField(
+        max_length=32, choices=EventKind.choices, default=EventKind.EXAM, db_index=True
+    )
     test_date = models.DateField()
+    test_time = models.CharField(max_length=40, blank=True)
     registration_deadline = models.DateField(null=True, blank=True)
     late_registration_deadline = models.DateField(null=True, blank=True)
+    late_test_date = models.DateField(null=True, blank=True)
+    late_test_time = models.CharField(max_length=40, blank=True)
     score_release_window = models.CharField(max_length=160, blank=True)
     academic_year = models.CharField(max_length=20)
     region = models.CharField(max_length=120, blank=True)
@@ -79,6 +91,7 @@ class OfficialExamDate(models.Model):
         ordering = ("test_date", "exam_type")
         indexes = [
             models.Index(fields=("exam_type", "test_date")),
+            models.Index(fields=("exam_type", "event_kind", "test_date")),
             models.Index(fields=("verification_status", "last_verified_date")),
         ]
 

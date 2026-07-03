@@ -663,7 +663,7 @@ export function DashboardScreen() {
         title={t("dashboard.suggestions.title")}
       />
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="p-4">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
             {t("dashboard.applicationsWidget.title")}
