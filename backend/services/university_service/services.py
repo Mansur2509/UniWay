@@ -240,6 +240,14 @@ OPTIONAL_EVIDENCE_WEIGHTS = {
     "recommenders": 0.08,
 }
 
+
+def _has_prefetched_programs(university: University) -> bool:
+    prefetched = getattr(university, "_prefetched_objects_cache", {})
+    if "programs" in prefetched:
+        return bool(prefetched["programs"])
+    return university.programs.exists()
+
+
 RESEARCH_KEYWORDS = {
     "research",
     "science",
@@ -408,7 +416,7 @@ def calculate_optional_evidence_fit(
     if not has_context:
         confidence = CONFIDENCE_LOW
         notes.append("evidence_weighting_needs_verification")
-    elif university.programs.exists():
+    elif _has_prefetched_programs(university):
         confidence = CONFIDENCE_MEDIUM
         notes.append("no_verified_university_specific_evidence_policy")
     else:
@@ -419,6 +427,43 @@ def calculate_optional_evidence_fit(
     # frontend "top 5" slice must reflect the strongest signals, not whatever
     # order OPTIONAL_EVIDENCE_WEIGHTS happens to be defined in.
     contributions.sort(key=lambda item: (item["count"] > 0, item["score"]), reverse=True)
+    assessment_context = {
+        "available": False,
+        "source": "rule_based_profile_evidence",
+        "confidence": confidence,
+        "overall_profile_score": None,
+        "profile_evidence_score": None,
+        "assessed_at": None,
+        "missing_data": [],
+    }
+    try:
+        from services.profile_assessment_service.services import (
+            get_current_assessment_for_profile,
+        )
+
+        assessment = get_current_assessment_for_profile(profile)
+    except Exception:
+        assessment = None
+
+    if assessment is not None:
+        ai_profile_score = _as_int_score(assessment.profile_evidence_score * 10)
+        evidence_subscore = _as_int_score(evidence_subscore * 0.55 + ai_profile_score * 0.45)
+        notes.append("cached_profile_assessment_used")
+        if assessment.confidence == CONFIDENCE_LOW:
+            confidence = CONFIDENCE_LOW
+        elif assessment.confidence == CONFIDENCE_HIGH and confidence != CONFIDENCE_LOW:
+            confidence = CONFIDENCE_HIGH
+        assessment_context = {
+            "available": True,
+            "source": "cached_profile_assessment",
+            "confidence": assessment.confidence,
+            "overall_profile_score": assessment.overall_profile_score,
+            "profile_evidence_score": assessment.profile_evidence_score,
+            "assessed_at": assessment.created_at,
+            "missing_data": assessment.missing_data[:5],
+        }
+    else:
+        notes.append("profile_assessment_not_run")
 
     return {
         "evidence_subscore": evidence_subscore,
@@ -426,6 +471,7 @@ def calculate_optional_evidence_fit(
         "confidence": confidence,
         "missing_evidence": missing,
         "program_relevance_notes": list(dict.fromkeys(notes)),
+        "assessment_context": assessment_context,
         "weighting_note": (
             "Optional evidence uses conservative general weights unless verified "
             "university or program evidence-weight metadata exists."
@@ -473,7 +519,13 @@ def _score_essay_fit(profile, university: University, missing: list[str]) -> int
 
     from services.essay_service.models import EssayWorkspace
 
-    workspaces = list(EssayWorkspace.objects.filter(user=profile.user, university=university))
+    workspace_cache = getattr(profile, "_essay_workspaces_by_university_cache", None)
+    if workspace_cache is None:
+        workspace_cache = {}
+        for workspace in EssayWorkspace.objects.filter(user_id=profile.user_id, university_id__isnull=False):
+            workspace_cache.setdefault(workspace.university_id, []).append(workspace)
+        profile._essay_workspaces_by_university_cache = workspace_cache
+    workspaces = workspace_cache.get(university.id, [])
     if not workspaces:
         if profile.essay_status == profile.EssayStatus.YES:
             return 78

@@ -6,6 +6,8 @@ Authentication API base URL: `/api/auth`
 
 Profile API base URL: `/api/profile`
 
+Profile assessment API base URL: `/api/profile/assessment`
+
 Events API base URL: `/api/events`
 
 Organizer API base URL: `/api/organizer`
@@ -280,6 +282,70 @@ Authenticated. Returns a computed evidence summary, never an admissions outcome 
 ```
 
 `comparison_status=published_ranges` is returned only when matching published university requirements can be compared with available profile evidence. Clients must retain the no-guarantee disclaimer and link any returned official sources.
+
+### GET `/api/profile/assessment/latest/`
+
+Authenticated and self-only. Returns the caller's latest cached AI-assisted profile-readiness assessment, or a safe empty state if no assessment exists. This endpoint never calls the AI provider.
+
+```json
+{
+  "assessment": {
+    "id": 1,
+    "assessment_version": "2026-07-profile-v1",
+    "overall_profile_score": 72,
+    "category_scores": {
+      "profile_evidence_score": 7,
+      "activities_score": 6,
+      "honors_olympiads_score": 5,
+      "research_experience_score": 8,
+      "portfolio_score": 6,
+      "subject_passion_score": 8,
+      "curiosity_score": 8,
+      "originality_score": 7,
+      "leadership_score": 7,
+      "community_impact_score": 6,
+      "research_fit_score": 8,
+      "olympiads_score": 4
+    },
+    "confidence": "medium",
+    "public_summary": "Short user-facing summary based on saved profile data.",
+    "evidence_used": ["structured activities", "research projects"],
+    "missing_data": ["more proof links"],
+    "improvement_areas": ["document project impact"],
+    "target_context_used": true,
+    "expires_at": "2027-07-03T00:00:00Z",
+    "is_stale": false,
+    "created_at": "2026-07-03T00:00:00Z"
+  },
+  "cached": true,
+  "reason": "latest_assessment",
+  "can_refresh": false,
+  "next_available_at": null,
+  "ai_available": true,
+  "disclaimer": "This is a profile-readiness estimate based on saved EduVerse profile data. It is not an admissions decision and does not promise an outcome."
+}
+```
+
+Public student-visible fields are limited to the overall score, category scores, confidence, summary, missing data, improvement areas, target-context flag, and timestamps. Internal keywords, category rationales, raw AI output, and the profile snapshot hash are not returned to students.
+
+### POST `/api/profile/assessment/run/`
+
+Authenticated, self-only, and scoped by the `ai` throttle. Runs assessment only when provider access is enabled, the Gemini API key is configured, and the daily limit allows it. If the current `profile_snapshot_hash` matches the latest valid assessment, the endpoint returns the cached assessment instead of calling AI.
+
+Response envelope matches `latest/`. `reason` is one of:
+
+- `no_previous_assessment`
+- `profile_changed`
+- `unchanged_cached`
+- `daily_limit_reached`
+- `ai_unavailable`
+- `validation_failed`
+
+The backend sends a compact sanitized profile summary only: no passwords, payment data, phone number, Telegram username, email, proof URLs, or raw essay text. Raw provider output is accepted only if it validates against the fixed profile-assessment JSON schema, uses integer category scores in range, returns at most 20 compact internal keywords, and contains no admission chance/probability/odds/guarantee wording.
+
+### POST `/api/admin/users/{id}/profile-assessment/run/`
+
+Admin-only force reassessment endpoint. It uses the same validation and storage path as the self-service endpoint but bypasses the normal daily-refresh guard for operational review. Students and organizers receive HTTP 403.
 
 ### POST `/api/profile/complete-onboarding/`
 
@@ -580,6 +646,9 @@ All moderation endpoints require an admin role. A moderator cannot approve or re
 | GET/PATCH | `/api/profile/me/` | Authenticated | Current user's full student profile |
 | GET | `/api/profile/completion/` | Authenticated | Computed profile data completion |
 | GET | `/api/profile/readiness/` | Authenticated | Evidence-based 1-5 readiness summary; never an admissions outcome estimate |
+| GET | `/api/profile/assessment/latest/` | Authenticated, self-only | Latest cached AI-assisted profile-readiness assessment or safe empty state; no provider call |
+| POST | `/api/profile/assessment/run/` | Authenticated, self-only | Run profile assessment only when enabled, changed, and within daily limit; otherwise return cached/safe state |
+| POST | `/api/admin/users/{id}/profile-assessment/run/` | Admin | Force profile reassessment for one user through the same schema/validation path |
 | POST | `/api/profile/complete-onboarding/` | Authenticated | Finalize mandatory onboarding when requirements are satisfied |
 | GET | `/api/events/` | Authenticated | Published public event catalog |
 | GET | `/api/events/{slug}/` | Authenticated | Published public event detail |
@@ -670,7 +739,7 @@ Program listings expose display-safe labels alongside the stored raw text. Each 
 
 Tuition and cost fields preserve source currency separately from comparable USD values: `tuition_original_amount`, `tuition_original_currency`, `tuition_usd_amount`, `total_cost_original_amount`, `total_cost_original_currency`, `total_cost_usd_amount`, `currency_conversion_rate`, `currency_conversion_date`, `currency_conversion_source`, `currency_conversion_confidence`, and `cost_notes`. Non-USD values are converted only when a stored `ExchangeRate` exists; missing rates leave USD fields null and show a low-confidence note. University list ordering supports `tuition_usd_amount`, `-tuition_usd_amount`, `total_cost_usd_amount`, and `-total_cost_usd_amount`.
 
-The admissions fit analysis (`/api/v1/universities/{slug}/fit/`) uses normalized GPA, SAT percentile bands where available, IELTS minimum/competitive gaps, curriculum context, published acceptance rate, cost context, and profile completeness. It returns `fit_score` (1-100), `category` (`dream`/`reach`/`competitive`/`target`/`safety` or `null`), `confidence`, component subscores, `strengths`, `risks`, `missing_fields`, `missing_data`, `next_actions`, `conditional_notes`, `student_academic_context`, `cost_context`, `source_notes`, `profile_evidence`, and a no-guarantee disclaimer. `profile_evidence` is a conservative optional-evidence breakdown (research, portfolio, olympiads, volunteering) with category contributions, missing evidence, confidence, and program-relevance notes; it is lower-weight than academics and never implies an admissions outcome. Ultra-selective universities below 5% acceptance are never shown as safety; a planned retake may add a conditional note but must not erase a current score gap. Response keys and UI copy use "fit", "score", "category", "strengths", "risks", "missing_fields", and "next_actions" instead of admissions-odds language.
+The admissions fit analysis (`/api/v1/universities/{slug}/fit/`) uses normalized GPA, SAT percentile bands where available, IELTS minimum/competitive gaps, curriculum context, published acceptance rate, cost context, and profile completeness. It returns `fit_score` (1-100), `category` (`dream`/`reach`/`competitive`/`target`/`safety` or `null`), `confidence`, component subscores, `strengths`, `risks`, `missing_fields`, `missing_data`, `next_actions`, `conditional_notes`, `student_academic_context`, `cost_context`, `source_notes`, `profile_evidence`, and a no-guarantee disclaimer. `profile_evidence` is a conservative optional-evidence breakdown (research, portfolio, olympiads, volunteering) with category contributions, missing evidence, confidence, program-relevance notes, and `assessment_context`. When a current cached `AIProfileAssessment` exists, `assessment_context.available=true` and the profile-evidence subscore blends the rule-based evidence score with the cached AI profile-evidence score; if no current assessment exists, the fit engine stays fully rule-based and marks `profile_assessment_not_run`. Fit never calls the AI provider. Profile evidence remains lower-weight than academics and never implies an admissions outcome. Ultra-selective universities below 5% acceptance are never shown as safety; a planned retake may add a conditional note but must not erase a current score gap. Response keys and UI copy use "fit", "score", "category", "strengths", "risks", "missing_fields", and "next_actions" instead of admissions-odds language.
 
 `GET /api/v1/universities/recommendations/` (`services/university_service/recommendations.py`) turns the fit engine into a full admissions-planning list rather than a single-university lookup. It computes `calculate_university_fit` for every country/region-matching candidate, folds the fit engine's `competitive` category into `reach` for list purposes only (the per-university fit endpoint's five-category output is unchanged), and returns a balanced set capped at 5 dream / 7 reach / 8 target / 6 safety (20-25 total when enough verified candidates exist). The response shape:
 

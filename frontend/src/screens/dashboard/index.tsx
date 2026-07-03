@@ -23,6 +23,7 @@ import {
   classCatalog,
   ReadinessCard,
   type ApplicationReadiness,
+  type ProfileAssessmentEnvelope,
   type ProfileCompletion,
   type StudentProfileDetails
 } from "@/entities/profile";
@@ -35,6 +36,7 @@ import { getEssaysRequest } from "@/features/essays";
 import { getMyEventRegistrationsRequest } from "@/features/events";
 import {
   getApplicationReadinessRequest,
+  getProfileAssessmentLatestRequest,
   getProfileCompletionRequest,
   getProfileRequest
 } from "@/features/profile";
@@ -111,6 +113,8 @@ export function DashboardScreen() {
   const [completion, setCompletion] = useState<ProfileCompletion | null>(null);
   const [profile, setProfile] = useState<StudentProfileDetails | null>(null);
   const [readiness, setReadiness] = useState<ApplicationReadiness | null>(null);
+  const [profileAssessment, setProfileAssessment] =
+    useState<ProfileAssessmentEnvelope | null>(null);
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
   const [roadmapPlan, setRoadmapPlan] = useState<RoadmapPlan | null>(null);
   const [suggestions, setSuggestions] = useState<SuggestedItem[]>([]);
@@ -134,7 +138,8 @@ export function DashboardScreen() {
       suggestionsResult,
       applicationsResult,
       essaysResult,
-      recommendationsResult
+      recommendationsResult,
+      assessmentResult
     ] = await Promise.allSettled([
       getProfileCompletionRequest(),
       getProfileRequest(),
@@ -144,7 +149,8 @@ export function DashboardScreen() {
       generateSuggestionsRequest(),
       getApplicationsRequest(),
       getEssaysRequest(),
-      getRecommendationsRequest()
+      getRecommendationsRequest(),
+      getProfileAssessmentLatestRequest()
     ]);
 
     if (completionResult.status === "fulfilled") {
@@ -193,6 +199,11 @@ export function DashboardScreen() {
           .sort((a, b) => b.fit_score - a.fit_score)
           .slice(0, 3)
       );
+    } else {
+      setHasPartialError(true);
+    }
+    if (assessmentResult.status === "fulfilled") {
+      setProfileAssessment(assessmentResult.value);
     } else {
       setHasPartialError(true);
     }
@@ -528,6 +539,39 @@ export function DashboardScreen() {
                 })
               : t("dashboard.profile.loading")}
           </p>
+          <div className="mt-3 rounded-sm border bg-surface p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+                  {t("profileAssessment.shortTitle")}
+                </p>
+                <p className="mt-1 text-xs leading-4 text-muted-foreground">
+                  {profileAssessment?.assessment
+                    ? t("profileAssessment.dashboardSummary", {
+                        score: profileAssessment.assessment.overall_profile_score,
+                        confidence: t(
+                          `profileAssessment.confidence.${profileAssessment.assessment.confidence}` as TranslationKey
+                        )
+                      })
+                    : profileAssessment?.ai_available
+                      ? t("profileAssessment.empty")
+                      : t("profileAssessment.unavailable")}
+                </p>
+              </div>
+              <span className="shrink-0 text-lg font-semibold text-accent">
+                {profileAssessment?.assessment
+                  ? profileAssessment.assessment.overall_profile_score
+                  : "—"}
+              </span>
+            </div>
+            {profileAssessment?.assessment?.missing_data.length ? (
+              <p className="mt-2 text-xs text-warning">
+                {t("profileAssessment.missingCount", {
+                  count: profileAssessment.assessment.missing_data.length
+                })}
+              </p>
+            ) : null}
+          </div>
           <Button asChild className="mt-4" size="sm" variant="secondary">
             <Link href="/profile">
               {t("dashboard.profile.action")}

@@ -1,5 +1,6 @@
 import type {
   ApplicationReadiness,
+  ProfileAssessmentEnvelope,
   ProfileCompletion,
   StudentProfileDetails,
   UpdateStudentProfileInput
@@ -36,6 +37,19 @@ export function completeOnboardingRequest() {
 export function getApplicationReadinessRequest() {
   return apiRequest<ApplicationReadiness>("/readiness/", {
     base: "profile"
+  });
+}
+
+export function getProfileAssessmentLatestRequest() {
+  return apiRequest<ProfileAssessmentEnvelope>("/assessment/latest/", {
+    base: "profile"
+  });
+}
+
+export function runProfileAssessmentRequest() {
+  return apiRequest<ProfileAssessmentEnvelope>("/assessment/run/", {
+    base: "profile",
+    method: "POST"
   });
 }
 

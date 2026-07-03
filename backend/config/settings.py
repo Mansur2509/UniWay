@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "services.essay_service",
     "services.application_service",
     "services.suggestions_service",
+    "services.profile_assessment_service",
     "services.ai_gateway_service",
     "services.exam_content_service",
     "services.finance_literacy_service",
@@ -166,3 +167,17 @@ SIMPLE_JWT = {
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 OPENROUTER_DEFAULT_MODEL = os.getenv("OPENROUTER_DEFAULT_MODEL", "")
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+AI_PROFILE_ASSESSMENT_MODEL = os.getenv(
+    "AI_PROFILE_ASSESSMENT_MODEL",
+    "gemini-1.5-flash",
+)
+AI_TIMEOUT_SECONDS = int(os.getenv("AI_TIMEOUT_SECONDS", "20"))
+AI_MAX_OUTPUT_TOKENS = int(os.getenv("AI_MAX_OUTPUT_TOKENS", "1200"))
+AI_PROFILE_ASSESSMENT_ENABLED = (
+    os.getenv("AI_PROFILE_ASSESSMENT_ENABLED", "false").lower() == "true"
+)
+AI_PROFILE_ASSESSMENT_DAILY_LIMIT = int(
+    os.getenv("AI_PROFILE_ASSESSMENT_DAILY_LIMIT", "1")
+)

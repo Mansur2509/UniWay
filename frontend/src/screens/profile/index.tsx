@@ -5,31 +5,37 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useState
 } from "react";
 
-import type {
-  Activity,
-  BudgetFlexibility,
-  CourseRigorLevel,
-  EssayDraft,
-  Honor,
-  Olympiad,
-  PlannedExam,
-  PortfolioProject,
-  ProfileCompletion,
-  Recommender,
-  ResearchProject,
-  ScholarshipNeed,
-  Sport,
-  StudentProfileDetails,
-  TestScores,
-  Volunteer
+import {
+  PROFILE_ASSESSMENT_CATEGORIES,
+  type Activity,
+  type AIProfileAssessment,
+  type BudgetFlexibility,
+  type CourseRigorLevel,
+  type EssayDraft,
+  type Honor,
+  type Olympiad,
+  type PlannedExam,
+  type PortfolioProject,
+  type ProfileAssessmentEnvelope,
+  type ProfileCompletion,
+  type Recommender,
+  type ResearchProject,
+  type ScholarshipNeed,
+  type Sport,
+  type StudentProfileDetails,
+  type TestScores,
+  type Volunteer
 } from "@/entities/profile";
 import { useAuth } from "@/features/auth/model/auth-context";
 import {
+  getProfileAssessmentLatestRequest,
   getProfileCompletionRequest,
   getProfileRequest,
+  runProfileAssessmentRequest,
   updateProfileRequest,
   getProfileItemsRequest,
   createProfileItemRequest,
@@ -58,6 +64,7 @@ import {
 } from "@/features/profile/lib/profile-items-config";
 import { ProfileItemSection } from "@/features/profile/ui/profile-item-section";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
+import { formatDateTime } from "@/shared/lib/date-time";
 import { useUnsavedChangesGuard } from "@/shared/lib/use-unsaved-changes-guard";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -278,11 +285,188 @@ function ProfileSection({
   );
 }
 
+function ProfileAssessmentPanel({
+  envelope,
+  assessment,
+  topCategories,
+  isRefreshing,
+  hasError,
+  onRefresh
+}: {
+  envelope: ProfileAssessmentEnvelope | null;
+  assessment: AIProfileAssessment | null;
+  topCategories: typeof PROFILE_ASSESSMENT_CATEGORIES;
+  isRefreshing: boolean;
+  hasError: boolean;
+  onRefresh: () => void;
+}) {
+  const { locale, t } = useI18n();
+  const canRefresh = Boolean(envelope?.can_refresh);
+  const refreshDisabled = isRefreshing || !canRefresh;
+
+  return (
+    <Card className="scroll-mt-24 p-5" id="profile-assessment">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+            {t("profileAssessment.eyebrow")}
+          </p>
+          <h2 className="mt-1 text-lg font-semibold">{t("profileAssessment.title")}</h2>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
+            {t("profileAssessment.description")}
+          </p>
+        </div>
+        <Button
+          disabled={refreshDisabled}
+          onClick={onRefresh}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          {isRefreshing
+            ? t("profileAssessment.refreshing")
+            : t("profileAssessment.refresh")}
+        </Button>
+      </div>
+
+      {hasError ? (
+        <div className="mt-4 rounded-sm border border-warning/35 bg-warning/10 p-3 text-xs text-warning">
+          {t("profileAssessment.error")}
+        </div>
+      ) : null}
+
+      {!assessment ? (
+        <div className="mt-4 rounded-sm border border-dashed bg-elevated/35 p-4">
+          <p className="text-sm font-semibold">
+            {envelope?.ai_available
+              ? t("profileAssessment.empty")
+              : t("profileAssessment.unavailable")}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            {t("profileAssessment.emptyDescription")}
+          </p>
+        </div>
+      ) : (
+        <div className="mt-4 grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
+          <div className="border bg-surface p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              {t("profileAssessment.overall")}
+            </p>
+            <div className="mt-2 flex items-end gap-2">
+              <span className="text-4xl font-semibold text-accent">
+                {assessment.overall_profile_score}
+              </span>
+              <span className="pb-1 text-xs font-semibold text-muted-foreground">
+                {t("profileAssessment.outOf100")}
+              </span>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Badge className="text-xs">
+                {t(`profileAssessment.confidence.${assessment.confidence}` as TranslationKey)}
+              </Badge>
+              {assessment.is_stale ? (
+                <Badge className="border-warning/35 bg-warning/10 text-warning">
+                  {t("profileAssessment.stale")}
+                </Badge>
+              ) : (
+                <Badge className="border-success/35 bg-success/10 text-success">
+                  {t("profileAssessment.current")}
+                </Badge>
+              )}
+            </div>
+            <p className="mt-3 text-xs leading-5 text-muted-foreground">
+              {t("profileAssessment.lastAssessed", {
+                date: formatDateTime(assessment.created_at, locale)
+              })}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <p className="text-sm leading-6 text-muted-foreground">
+              {assessment.public_summary || t("profileAssessment.summaryFallback")}
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {topCategories.map((category) => (
+                <div className="rounded-sm border bg-surface p-3" key={category}>
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <span className="font-semibold">
+                      {t(`profileAssessment.category.${category}` as TranslationKey)}
+                    </span>
+                    <span className="font-bold text-accent">
+                      {assessment.category_scores[category]}/10
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-sm bg-elevated">
+                    <div
+                      className="h-full bg-primary"
+                      style={{
+                        width: `${Math.max(0, Math.min(100, assessment.category_scores[category] * 10))}%`
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary-hover">
+                  {t("profileAssessment.missingData")}
+                </p>
+                {assessment.missing_data.length ? (
+                  <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                    {assessment.missing_data.slice(0, 5).map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {t("profileAssessment.noMissingData")}
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary-hover">
+                  {t("profileAssessment.improvementAreas")}
+                </p>
+                {assessment.improvement_areas.length ? (
+                  <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                    {assessment.improvement_areas.slice(0, 5).map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {t("profileAssessment.noImprovementAreas")}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {envelope?.reason === "daily_limit_reached" && envelope.next_available_at ? (
+        <p className="mt-3 rounded-sm border bg-elevated/45 p-3 text-xs text-muted-foreground">
+          {t("profileAssessment.dailyLimit", {
+            date: formatDateTime(envelope.next_available_at, locale)
+          })}
+        </p>
+      ) : null}
+      <p className="mt-3 text-xs leading-5 text-muted-foreground">
+        {envelope?.disclaimer ?? t("profileAssessment.disclaimer")}
+      </p>
+    </Card>
+  );
+}
+
 export function ProfileScreen() {
   const { refreshUser } = useAuth();
   const { t } = useI18n();
   const [profile, setProfile] = useState<StudentProfileDetails | null>(null);
   const [completion, setCompletion] = useState<ProfileCompletion | null>(null);
+  const [profileAssessment, setProfileAssessment] =
+    useState<ProfileAssessmentEnvelope | null>(null);
   const [form, setForm] = useState<ProfileFormState>(emptyForm);
   const [savedForm, setSavedForm] = useState<ProfileFormState>(emptyForm);
   const [isLoading, setIsLoading] = useState(true);
@@ -290,6 +474,8 @@ export function ProfileScreen() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [assessmentError, setAssessmentError] = useState(false);
+  const [isRefreshingAssessment, setIsRefreshingAssessment] = useState(false);
 
   // Structured profile items
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -306,14 +492,25 @@ export function ProfileScreen() {
   const loadProfile = useCallback(async () => {
     setIsLoading(true);
     setLoadFailed(false);
+    setAssessmentError(false);
     try {
-      const [profileResponse, completionResponse] = await Promise.all([
-        getProfileRequest(),
-        getProfileCompletionRequest()
-      ]);
-      setProfile(profileResponse);
-      setCompletion(completionResponse);
-      const nextForm = profileToForm(profileResponse);
+      const [profileResponse, completionResponse, assessmentResponse] =
+        await Promise.allSettled([
+          getProfileRequest(),
+          getProfileCompletionRequest(),
+          getProfileAssessmentLatestRequest()
+        ]);
+      if (profileResponse.status !== "fulfilled" || completionResponse.status !== "fulfilled") {
+        throw new Error("profile_load_failed");
+      }
+      setProfile(profileResponse.value);
+      setCompletion(completionResponse.value);
+      if (assessmentResponse.status === "fulfilled") {
+        setProfileAssessment(assessmentResponse.value);
+      } else {
+        setAssessmentError(true);
+      }
+      const nextForm = profileToForm(profileResponse.value);
       setForm(nextForm);
       setSavedForm(nextForm);
     } catch {
@@ -380,6 +577,19 @@ export function ProfileScreen() {
     browserMessage: t("common.unsaved.browserMessage"),
     isDirty: hasUnsavedProfileChanges
   });
+  const assessment = profileAssessment?.assessment ?? null;
+  const topAssessmentCategories = useMemo(
+    () =>
+      assessment
+        ? [...PROFILE_ASSESSMENT_CATEGORIES]
+            .sort(
+              (left, right) =>
+                assessment.category_scores[right] - assessment.category_scores[left]
+            )
+            .slice(0, 5)
+        : [],
+    [assessment]
+  );
 
   async function saveProfileForm() {
     setIsSaving(true);
@@ -470,6 +680,19 @@ export function ProfileScreen() {
     setForm(savedForm);
     setSaveFailed(false);
     setSaved(false);
+  }
+
+  async function handleRefreshAssessment() {
+    setIsRefreshingAssessment(true);
+    setAssessmentError(false);
+    try {
+      const response = await runProfileAssessmentRequest();
+      setProfileAssessment(response);
+    } catch {
+      setAssessmentError(true);
+    } finally {
+      setIsRefreshingAssessment(false);
+    }
   }
 
   // Item CRUD handlers
@@ -636,6 +859,15 @@ export function ProfileScreen() {
           ))}
         </div>
       </Card>
+
+      <ProfileAssessmentPanel
+        assessment={assessment}
+        envelope={profileAssessment}
+        hasError={assessmentError}
+        isRefreshing={isRefreshingAssessment}
+        onRefresh={() => void handleRefreshAssessment()}
+        topCategories={topAssessmentCategories}
+      />
 
       <ProfileSection
         description={t("profile.sections.personalHelp")}

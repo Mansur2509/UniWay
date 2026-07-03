@@ -183,6 +183,70 @@ export type ApplicationReadiness = {
   }>;
 };
 
+export type ProfileAssessmentCategory =
+  | "profile_evidence_score"
+  | "activities_score"
+  | "honors_olympiads_score"
+  | "research_experience_score"
+  | "portfolio_score"
+  | "subject_passion_score"
+  | "curiosity_score"
+  | "originality_score"
+  | "leadership_score"
+  | "community_impact_score"
+  | "research_fit_score"
+  | "olympiads_score";
+
+export const PROFILE_ASSESSMENT_CATEGORIES: ProfileAssessmentCategory[] = [
+  "profile_evidence_score",
+  "activities_score",
+  "honors_olympiads_score",
+  "research_experience_score",
+  "portfolio_score",
+  "subject_passion_score",
+  "curiosity_score",
+  "originality_score",
+  "leadership_score",
+  "community_impact_score",
+  "research_fit_score",
+  "olympiads_score"
+];
+
+export type AIProfileAssessment = {
+  id: number;
+  assessment_version: string;
+  overall_profile_score: number;
+  category_scores: Record<ProfileAssessmentCategory, number>;
+  confidence: "low" | "medium" | "high";
+  public_summary: string;
+  evidence_used: string[];
+  missing_data: string[];
+  improvement_areas: string[];
+  target_context_used: boolean;
+  expires_at: string;
+  is_stale: boolean;
+  created_at: string;
+};
+
+export type ProfileAssessmentReason =
+  | "latest_assessment"
+  | "no_previous_assessment"
+  | "profile_changed"
+  | "unchanged_cached"
+  | "daily_limit_reached"
+  | "ai_unavailable"
+  | "validation_failed";
+
+export type ProfileAssessmentEnvelope = {
+  assessment: AIProfileAssessment | null;
+  cached: boolean;
+  reason: ProfileAssessmentReason;
+  can_refresh: boolean;
+  next_available_at: string | null;
+  ai_available: boolean;
+  disclaimer: string;
+};
+
 // Structured profile items
 export type Activity = {
   id: number;
