@@ -1,11 +1,13 @@
 import type {
+  AIEssayScoreReport,
+  AIEssayScoreResponse,
   EssayFeedback,
   EssayRevisionTask,
   EssayRevisionTaskInput,
   EssayWorkspace,
   EssayWorkspaceInput
 } from "@/entities/essay";
-import { apiRequest, normalizePaginatedResponse } from "@/shared/api/client";
+import { ApiError, apiRequest, normalizePaginatedResponse } from "@/shared/api/client";
 
 type EssayListParams = {
   page?: number;
@@ -78,6 +80,34 @@ export function createEssayRevisionTaskRequest(
     method: "POST",
     body: input
   });
+}
+
+export async function scoreEssayRequest(id: number): Promise<AIEssayScoreResponse> {
+  try {
+    return await apiRequest<AIEssayScoreResponse>(`/${id}/score/`, { base: "essays", method: "POST" });
+  } catch (error) {
+    // The backend returns a structured, safe-to-render body (reason,
+    // quota_remaining, next_available_at) even for expected non-2xx outcomes
+    // like quota_exceeded/ai_unavailable/validation_failed -- surface that
+    // instead of treating it as a generic request failure.
+    if (
+      error instanceof ApiError &&
+      error.data &&
+      typeof error.data === "object" &&
+      "reason" in error.data
+    ) {
+      return error.data as AIEssayScoreResponse;
+    }
+    throw error;
+  }
+}
+
+export function getEssayScoresRequest(id: number) {
+  return apiRequest<{ results: AIEssayScoreReport[] }>(`/${id}/scores/`, { base: "essays" });
+}
+
+export function getLatestEssayScoreRequest(id: number) {
+  return apiRequest<{ score: AIEssayScoreReport | null }>(`/${id}/score/latest/`, { base: "essays" });
 }
 
 export function updateEssayRevisionTaskRequest(

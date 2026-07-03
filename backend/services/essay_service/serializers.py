@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from services.university_service.models import UniversityFieldVerification
 
-from .models import EssayFeedback, EssayRevisionTask, EssayWorkspace
+from .models import AIEssayScoreReport, EssayFeedback, EssayRevisionTask, EssayWorkspace
 
 WORD_LIMIT_RE = re.compile(r"(?P<limit>\d{2,4})\s*(?:-|–)?\s*words?", re.IGNORECASE)
 
@@ -178,3 +178,47 @@ class EssayWorkspaceSerializer(serializers.ModelSerializer):
 
     def get_word_count(self, obj):
         return len((obj.draft_text or "").split())
+
+
+class AIEssayScoreReportSerializer(serializers.ModelSerializer):
+    subscores = serializers.SerializerMethodField()
+    nullable_scores = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AIEssayScoreReport
+        fields = (
+            "id",
+            "essay",
+            "rubric_version",
+            "overall_essay_readiness",
+            "confidence",
+            "verified_context_used",
+            "subscores",
+            "nullable_scores",
+            "word_count",
+            "word_limit_status",
+            "ai_paraphrase_style_signal",
+            "generic_language_signal",
+            "unsupported_claims_signal",
+            "strength_flags",
+            "risk_flags",
+            "approximate_suggestions",
+            "source_warnings",
+            "disclaimers",
+            "created_at",
+        )
+        read_only_fields = fields
+
+    def get_subscores(self, obj):
+        return {
+            "prompt_fit": obj.prompt_fit,
+            "structure": obj.structure,
+            "specificity_evidence": obj.specificity_evidence,
+            "authenticity": obj.authenticity,
+            "language_clarity": obj.language_clarity,
+            "word_limit_discipline": obj.word_limit_discipline,
+            "school_program_alignment": obj.school_program_alignment,
+        }
+
+    def get_nullable_scores(self, obj):
+        return {"school_program_alignment": obj.school_program_alignment}

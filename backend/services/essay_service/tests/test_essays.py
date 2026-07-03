@@ -1,16 +1,34 @@
-from datetime import date
+from datetime import date, timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.test import override_settings
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from services.application_service.models import ApplicationTrackerItem
+from services.essay_service.ai_scoring import (
+    EssayScoringValidationError,
+    build_scoring_payload,
+    compute_essay_text_hash,
+    validate_and_normalize_output,
+)
 from services.essay_service.feedback_engine import generate_feedback
-from services.essay_service.models import EssayFeedback, EssayRevisionTask, EssayWorkspace
+from services.essay_service.models import (
+    AIEssayScoreReport,
+    EssayFeedback,
+    EssayRevisionTask,
+    EssayWorkspace,
+)
+from services.profile_assessment_service.models import AIProfileAssessment
+from services.profile_assessment_service.services import compute_profile_snapshot_hash
+from services.subscription_service.models import Plan, Subscription
 from services.university_service.models import (
     SavedUniversity,
     University,
     UniversityFieldVerification,
+    UniversityProgram,
 )
 
 User = get_user_model()
@@ -26,6 +44,47 @@ def create_university(slug="test-university", **overrides):
     }
     defaults.update(overrides)
     return University.objects.create(slug=slug, **defaults)
+
+
+def valid_ai_score_output(**overrides):
+    output = {
+        "overall_essay_readiness": 78,
+        "confidence": "medium",
+        "subscores": {
+            "prompt_fit": 20,
+            "structure": 16,
+            "specificity_evidence": 15,
+            "authenticity": 12,
+            "language_clarity": 8,
+            "word_limit_discipline": 4,
+            "school_program_alignment": 4,
+        },
+        "ai_paraphrase_style_signal": "low",
+        "generic_language_signal": "medium",
+        "unsupported_claims_signal": "low",
+        "strength_flags": ["clear motivation"],
+        "risk_flags": ["needs more evidence"],
+        "approximate_suggestions": ["Add one specific example of impact."],
+        "source_warnings": [],
+    }
+    for key, value in overrides.items():
+        if key == "subscores":
+            output["subscores"].update(value)
+        else:
+            output[key] = value
+    return output
+
+
+class FakeEssayScoringClient:
+    def __init__(self, output=None):
+        self.output = output or valid_ai_score_output()
+        self.calls = 0
+        self.prompts = []
+
+    def score_essay(self, *, system_prompt, user_prompt):
+        self.calls += 1
+        self.prompts.append({"system_prompt": system_prompt, "user_prompt": user_prompt})
+        return self.output
 
 
 class EssayFeedbackEngineTests(APITestCase):
@@ -443,3 +502,264 @@ class EssayWorkspaceApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(response.data["results"], [])
+
+
+@override_settings(
+    AI_ESSAY_SCORING_ENABLED=True,
+    GEMINI_API_KEY="test-gemini-key",
+    AI_ESSAY_DAILY_FREE_LIMIT=1,
+    AI_ESSAY_BASIC_MONTHLY_LIMIT=1,
+    AI_ESSAY_PREMIUM_MONTHLY_LIMIT=1,
+    AI_ESSAY_PRO_MONTHLY_LIMIT=1,
+)
+class AIEssayScoringTests(APITestCase):
+    def setUp(self):
+        self.user1 = User.objects.create_user(
+            username="aiscore1", email="aiscore1@test.com", password="testpass123"
+        )
+        self.user2 = User.objects.create_user(
+            username="aiscore2", email="aiscore2@test.com", password="testpass123"
+        )
+
+    def _essay(self, user=None, **overrides):
+        defaults = {
+            "user": user or self.user1,
+            "title": "Leadership essay",
+            "essay_type": EssayWorkspace.EssayType.SUPPLEMENT,
+            "draft_text": "I built a student library project serving 120 students. " * 20,
+            "word_limit": 650,
+        }
+        defaults.update(overrides)
+        return EssayWorkspace.objects.create(**defaults)
+
+    def _score_with_client(self, essay, client):
+        self.client.force_authenticate(essay.user)
+        with patch("services.essay_service.ai_scoring.GeminiEssayScoringClient", return_value=client):
+            return self.client.post(f"/api/essays/{essay.id}/score/")
+
+    def test_score_requires_authentication(self):
+        essay = self._essay()
+        response = self.client.post(f"/api/essays/{essay.id}/score/")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_user_cannot_score_another_users_essay(self):
+        essay = self._essay(user=self.user1)
+        self.client.force_authenticate(self.user2)
+        response = self.client.post(f"/api/essays/{essay.id}/score/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @override_settings(GEMINI_API_KEY="")
+    def test_missing_api_key_returns_safe_error_without_report(self):
+        essay = self._essay()
+        self.client.force_authenticate(self.user1)
+        response = self.client.post(f"/api/essays/{essay.id}/score/")
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.data["reason"], "ai_unavailable")
+        self.assertIsNone(response.data["score"])
+        self.assertFalse(AIEssayScoreReport.objects.exists())
+
+    def test_verified_prompt_context_is_sent_to_ai_payload(self):
+        university = create_university(slug="verified-prompt-u", name="Verified Prompt U")
+        program = UniversityProgram.objects.create(university=university, name="Computer Science")
+        application = ApplicationTrackerItem.objects.create(
+            user=self.user1,
+            university=university,
+            target_program=program,
+            application_round=ApplicationTrackerItem.ApplicationRound.REGULAR_DECISION,
+        )
+        essay = self._essay(
+            application=application,
+            university=university,
+            prompt_text="Explain why Computer Science at Verified Prompt U fits your goals.",
+            prompt_verification_status=EssayWorkspace.VerificationStatus.VERIFIED,
+            prompt_confidence=EssayWorkspace.Confidence.HIGH,
+            source_url="https://example.com/official-prompt",
+            last_reviewed_at=timezone.now(),
+        )
+        client = FakeEssayScoringClient()
+
+        response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        prompt = client.prompts[0]["user_prompt"]
+        self.assertIn("Verified Prompt U", prompt)
+        self.assertIn("Computer Science", prompt)
+        self.assertIn("Explain why Computer Science", prompt)
+        self.assertEqual(response.data["score"]["subscores"]["school_program_alignment"], 4)
+
+    def test_cached_profile_keywords_are_included_when_available(self):
+        essay = self._essay()
+        AIProfileAssessment.objects.create(
+            user=self.user1,
+            profile_snapshot_hash=compute_profile_snapshot_hash(self.user1),
+            overall_profile_score=72,
+            profile_evidence_score=7,
+            activities_score=6,
+            honors_olympiads_score=5,
+            research_experience_score=8,
+            portfolio_score=7,
+            subject_passion_score=8,
+            curiosity_score=8,
+            originality_score=7,
+            leadership_score=7,
+            community_impact_score=6,
+            research_fit_score=8,
+            olympiads_score=4,
+            confidence=AIProfileAssessment.Confidence.MEDIUM,
+            internal_keywords=["research", "community_impact", "cs_project"],
+            category_rationales={},
+            expires_at=timezone.now() + timedelta(days=30),
+        )
+
+        payload = build_scoring_payload(essay)
+
+        self.assertEqual(payload["profile_keywords"], ["research", "community_impact", "cs_project"])
+        self.assertNotIn("email", str(payload).lower())
+
+    def test_missing_prompt_adds_warning_and_nulls_school_alignment(self):
+        essay = self._essay(prompt_text="", prompt_verification_status=EssayWorkspace.VerificationStatus.MISSING)
+        client = FakeEssayScoringClient(valid_ai_score_output(subscores={"school_program_alignment": 5}))
+
+        response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        score = response.data["score"]
+        self.assertIsNone(score["subscores"]["school_program_alignment"])
+        self.assertIn("School-specific prompt data is not verified.", score["source_warnings"])
+
+    def test_cache_hit_does_not_call_ai_again_or_consume_quota(self):
+        essay = self._essay()
+        client = FakeEssayScoringClient()
+
+        first = self._score_with_client(essay, client)
+        second = self._score_with_client(essay, client)
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED, first.data)
+        self.assertEqual(second.status_code, status.HTTP_200_OK, second.data)
+        self.assertEqual(second.data["reason"], "cached")
+        self.assertTrue(second.data["cached"])
+        self.assertEqual(client.calls, 1)
+        self.assertEqual(AIEssayScoreReport.objects.count(), 1)
+
+    @override_settings(AI_ESSAY_DAILY_FREE_LIMIT=2)
+    def test_changed_essay_calls_ai_again_when_quota_allows(self):
+        essay = self._essay()
+        client = FakeEssayScoringClient()
+
+        first = self._score_with_client(essay, client)
+        essay.draft_text = essay.draft_text + " A revised ending adds one more concrete detail."
+        essay.save(update_fields=["draft_text", "updated_at"])
+        second = self._score_with_client(essay, client)
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED, first.data)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED, second.data)
+        self.assertEqual(client.calls, 2)
+        self.assertEqual(AIEssayScoreReport.objects.count(), 2)
+
+    def test_free_daily_limit_is_enforced_after_changed_essay(self):
+        essay = self._essay()
+        client = FakeEssayScoringClient()
+
+        first = self._score_with_client(essay, client)
+        essay.draft_text = essay.draft_text + " New version."
+        essay.save(update_fields=["draft_text", "updated_at"])
+        second = self._score_with_client(essay, client)
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED, first.data)
+        self.assertEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS, second.data)
+        self.assertEqual(second.data["reason"], "quota_exceeded")
+        self.assertEqual(client.calls, 1)
+
+    def test_paid_monthly_limit_is_enforced(self):
+        Subscription.objects.create(user=self.user1, plan=Plan.STARTER)
+        essay = self._essay()
+        client = FakeEssayScoringClient()
+
+        first = self._score_with_client(essay, client)
+        essay.draft_text = essay.draft_text + " Paid plan revised version."
+        essay.save(update_fields=["draft_text", "updated_at"])
+        second = self._score_with_client(essay, client)
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED, first.data)
+        self.assertEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS, second.data)
+        self.assertEqual(second.data["next_available_at"] is not None, True)
+        self.assertEqual(client.calls, 1)
+
+    def test_invalid_ai_json_is_rejected_without_quota_consumption(self):
+        essay = self._essay()
+        client = FakeEssayScoringClient({"overall_essay_readiness": 70})
+
+        response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY, response.data)
+        self.assertEqual(response.data["reason"], "validation_failed")
+        self.assertEqual(AIEssayScoreReport.objects.count(), 0)
+
+    def test_out_of_range_scores_are_rejected(self):
+        essay = self._essay()
+        client = FakeEssayScoringClient(valid_ai_score_output(subscores={"prompt_fit": 99}))
+
+        response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY, response.data)
+        self.assertEqual(response.data["reason"], "validation_failed")
+
+    def test_suggestions_limits_are_enforced(self):
+        payload = build_scoring_payload(self._essay())
+        too_many = valid_ai_score_output(
+            approximate_suggestions=["one", "two", "three", "four"]
+        )
+        too_long = valid_ai_score_output(
+            approximate_suggestions=[
+                "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty one"
+            ]
+        )
+
+        with self.assertRaises(EssayScoringValidationError):
+            validate_and_normalize_output(too_many, payload=payload)
+        with self.assertRaises(EssayScoringValidationError):
+            validate_and_normalize_output(too_long, payload=payload)
+
+    def test_forbidden_outcome_language_and_rewrite_keys_are_rejected(self):
+        payload = build_scoring_payload(self._essay())
+        forbidden = valid_ai_score_output(risk_flags=["This improves admission chance."])
+        rewrite = valid_ai_score_output(rewritten_text="Here is a replacement paragraph.")
+
+        with self.assertRaises(EssayScoringValidationError):
+            validate_and_normalize_output(forbidden, payload=payload)
+        with self.assertRaises(EssayScoringValidationError):
+            validate_and_normalize_output(rewrite, payload=payload)
+
+    def test_missing_draft_returns_safe_missing_text_reason(self):
+        essay = self._essay(draft_text="")
+        self.client.force_authenticate(self.user1)
+        response = self.client.post(f"/api/essays/{essay.id}/score/")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["reason"], "missing_essay_text")
+        self.assertIsNone(response.data["score"])
+
+    def test_score_history_and_latest_are_self_only(self):
+        essay = self._essay()
+        client = FakeEssayScoringClient()
+        response = self._score_with_client(essay, client)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        own_scores = self.client.get(f"/api/essays/{essay.id}/scores/")
+        own_latest = self.client.get(f"/api/essays/{essay.id}/score/latest/")
+        self.assertEqual(own_scores.status_code, status.HTTP_200_OK, own_scores.data)
+        self.assertEqual(len(own_scores.data["results"]), 1)
+        self.assertEqual(own_latest.status_code, status.HTTP_200_OK, own_latest.data)
+        self.assertIsNotNone(own_latest.data["score"])
+
+        self.client.force_authenticate(self.user2)
+        other_scores = self.client.get(f"/api/essays/{essay.id}/scores/")
+        other_latest = self.client.get(f"/api/essays/{essay.id}/score/latest/")
+        self.assertEqual(other_scores.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(other_latest.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_raw_essay_hash_changes_when_text_changes(self):
+        first = compute_essay_text_hash("Same idea")
+        second = compute_essay_text_hash("Same idea with more detail")
+        self.assertNotEqual(first, second)

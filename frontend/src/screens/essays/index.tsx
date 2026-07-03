@@ -7,6 +7,8 @@ import {
   ESSAY_PRIORITIES,
   ESSAY_STATUSES,
   EssayCard,
+  type AIEssayScoreReason,
+  type AIEssayScoreReport,
   type EssayRevisionTask,
   type EssayWorkspace
 } from "@/entities/essay";
@@ -19,6 +21,8 @@ import {
   generateEssayFeedbackRequest,
   generateEssaySuggestionsRequest,
   getEssaysRequest,
+  getLatestEssayScoreRequest,
+  scoreEssayRequest,
   updateEssayRequest,
   updateEssayRevisionTaskRequest
 } from "@/features/essays";
@@ -110,6 +114,13 @@ export function EssaysScreen() {
   const [draftText, setDraftText] = useState("");
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
+  const [latestScore, setLatestScore] = useState<AIEssayScoreReport | null>(null);
+  const [isScoringEssay, setIsScoringEssay] = useState(false);
+  const [scoreNotice, setScoreNotice] = useState<{
+    reason: AIEssayScoreReason;
+    quotaRemaining: number | null;
+    nextAvailableAt: string | null;
+  } | null>(null);
   const [actionError, setActionError] = useState(false);
   const [pendingTaskId, setPendingTaskId] = useState<number | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -164,6 +175,25 @@ export function EssaysScreen() {
     // every background update to the selected essay (which would clobber
     // unsaved in-progress edits).
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEssayId]);
+
+  useEffect(() => {
+    setScoreNotice(null);
+    if (!selectedEssayId) {
+      setLatestScore(null);
+      return;
+    }
+    let cancelled = false;
+    getLatestEssayScoreRequest(selectedEssayId)
+      .then((response) => {
+        if (!cancelled) setLatestScore(response.score);
+      })
+      .catch(() => {
+        if (!cancelled) setLatestScore(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedEssayId]);
 
   function updateEssayInList(updated: EssayWorkspace) {
@@ -269,6 +299,31 @@ export function EssaysScreen() {
       setActionError(true);
     } finally {
       setIsGeneratingFeedback(false);
+    }
+  }
+
+  async function handleScoreEssay() {
+    if (!selectedEssay) return;
+    setIsScoringEssay(true);
+    setActionError(false);
+    setScoreNotice(null);
+    try {
+      if (draftText !== selectedEssay.draft_text) {
+        await updateEssayRequest(selectedEssay.id, { draft_text: draftText });
+      }
+      const response = await scoreEssayRequest(selectedEssay.id);
+      setScoreNotice({
+        reason: response.reason,
+        quotaRemaining: response.quota_remaining,
+        nextAvailableAt: response.next_available_at
+      });
+      if (response.score) {
+        setLatestScore(response.score);
+      }
+    } catch {
+      setActionError(true);
+    } finally {
+      setIsScoringEssay(false);
     }
   }
 
@@ -810,6 +865,16 @@ export function EssaysScreen() {
                         : t("essays.actions.ruleBasedCheck")}
                     </Button>
                     <Button
+                      disabled={isScoringEssay}
+                      onClick={() => void handleScoreEssay()}
+                      size="sm"
+                      type="button"
+                      variant="secondary"
+                    >
+                      <Sparkles aria-hidden className="mr-1.5 size-3.5" />
+                      {isScoringEssay ? t("essays.actions.scoring") : t("essays.actions.getScore")}
+                    </Button>
+                    <Button
                       onClick={() => void handleStatusChange("ready")}
                       size="sm"
                       type="button"
@@ -873,6 +938,147 @@ export function EssaysScreen() {
                         </ul>
                       </div>
                     ) : null}
+                  </Card>
+                ) : null}
+
+                {scoreNotice && scoreNotice.reason !== "scored" && scoreNotice.reason !== "cached" ? (
+                  <Card className="border-warning/35 bg-warning/10">
+                    <p className="text-sm text-warning" role="alert">
+                      {scoreNotice.reason === "quota_exceeded"
+                        ? t("essays.score.quotaExceeded", {
+                            date: scoreNotice.nextAvailableAt
+                              ? formatDate(scoreNotice.nextAvailableAt, locale)
+                              : ""
+                          })
+                        : scoreNotice.reason === "ai_unavailable"
+                          ? t("essays.score.unavailable")
+                          : scoreNotice.reason === "missing_essay_text"
+                            ? t("essays.score.missingText")
+                            : t("essays.score.validationFailed")}
+                    </p>
+                  </Card>
+                ) : null}
+
+                {latestScore ? (
+                  <Card className="bg-elevated/45 p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-semibold">{t("essays.score.title")}</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {scoreNotice?.reason === "cached"
+                            ? t("essays.score.cachedNotice")
+                            : t("essays.score.notice")}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-sm border px-3 py-1 text-sm font-semibold">
+                          {t("essays.score.overall", {
+                            score: latestScore.overall_essay_readiness
+                          })}
+                        </span>
+                        <Badge className="text-xs">
+                          {t(`essays.confidence.${latestScore.confidence}` as TranslationKey)}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {scoreNotice?.quotaRemaining !== null && scoreNotice?.quotaRemaining !== undefined ? (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {t("essays.score.quotaRemaining", { count: scoreNotice.quotaRemaining })}
+                      </p>
+                    ) : null}
+
+                    <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div>
+                        <dt className="text-xs text-muted-foreground">{t("essays.score.promptFit")}</dt>
+                        <dd className="text-lg font-semibold">{latestScore.subscores.prompt_fit}/25</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">{t("essays.score.structure")}</dt>
+                        <dd className="text-lg font-semibold">{latestScore.subscores.structure}/20</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          {t("essays.score.specificityEvidence")}
+                        </dt>
+                        <dd className="text-lg font-semibold">
+                          {latestScore.subscores.specificity_evidence}/20
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">{t("essays.score.authenticity")}</dt>
+                        <dd className="text-lg font-semibold">{latestScore.subscores.authenticity}/15</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          {t("essays.score.languageClarity")}
+                        </dt>
+                        <dd className="text-lg font-semibold">{latestScore.subscores.language_clarity}/10</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          {t("essays.score.wordLimitDiscipline")}
+                        </dt>
+                        <dd className="text-lg font-semibold">
+                          {latestScore.subscores.word_limit_discipline !== null
+                            ? `${latestScore.subscores.word_limit_discipline}/5`
+                            : t("essays.score.notApplicable")}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          {t("essays.score.schoolProgramAlignment")}
+                        </dt>
+                        <dd className="text-lg font-semibold">
+                          {latestScore.subscores.school_program_alignment !== null
+                            ? `${latestScore.subscores.school_program_alignment}/5`
+                            : t("essays.score.notApplicable")}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">{t("essays.score.styleSignal")}</dt>
+                        <dd className="text-lg font-semibold">
+                          {t(
+                            `essays.score.signal.${latestScore.ai_paraphrase_style_signal}` as TranslationKey
+                          )}
+                        </dd>
+                      </div>
+                    </dl>
+
+                    {latestScore.source_warnings.length > 0 ? (
+                      <div className="mt-4">
+                        <h4 className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                          {t("essays.score.sourceWarnings")}
+                        </h4>
+                        <ul className="mt-2 space-y-1 text-sm text-warning">
+                          {latestScore.source_warnings.map((warning) => (
+                            <li key={warning}>{warning}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {latestScore.approximate_suggestions.length > 0 ? (
+                      <div className="mt-4">
+                        <h4 className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                          {t("essays.score.suggestions")}
+                        </h4>
+                        <ul className="mt-2 space-y-1.5 text-sm">
+                          {latestScore.approximate_suggestions.map((suggestion) => (
+                            <li className="flex items-start gap-2" key={suggestion}>
+                              <Sparkles aria-hidden className="mt-0.5 size-4 shrink-0 text-accent" />
+                              {suggestion}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    <ul className="mt-4 space-y-1 text-xs text-muted-foreground">
+                      {latestScore.disclaimers.map((disclaimer) => (
+                        <li key={disclaimer}>{disclaimer}</li>
+                      ))}
+                    </ul>
                   </Card>
                 ) : null}
 

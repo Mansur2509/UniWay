@@ -155,4 +155,62 @@ export const ESSAY_STATUSES: EssayStatus[] = [
 
 export const ESSAY_PRIORITIES: EssayPriority[] = ["low", "medium", "high", "urgent"];
 
+export type AIEssayScoreConfidence = "low" | "medium" | "high";
+
+export type AIEssayScoreWordLimitStatus = "under" | "within" | "near_limit" | "over" | "unknown";
+
+export type AIEssayScoreStyleSignal = "low" | "medium" | "high" | "inconclusive";
+
+export type AIEssayScoreGenericLanguageSignal = "low" | "medium" | "high";
+
+export type AIEssayScoreClaimsSignal = "low" | "medium" | "high" | "inconclusive";
+
+export type AIEssayScoreSubscores = {
+  prompt_fit: number;
+  structure: number;
+  specificity_evidence: number;
+  authenticity: number;
+  language_clarity: number;
+  word_limit_discipline: number | null;
+  school_program_alignment: number | null;
+};
+
+export type AIEssayScoreReport = {
+  id: number;
+  essay: number;
+  rubric_version: string;
+  overall_essay_readiness: number;
+  confidence: AIEssayScoreConfidence;
+  verified_context_used: boolean;
+  subscores: AIEssayScoreSubscores;
+  nullable_scores: { school_program_alignment: number | null };
+  word_count: number;
+  word_limit_status: AIEssayScoreWordLimitStatus;
+  ai_paraphrase_style_signal: AIEssayScoreStyleSignal;
+  generic_language_signal: AIEssayScoreGenericLanguageSignal;
+  unsupported_claims_signal: AIEssayScoreClaimsSignal;
+  strength_flags: string[];
+  risk_flags: string[];
+  approximate_suggestions: string[];
+  source_warnings: string[];
+  disclaimers: string[];
+  created_at: string;
+};
+
+export type AIEssayScoreReason =
+  | "cached"
+  | "scored"
+  | "quota_exceeded"
+  | "ai_unavailable"
+  | "validation_failed"
+  | "missing_essay_text";
+
+export type AIEssayScoreResponse = {
+  reason: AIEssayScoreReason;
+  cached: boolean;
+  quota_remaining: number | null;
+  next_available_at: string | null;
+  score: AIEssayScoreReport | null;
+};
+
 export { EssayCard } from "./ui/essay-card";

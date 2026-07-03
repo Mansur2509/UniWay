@@ -3,16 +3,28 @@ from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 
+from .ai_scoring import score_essay as run_essay_scoring
 from .feedback_engine import generate_feedback
 from .models import EssayFeedback, EssayRevisionTask, EssayWorkspace
 from .serializers import (
+    AIEssayScoreReportSerializer,
     EssayFeedbackSerializer,
     EssayRevisionTaskCreateSerializer,
     EssayRevisionTaskSerializer,
     EssayWorkspaceSerializer,
 )
 from .suggestion_engine import generate_essay_suggestions
+
+AI_SCORE_REASON_STATUS = {
+    "cached": status.HTTP_200_OK,
+    "scored": status.HTTP_201_CREATED,
+    "quota_exceeded": status.HTTP_429_TOO_MANY_REQUESTS,
+    "ai_unavailable": status.HTTP_503_SERVICE_UNAVAILABLE,
+    "validation_failed": status.HTTP_502_BAD_GATEWAY,
+    "missing_essay_text": status.HTTP_400_BAD_REQUEST,
+}
 
 
 class EssayWorkspaceViewSet(viewsets.ModelViewSet):
@@ -23,8 +35,14 @@ class EssayWorkspaceViewSet(viewsets.ModelViewSet):
         return (
             EssayWorkspace.objects.filter(user=self.request.user)
             .select_related("university", "application", "application__university")
-            .prefetch_related("feedback_entries", "revision_tasks")
+            .prefetch_related("feedback_entries", "revision_tasks", "ai_score_reports")
         )
+
+    def get_throttles(self):
+        if self.action == "score":
+            self.throttle_scope = "ai_essay_score"
+            return [ScopedRateThrottle()]
+        return super().get_throttles()
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -98,6 +116,34 @@ class EssayWorkspaceViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_201_CREATED,
         )
+
+    @action(detail=True, methods=["post"], url_path="score")
+    def score(self, request, pk=None):
+        essay = self.get_object()
+        result = run_essay_scoring(essay, user=request.user)
+        report = result["report"]
+        return Response(
+            {
+                "reason": result["reason"],
+                "cached": result["cached"],
+                "quota_remaining": result["quota_remaining"],
+                "next_available_at": result["next_available_at"],
+                "score": AIEssayScoreReportSerializer(report).data if report else None,
+            },
+            status=AI_SCORE_REASON_STATUS[result["reason"]],
+        )
+
+    @action(detail=True, methods=["get"], url_path="scores")
+    def scores(self, request, pk=None):
+        essay = self.get_object()
+        reports = essay.ai_score_reports.all()
+        return Response({"results": AIEssayScoreReportSerializer(reports, many=True).data})
+
+    @action(detail=True, methods=["get"], url_path="score/latest")
+    def score_latest(self, request, pk=None):
+        essay = self.get_object()
+        latest = essay.ai_score_reports.first()
+        return Response({"score": AIEssayScoreReportSerializer(latest).data if latest else None})
 
     @action(detail=True, methods=["post"], url_path="revision-tasks")
     def create_revision_task(self, request, pk=None):

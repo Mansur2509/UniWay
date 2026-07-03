@@ -695,6 +695,9 @@ All moderation endpoints require an admin role. A moderator cannot approve or re
 | POST | `/api/essays/generate-suggestions/` | Authenticated, self-only | Create idempotent source-aware suggested essay drafts from caller's shortlist/tracked applications |
 | GET/PATCH/DELETE | `/api/essays/{id}/` | Authenticated, self-only | Read/update/delete an essay workspace |
 | GET/POST | `/api/essays/{id}/feedback/` | Authenticated, self-only | Read latest feedback, or generate new rule-based feedback (creates `EssayFeedback` + revision tasks) |
+| POST | `/api/essays/{id}/score/` | Authenticated, self-only, AI quota scoped | Score an essay with the backend-only AI essay-readiness engine, or return a cached/safe quota/unavailable state |
+| GET | `/api/essays/{id}/scores/` | Authenticated, self-only | List the caller's stored AI essay score reports for this essay |
+| GET | `/api/essays/{id}/score/latest/` | Authenticated, self-only | Return the latest stored AI essay score report for this essay, or `null` |
 | POST | `/api/essays/{id}/revision-tasks/` | Authenticated, self-only | Add a manual revision task to an essay |
 | GET/PATCH | `/api/essays/revision-tasks/{id}/` | Authenticated, self-only | Read/update a revision task's title/description/category/status |
 | GET/POST | `/api/applications/` | Authenticated, self-only | List caller's application tracker items or start tracking a university |
@@ -844,6 +847,57 @@ The generator additionally reads (read-only) the caller's own `EssayWorkspace` r
 `POST /api/essays/generate-suggestions/` reads only the caller's own shortlisted universities and tracked applications, then creates missing `EssayWorkspace` rows with stable `suggestion_key` values. It creates a single Common App planning draft plus per-university/application supplement and scholarship verification drafts when the stored data supports those signals. Official prompts are never invented: if `essay_requirements` is missing or lacks a verification source, the draft is labeled `missing`/`needs_verification` and asks the student to check the official application portal. Existing suggestions are returned as `existing_count`; skipped or edited drafts are never overwritten or duplicated.
 
 `POST /api/essays/{id}/feedback/` runs the deterministic rule engine in `services/essay_service/feedback_engine.py` (word count, word-limit status, generic-language detection, paragraph structure, specificity, prompt-fit for why-school/why-major types, sentence-length grammar proxy) and returns `{"detail": "", "feedback": EssayFeedback, "essay": EssayWorkspace}`. It also creates/refreshes `EssayRevisionTask` rows: an existing `todo` task in the same `category` is updated in place rather than duplicated, while `completed`/`skipped` tasks are left untouched as history. No endpoint generates, writes, or rewrites essay text — every response is feedback and checklist items only.
+
+`POST /api/essays/{id}/score/` runs the backend-only AI essay-readiness scorer. The request body is empty; the backend reads only the caller-owned `EssayWorkspace`, its linked application/university/program when present, verified prompt text/source metadata when present, word count/limit, and up to 10 cached profile-assessment keywords when a current profile assessment already exists. It does not send passwords, payment data, unrelated profile data, other essays, the full university database, or provider keys to the frontend.
+
+The score response is:
+
+```json
+{
+  "reason": "scored",
+  "cached": false,
+  "quota_remaining": 0,
+  "next_available_at": null,
+  "score": {
+    "id": 1,
+    "essay": 9,
+    "rubric_version": "essay_numeric_v1",
+    "overall_essay_readiness": 78,
+    "confidence": "medium",
+    "verified_context_used": true,
+    "subscores": {
+      "prompt_fit": 20,
+      "structure": 16,
+      "specificity_evidence": 15,
+      "authenticity": 12,
+      "language_clarity": 8,
+      "word_limit_discipline": 4,
+      "school_program_alignment": 4
+    },
+    "nullable_scores": {"school_program_alignment": 4},
+    "word_count": 512,
+    "word_limit_status": "within",
+    "ai_paraphrase_style_signal": "low",
+    "generic_language_signal": "medium",
+    "unsupported_claims_signal": "low",
+    "strength_flags": ["clear motivation"],
+    "risk_flags": ["needs more evidence"],
+    "approximate_suggestions": ["Add one specific example of impact."],
+    "source_warnings": [],
+    "disclaimers": [
+      "This is an automated essay-readiness estimate, not an admissions decision or guarantee.",
+      "Scores are based only on the essay text and verified EduVerse context available.",
+      "AI/paraphrase style signal is not proof of AI use.",
+      "For important submissions, verify requirements yourself and ideally review with a qualified human reviewer."
+    ],
+    "created_at": "2026-07-03T00:00:00Z"
+  }
+}
+```
+
+`reason` is one of `cached`, `scored`, `quota_exceeded`, `ai_unavailable`, `validation_failed`, or `missing_essay_text`. Cached results are keyed by `essay_text_hash + context_hash` and do not consume quota or call the provider. Failed provider calls and invalid provider JSON do not consume quota. Free users get 1 new score per day; Basic/Starter, Premium/Growth, and Pro/Premium-style tiers map to 10, 30, and 100 new scores per month by environment-configurable settings.
+
+The provider output must be strict JSON with only the documented fields. Suggestions are capped at 3 items and 20 words each, and are high-level revision guidance only. The backend rejects output that attempts to include rewritten essay text, generated drafts, unexpected fields, out-of-range scores, or admissions-outcome promises. If verified school/prompt context is missing, `school_program_alignment` is stored as `null`, confidence is lower, and a source warning is included rather than inventing requirements.
 
 ## Application tracker response shapes
 

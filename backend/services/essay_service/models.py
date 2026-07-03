@@ -173,3 +173,99 @@ class EssayRevisionTask(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+
+class AIEssayScoreReport(models.Model):
+    """Persisted result of one AI essay-scoring call or cache hit lookup."""
+
+    class Confidence(models.TextChoices):
+        LOW = "low", "Low"
+        MEDIUM = "medium", "Medium"
+        HIGH = "high", "High"
+
+    class WordLimitStatus(models.TextChoices):
+        UNDER = "under", "Under"
+        WITHIN = "within", "Within"
+        NEAR_LIMIT = "near_limit", "Near limit"
+        OVER = "over", "Over"
+        UNKNOWN = "unknown", "Unknown"
+
+    class StyleSignal(models.TextChoices):
+        LOW = "low", "Low"
+        MEDIUM = "medium", "Medium"
+        HIGH = "high", "High"
+        INCONCLUSIVE = "inconclusive", "Inconclusive"
+
+    class ClaimsSignal(models.TextChoices):
+        LOW = "low", "Low"
+        MEDIUM = "medium", "Medium"
+        HIGH = "high", "High"
+        INCONCLUSIVE = "inconclusive", "Inconclusive"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="ai_essay_score_reports"
+    )
+    essay = models.ForeignKey(
+        EssayWorkspace, on_delete=models.CASCADE, related_name="ai_score_reports"
+    )
+    application = models.ForeignKey(
+        "application_service.ApplicationTrackerItem",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ai_essay_score_reports",
+    )
+    university = models.ForeignKey(
+        "university_service.University",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ai_essay_score_reports",
+    )
+    program = models.ForeignKey(
+        "university_service.UniversityProgram",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ai_essay_score_reports",
+    )
+    essay_text_hash = models.CharField(max_length=64, db_index=True)
+    context_hash = models.CharField(max_length=64, db_index=True)
+    rubric_version = models.CharField(max_length=50, default="essay_numeric_v1")
+    model_provider = models.CharField(max_length=50, default="gemini")
+    model_name = models.CharField(max_length=100)
+    raw_output_json = models.JSONField(default=dict)
+    overall_essay_readiness = models.PositiveSmallIntegerField()
+    prompt_fit = models.PositiveSmallIntegerField()
+    structure = models.PositiveSmallIntegerField()
+    specificity_evidence = models.PositiveSmallIntegerField()
+    authenticity = models.PositiveSmallIntegerField()
+    language_clarity = models.PositiveSmallIntegerField()
+    word_limit_discipline = models.PositiveSmallIntegerField(null=True, blank=True)
+    school_program_alignment = models.PositiveSmallIntegerField(null=True, blank=True)
+    confidence = models.CharField(max_length=10, choices=Confidence.choices)
+    verified_context_used = models.BooleanField(default=False)
+    word_count = models.PositiveIntegerField()
+    word_limit_status = models.CharField(max_length=20, choices=WordLimitStatus.choices)
+    ai_paraphrase_style_signal = models.CharField(max_length=20, choices=StyleSignal.choices)
+    generic_language_signal = models.CharField(
+        max_length=10,
+        choices=[("low", "Low"), ("medium", "Medium"), ("high", "High")],
+    )
+    unsupported_claims_signal = models.CharField(max_length=20, choices=ClaimsSignal.choices)
+    strength_flags = models.JSONField(default=list, blank=True)
+    risk_flags = models.JSONField(default=list, blank=True)
+    approximate_suggestions = models.JSONField(default=list, blank=True)
+    source_warnings = models.JSONField(default=list, blank=True)
+    disclaimers = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=("essay", "essay_text_hash", "context_hash")),
+            models.Index(fields=("user", "created_at")),
+        ]
+
+    def __str__(self) -> str:
+        return f"AI score for essay {self.essay_id} ({self.overall_essay_readiness})"

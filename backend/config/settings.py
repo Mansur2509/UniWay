@@ -140,6 +140,7 @@ REST_FRAMEWORK = {
         "anon": "60/hour",
         "user": "500/hour",
         "ai": "20/day",
+        "ai_essay_score": "30/hour",
         "auth_login": "10/hour",
         "auth_register": "5/hour",
         "event_registration": "30/hour",
@@ -181,3 +182,16 @@ AI_PROFILE_ASSESSMENT_ENABLED = (
 AI_PROFILE_ASSESSMENT_DAILY_LIMIT = int(
     os.getenv("AI_PROFILE_ASSESSMENT_DAILY_LIMIT", "1")
 )
+
+# Essay scoring reuses GEMINI_API_KEY above; everything else is scoped to its
+# own env vars so quota/model/timeout tuning never collides with profile
+# assessment.
+AI_ESSAY_SCORING_ENABLED = os.getenv("AI_ESSAY_SCORING_ENABLED", "false").lower() == "true"
+AI_ESSAY_MODEL = os.getenv("AI_ESSAY_MODEL", "gemini-flash-latest")
+AI_ESSAY_TIMEOUT_SECONDS = int(os.getenv("AI_ESSAY_TIMEOUT_SECONDS", "30"))
+AI_ESSAY_MAX_OUTPUT_TOKENS = int(os.getenv("AI_ESSAY_MAX_OUTPUT_TOKENS", "1200"))
+AI_ESSAY_TEMPERATURE = float(os.getenv("AI_ESSAY_TEMPERATURE", "0"))
+AI_ESSAY_DAILY_FREE_LIMIT = int(os.getenv("AI_ESSAY_DAILY_FREE_LIMIT", "1"))
+AI_ESSAY_BASIC_MONTHLY_LIMIT = int(os.getenv("AI_ESSAY_BASIC_MONTHLY_LIMIT", "10"))
+AI_ESSAY_PREMIUM_MONTHLY_LIMIT = int(os.getenv("AI_ESSAY_PREMIUM_MONTHLY_LIMIT", "30"))
+AI_ESSAY_PRO_MONTHLY_LIMIT = int(os.getenv("AI_ESSAY_PRO_MONTHLY_LIMIT", "100"))

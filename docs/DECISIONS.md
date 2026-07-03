@@ -396,3 +396,16 @@ EduVerse can use AI to summarize a student's saved admissions profile, but it mu
 The snapshot hash is based on meaningful admissions data rather than account identifiers. The AI input excludes passwords, payment data, email, phone, Telegram username, proof URLs, and raw essay text. The stored assessment includes public scores and guidance plus private internal keywords/rationales for later non-AI ranking logic; student endpoints expose only public fields. The Gemini key remains backend-only, controlled by environment variables, and the public endpoints return safe unavailable/cached/daily-limit states instead of leaking provider failures.
 
 Profile reassessment is limited to once per day when the profile changed; unchanged profiles return the cached record. Admins can force reassessment for operational review. University fit may blend the cached `profile_evidence_score` into the low-weight optional-evidence component, but fit never calls AI directly, academics/tests remain higher priority, missing data lowers confidence, and all copy stays in fit/readiness language rather than chance, odds, or guarantees.
+
+## ADR-040: AI essay scoring is rubric-only, cached, and non-ghostwriting
+
+- **Status:** Accepted
+- **Date:** 2026-07-03
+
+EduVerse may use AI to score a saved essay draft against a fixed admissions-readiness rubric, but it must not write or rewrite application essays. The AI essay scorer therefore runs only on the backend, only for the caller's own `EssayWorkspace`, and returns numeric readiness/subscores, flags, source warnings, and short high-level suggestions. The response never contains replacement paragraphs, generated drafts, or essay text written for the student.
+
+The provider input is intentionally narrow: the current essay text, essay metadata, word count/limit, linked university/application/program names when present, verified official prompt text/source metadata when present, rubric version, and a small set of cached profile-assessment keywords if already available. It does not send credentials, payment data, unrelated profile data, other essays, or the university database. API keys remain backend environment variables.
+
+Results are cached by `essay_text_hash + context_hash` so unchanged essays/context return the stored score without calling the provider or consuming quota. New uncached scoring is quota-controlled: free users get one new score per day, while paid tiers use monthly limits configured in settings. Provider failures and invalid JSON return safe structured reasons and do not consume quota.
+
+The backend treats provider output as untrusted. It validates an allowlisted JSON shape, score ranges, enum values, max-three/max-20-word suggestions, school/program alignment gating, and source warnings. If verified school/prompt data is missing, the school/program alignment score is stored as `null` and the warning is explicit instead of inventing context. Any output that tries to include generated/replaced essay text, unexpected fields, or admissions-outcome promises is rejected.

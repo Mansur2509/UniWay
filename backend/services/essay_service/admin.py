@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import EssayFeedback, EssayRevisionTask, EssayWorkspace
+from .models import AIEssayScoreReport, EssayFeedback, EssayRevisionTask, EssayWorkspace
 
 
 class EssayRevisionTaskInline(admin.TabularInline):
@@ -24,3 +24,19 @@ class EssayFeedbackAdmin(admin.ModelAdmin):
 
 
 admin.site.register(EssayRevisionTask)
+
+
+@admin.register(AIEssayScoreReport)
+class AIEssayScoreReportAdmin(admin.ModelAdmin):
+    list_display = (
+        "essay",
+        "user",
+        "overall_essay_readiness",
+        "confidence",
+        "verified_context_used",
+        "model_name",
+        "created_at",
+    )
+    list_filter = ("confidence", "verified_context_used", "model_name")
+    search_fields = ("essay__title", "user__email")
+    readonly_fields = [field.name for field in AIEssayScoreReport._meta.fields]
