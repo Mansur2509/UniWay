@@ -506,10 +506,17 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
     user_prompt = build_user_prompt(payload)
     try:
         raw_output = client.score_essay(system_prompt=ESSAY_SCORING_SYSTEM_PROMPT, user_prompt=user_prompt)
-    except AIProviderError:
-        # Never log the essay text, the prompt, or the API key -- only that a
-        # call failed and for which essay id.
-        logger.warning("Essay scoring AI call failed for essay_id=%s", essay.id)
+    except AIProviderError as error:
+        # Never log the essay text, the prompt, or the API key -- only enough
+        # structured, sanitized detail (status code + truncated provider error
+        # body) to diagnose a production failure from Render logs.
+        logger.warning(
+            "Gemini provider error feature=essay_scoring model=%s status=%s exception=%s error=%s",
+            model_name,
+            getattr(error, "status_code", None),
+            type(error).__name__,
+            getattr(error, "error_body", "")[:1000],
+        )
         return {
             "reason": "ai_unavailable",
             "cached": False,

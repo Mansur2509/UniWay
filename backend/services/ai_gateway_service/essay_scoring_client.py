@@ -68,6 +68,14 @@ class GeminiEssayScoringClient:
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
                 data = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            try:
+                body = error.read().decode("utf-8", errors="replace")
+            except Exception:
+                body = ""
+            raise AIProviderError(
+                "Gemini essay scoring request failed.", status_code=error.code, error_body=body
+            ) from error
         except (TimeoutError, urllib.error.URLError, json.JSONDecodeError) as error:
             raise AIProviderError("Gemini essay scoring request failed.") from error
 

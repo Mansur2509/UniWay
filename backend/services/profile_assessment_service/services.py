@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -32,6 +33,8 @@ from services.user_profile_service.models import (
 from services.user_profile_service.services import ensure_profile_records
 
 from .models import AIProfileAssessment
+
+logger = logging.getLogger(__name__)
 
 ASSESSMENT_VERSION = "2026-07-profile-v1"
 ASSESSMENT_CACHE_DAYS = 365
@@ -664,7 +667,18 @@ def run_profile_assessment(user, *, force: bool = False, client=None) -> Assessm
                 settings.AI_PROFILE_ASSESSMENT_MODEL,
             ),
         )
-    except (AIProviderError, AIProviderUnavailable):
+    except (AIProviderError, AIProviderUnavailable) as error:
+        # Never log the profile input, the prompt, or the API key -- only
+        # enough structured, sanitized detail (status code + truncated
+        # provider error body) to diagnose a production failure from Render
+        # logs.
+        logger.warning(
+            "Gemini provider error feature=profile_assessment model=%s status=%s exception=%s error=%s",
+            getattr(assessment_client, "model_name", settings.AI_PROFILE_ASSESSMENT_MODEL),
+            getattr(error, "status_code", None),
+            type(error).__name__,
+            getattr(error, "error_body", "")[:1000],
+        )
         return AssessmentRunResult(
             assessment=latest,
             cached=False,
