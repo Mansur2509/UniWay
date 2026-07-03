@@ -1,3 +1,8 @@
+import type { CurriculumRigor, MajorCurriculumFit } from "@/entities/profile";
+
+export type CurriculumRigorSummary = CurriculumRigor;
+export type MajorCurriculumFitSummary = MajorCurriculumFit;
+
 export type InstitutionType = "public" | "private" | "";
 
 export type UniversityProgram = {
@@ -33,6 +38,20 @@ export type UniversityDataSourceItem = {
 };
 
 export type VerificationStatus = "verified" | "partial" | "estimated";
+
+export type BudgetComparisonStatus =
+  | "within_budget"
+  | "above_budget"
+  | "needs_aid"
+  | "unknown_budget"
+  | "cost_unavailable";
+
+export type BudgetComparison = {
+  status: BudgetComparisonStatus;
+  cost_usd: string | number | null;
+  cost_confidence: "" | "low" | "medium" | "high" | null;
+  budget_usd: string | number | null;
+};
 
 export type UniversityFieldVerification = {
   field_name: string;
@@ -93,6 +112,7 @@ export type UniversitySummary = {
   qs_ranking: number | null;
   qs_ranking_year: number | null;
   is_shortlisted: boolean;
+  budget_comparison: BudgetComparison | null;
   program_display_names?: string[];
   programs: UniversityProgram[];
   requirements: UniversityRequirementItem[];
@@ -118,6 +138,8 @@ export type UniversityFilters = {
   sat_average__gte?: string;
   sat_average__lte?: string;
   gpa_average__lte?: string;
+  currency_conversion_confidence?: string;
+  cost_status?: "within_budget" | "above_budget" | "needs_aid";
 };
 
 export type FitCategory = "dream" | "reach" | "competitive" | "target" | "safety";
@@ -177,6 +199,16 @@ export type UniversityFitSourceNote = {
   is_official: boolean;
 };
 
+export type UniversityFitSubscores = {
+  academic_fit: number;
+  program_fit: number;
+  profile_depth_fit: number;
+  essay_readiness: number;
+  timeline_readiness: number;
+  cost_context: number;
+  data_confidence: "low" | "medium" | "high";
+};
+
 export type UniversityFitAnalysis = {
   fit_score: number;
   category: FitCategory | null;
@@ -187,6 +219,7 @@ export type UniversityFitAnalysis = {
   essay_subscore: number;
   deadline_subscore: number;
   cost_subscore: number;
+  subscores: UniversityFitSubscores;
   strengths: FitStrengthCode[];
   risks: FitRiskCode[];
   missing_fields: FitMissingFieldCode[];
@@ -203,6 +236,8 @@ export type UniversityFitAnalysis = {
     note: string;
     curriculum_type: string;
     curriculum_country: string;
+    curriculum_rigor: CurriculumRigorSummary;
+    major_curriculum_fit: MajorCurriculumFitSummary;
   };
   cost_context: {
     tuition_original_amount: string | number | null;
@@ -216,6 +251,7 @@ export type UniversityFitAnalysis = {
     conversion_source: string;
     conversion_confidence: "" | "low" | "medium" | "high";
     cost_notes: string;
+    budget_comparison: BudgetComparison;
   };
   source_notes: UniversityFitSourceNote[];
   disclaimer: string;

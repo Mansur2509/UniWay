@@ -1,6 +1,24 @@
 import type { UserRole } from "@/entities/user";
 
 export type ScholarshipNeed = "yes" | "no" | "unsure";
+export type BudgetFlexibility = "strict" | "flexible" | "unknown";
+export type CourseRigorLevel = "standard" | "advanced" | "highly_advanced" | "unknown";
+
+export type CurriculumRigor = {
+  curriculum_context: string;
+  rigor_score: number;
+  rigor_confidence: "low" | "medium" | "high";
+  missing_curriculum_data: string[];
+  stem_rigor_signal: "unknown" | "low" | "medium" | "high";
+  humanities_rigor_signal: "unknown" | "low" | "medium" | "high";
+  business_economics_rigor_signal: "unknown" | "low" | "medium" | "high";
+};
+
+export type MajorCurriculumFit = {
+  preparation_signal: "unknown" | "limited_context" | "some_context" | "strong_context";
+  recommended_coursework: string[];
+  note: string;
+};
 
 export type TestScoreValue = string | number | string[];
 export type TestScores = Record<string, TestScoreValue>;
@@ -81,6 +99,13 @@ export type StudentProfileDetails = {
     | "other"
     | "unknown";
   curriculum_country: string;
+  course_rigor_level: CourseRigorLevel;
+  ap_courses_count: number | null;
+  ib_courses_count: number | null;
+  a_level_subjects_count: number | null;
+  honors_courses_count: number | null;
+  curriculum_rigor: CurriculumRigor;
+  major_curriculum_fit: MajorCurriculumFit;
   academic_normalization_confidence: "low" | "medium" | "high";
   academic_normalization_note: string;
   intended_degree: string;
@@ -90,6 +115,9 @@ export type StudentProfileDetails = {
   university_unsure: boolean;
   major_unsure: boolean;
   scholarship_need: ScholarshipNeed;
+  annual_budget_amount: string | number | null;
+  annual_budget_currency: string;
+  budget_flexibility: BudgetFlexibility;
   interests: string[];
   languages: string[];
   test_scores: TestScores;
@@ -114,7 +142,19 @@ export type StudentProfileDetails = {
 };
 
 export type UpdateStudentProfileInput = Partial<
-  Omit<StudentProfileDetails, "id" | "email" | "role" | "updated_at">
+  Omit<
+    StudentProfileDetails,
+    | "id"
+    | "email"
+    | "role"
+    | "updated_at"
+    | "curriculum_rigor"
+    | "major_curriculum_fit"
+    | "normalized_gpa_4"
+    | "normalized_percentage"
+    | "academic_normalization_confidence"
+    | "academic_normalization_note"
+  >
 >;
 
 export type ProfileCompletion = {

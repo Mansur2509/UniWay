@@ -9,7 +9,12 @@ from services.user_profile_service.academic_normalization import (
     CONFIDENCE_MEDIUM,
     normalize_profile_academics,
 )
+from services.user_profile_service.curriculum_rigor import (
+    calculate_curriculum_rigor,
+    calculate_major_curriculum_fit,
+)
 
+from .budget import compare_cost_to_budget
 from .currency import normalize_university_costs
 from .deadline_normalization import normalize_university_deadline
 from .models import University
@@ -239,11 +244,59 @@ def _score_profile_fit(profile, strengths: list[str], missing: list[str]) -> int
     return 45
 
 
-def _score_essay_fit(profile, missing: list[str]) -> int:
-    if profile.essay_status == profile.EssayStatus.YES:
-        return 78
-    missing.append("profile_essays")
-    return 45
+ESSAY_STATUS_READINESS = {
+    "submitted": 95,
+    "ready": 88,
+    "reviewed": 80,
+    "needs_revision": 68,
+    "drafting": 58,
+    "planned": 48,
+    "suggested": 42,
+    "not_started": 38,
+    "skipped": 38,
+}
+
+
+def _score_essay_fit(profile, university: University, missing: list[str]) -> int:
+    """Essay readiness: prefers real per-university essay-workspace evidence
+    (draft status, prompt verification, word count, due date) and only falls
+    back to the coarse self-reported essay_status when no workspace exists
+    for this university yet.
+    """
+
+    from services.essay_service.models import EssayWorkspace
+
+    workspaces = list(EssayWorkspace.objects.filter(user=profile.user, university=university))
+    if not workspaces:
+        if profile.essay_status == profile.EssayStatus.YES:
+            return 78
+        missing.append("profile_essays")
+        return 45
+
+    scores: list[int] = []
+    for workspace in workspaces:
+        readiness = ESSAY_STATUS_READINESS.get(workspace.status, 50)
+        if workspace.prompt_verification_status == EssayWorkspace.VerificationStatus.VERIFIED:
+            readiness += 4
+        elif workspace.prompt_verification_status == EssayWorkspace.VerificationStatus.MISSING:
+            readiness -= 4
+        if workspace.word_limit and workspace.draft_text:
+            word_count = len(workspace.draft_text.split())
+            if word_count >= workspace.word_limit * 0.8:
+                readiness += 3
+        if workspace.due_date and workspace.status not in {
+            EssayWorkspace.Status.SUBMITTED,
+            EssayWorkspace.Status.SKIPPED,
+        }:
+            days_left = (workspace.due_date - date.today()).days
+            if days_left < 0:
+                readiness -= 10
+        scores.append(max(1, min(100, readiness)))
+
+    if not scores:
+        missing.append("profile_essays")
+        return 45
+    return round(sum(scores) / len(scores))
 
 
 def _score_deadline_fit(
@@ -479,6 +532,11 @@ def calculate_university_fit(profile, university: University) -> dict:
         missing_fields.append("profile_curriculum")
         next_actions.append("add_curriculum_context")
 
+    curriculum_rigor = calculate_curriculum_rigor(profile)
+    major_curriculum_fit = calculate_major_curriculum_fit(
+        profile, profile.intended_major or (profile.intended_majors[0] if profile.intended_majors else None)
+    )
+
     uni_gpa = Decimal(str(university.gpa_average)) if university.gpa_average is not None else None
     if uni_gpa is None:
         missing_fields.append("university_gpa_average")
@@ -532,7 +590,7 @@ def calculate_university_fit(profile, university: University) -> dict:
 
     program_score = _score_program_fit(profile, university, strengths, missing_fields)
     profile_score = _score_profile_fit(profile, strengths, missing_fields)
-    essay_score = _score_essay_fit(profile, missing_fields)
+    essay_score = _score_essay_fit(profile, university, missing_fields)
     deadline_score = _score_deadline_fit(university, risks, missing_fields, profile)
     cost_score = _score_cost_fit(profile, university, risks, missing_fields)
 
@@ -625,6 +683,17 @@ def calculate_university_fit(profile, university: University) -> dict:
         "essay_subscore": essay_score,
         "deadline_subscore": deadline_score,
         "cost_subscore": cost_score,
+        # Additive, spec-friendly aliases for the same subscores above, plus a
+        # data_confidence readout — never a second, differently-weighted score.
+        "subscores": {
+            "academic_fit": academic_subscore,
+            "program_fit": program_score,
+            "profile_depth_fit": profile_score,
+            "essay_readiness": essay_score,
+            "timeline_readiness": deadline_score,
+            "cost_context": cost_score,
+            "data_confidence": _confidence_from_missing(missing_fields, normalization.confidence),
+        },
         "strengths": strengths,
         "risks": risks,
         "missing_fields": missing_fields,
@@ -643,6 +712,8 @@ def calculate_university_fit(profile, university: University) -> dict:
             "note": normalization.note,
             "curriculum_type": profile.curriculum_type,
             "curriculum_country": profile.curriculum_country,
+            "curriculum_rigor": vars(curriculum_rigor),
+            "major_curriculum_fit": major_curriculum_fit,
         },
         "cost_context": {
             "tuition_original_amount": university.tuition_original_amount
@@ -659,6 +730,7 @@ def calculate_university_fit(profile, university: University) -> dict:
             "conversion_source": university.currency_conversion_source,
             "conversion_confidence": university.currency_conversion_confidence,
             "cost_notes": university.cost_notes,
+            "budget_comparison": compare_cost_to_budget(university, profile),
         },
         "source_notes": _source_notes(university),
         "disclaimer": FIT_DISCLAIMER,

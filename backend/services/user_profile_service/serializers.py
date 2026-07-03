@@ -10,6 +10,7 @@ from .academic_normalization import (
     infer_gpa_scale_type,
     normalize_profile_academics,
 )
+from .curriculum_rigor import calculate_curriculum_rigor, calculate_major_curriculum_fit
 from .models import (
     Activity,
     EssayDraft,
@@ -132,6 +133,18 @@ class ProfileSerializer(serializers.Serializer):
         required=False,
     )
     curriculum_country = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    course_rigor_level = serializers.ChoiceField(
+        choices=StudentProfile.CourseRigorLevel.choices,
+        required=False,
+    )
+    ap_courses_count = serializers.IntegerField(required=False, allow_null=True, min_value=0, max_value=40)
+    ib_courses_count = serializers.IntegerField(required=False, allow_null=True, min_value=0, max_value=40)
+    a_level_subjects_count = serializers.IntegerField(
+        required=False, allow_null=True, min_value=0, max_value=40
+    )
+    honors_courses_count = serializers.IntegerField(
+        required=False, allow_null=True, min_value=0, max_value=40
+    )
     academic_normalization_confidence = serializers.ChoiceField(
         choices=StudentProfile.NormalizationConfidence.choices,
         read_only=True,
@@ -154,6 +167,18 @@ class ProfileSerializer(serializers.Serializer):
     major_unsure = serializers.BooleanField(required=False)
     scholarship_need = serializers.ChoiceField(
         choices=StudentProfile.ScholarshipNeed.choices,
+        required=False,
+    )
+    annual_budget_amount = serializers.DecimalField(
+        required=False,
+        allow_null=True,
+        max_digits=12,
+        decimal_places=2,
+        min_value=Decimal("0"),
+    )
+    annual_budget_currency = serializers.CharField(required=False, allow_blank=True, max_length=10)
+    budget_flexibility = serializers.ChoiceField(
+        choices=StudentProfile.BudgetFlexibility.choices,
         required=False,
     )
     interests = serializers.ListField(
@@ -231,6 +256,16 @@ class ProfileSerializer(serializers.Serializer):
             "normalized_percentage": normalization.normalized_percentage,
             "curriculum_type": profile.curriculum_type,
             "curriculum_country": profile.curriculum_country,
+            "course_rigor_level": profile.course_rigor_level,
+            "ap_courses_count": profile.ap_courses_count,
+            "ib_courses_count": profile.ib_courses_count,
+            "a_level_subjects_count": profile.a_level_subjects_count,
+            "honors_courses_count": profile.honors_courses_count,
+            "curriculum_rigor": vars(calculate_curriculum_rigor(profile)),
+            "major_curriculum_fit": calculate_major_curriculum_fit(
+                profile,
+                profile.intended_major or (profile.intended_majors[0] if profile.intended_majors else None),
+            ),
             "academic_normalization_confidence": normalization.confidence,
             "academic_normalization_note": normalization.note,
             "intended_degree": profile.intended_degree,
@@ -240,6 +275,9 @@ class ProfileSerializer(serializers.Serializer):
             "university_unsure": profile.university_unsure,
             "major_unsure": profile.major_unsure,
             "scholarship_need": profile.scholarship_need,
+            "annual_budget_amount": profile.annual_budget_amount,
+            "annual_budget_currency": profile.annual_budget_currency,
+            "budget_flexibility": profile.budget_flexibility,
             "interests": preferences.interests,
             "languages": profile.languages,
             "test_scores": profile.test_scores,

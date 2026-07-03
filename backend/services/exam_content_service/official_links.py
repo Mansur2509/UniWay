@@ -18,6 +18,10 @@ OFFICIAL_EXAM_LINKS: dict[str, dict[str, str]] = {
         "source_name": "ETS TOEFL official site",
         "source_url": "https://www.ets.org/toefl",
     },
+    "ACT": {
+        "source_name": "ACT official site",
+        "source_url": "https://www.act.org",
+    },
 }
 
 

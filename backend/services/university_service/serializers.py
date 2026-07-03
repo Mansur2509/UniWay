@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from .budget import compare_cost_to_budget
 from .import_jobs import MAX_IMPORT_UPLOAD_BYTES
 from .models import (
     SavedUniversity,
@@ -57,6 +58,7 @@ class UniversitySerializer(serializers.ModelSerializer):
     data_sources = UniversityDataSourceSerializer(many=True, read_only=True)
     field_verifications = UniversityFieldVerificationSerializer(many=True, read_only=True)
     is_shortlisted = serializers.SerializerMethodField()
+    budget_comparison = serializers.SerializerMethodField()
 
     class Meta:
         model = University
@@ -72,6 +74,16 @@ class UniversitySerializer(serializers.ModelSerializer):
         if saved_ids is not None:
             return obj.id in saved_ids
         return SavedUniversity.objects.filter(user=user, university=obj).exists()
+
+    def get_budget_comparison(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if not user or not user.is_authenticated:
+            return None
+        profile = getattr(user, "student_profile", None)
+        if profile is None:
+            return None
+        return compare_cost_to_budget(obj, profile)
 
     def get_program_display_names(self, obj) -> list[str]:
         return format_program_display_names(

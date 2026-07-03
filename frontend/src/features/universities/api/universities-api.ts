@@ -1,4 +1,5 @@
 import type { RecommendationsResponse } from "@/entities/recommendation";
+import type { ApplicationStrategyResponse } from "@/entities/strategy";
 import type {
   SavedUniversity,
   UniversityDetails,
@@ -97,4 +98,8 @@ export async function getShortlistRequest() {
 
 export function getRecommendationsRequest() {
   return apiRequest<RecommendationsResponse>("/universities/recommendations/", { base: "api" });
+}
+
+export function getApplicationStrategyRequest() {
+  return apiRequest<ApplicationStrategyResponse>("/universities/strategy/", { base: "api" });
 }

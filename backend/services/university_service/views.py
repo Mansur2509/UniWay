@@ -1,4 +1,4 @@
-from django.db.models import F
+from django.db.models import F, Q
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -13,6 +13,7 @@ from rest_framework.viewsets import ModelViewSet
 from common.permissions import IsAdminOrReadOnly, IsAdminRole
 from services.user_profile_service.services import ensure_profile_records
 
+from .currency import normalize_amount_to_usd
 from .import_jobs import enqueue_university_import_job, mark_stale_university_import_job
 from .models import (
     SavedUniversity,
@@ -28,6 +29,7 @@ from .serializers import (
     UniversitySerializer,
 )
 from .services import calculate_university_fit
+from .strategy import build_application_strategy
 
 SELF_SERVICE_ACTIONS = {
     "list",
@@ -37,6 +39,7 @@ SELF_SERVICE_ACTIONS = {
     "shortlisted",
     "compare",
     "recommendations",
+    "strategy",
 }
 
 UNIVERSITY_NULLS_LAST_ORDERINGS = {
@@ -70,6 +73,7 @@ class UniversityViewSet(ModelViewSet):
         "sat_average": ["lte", "gte"],
         "gpa_average": ["lte", "gte"],
         "acceptance_rate": ["lte", "gte"],
+        "currency_conversion_confidence": ["exact"],
     }
     ordering_fields = (
         "name",
@@ -108,11 +112,48 @@ class UniversityViewSet(ModelViewSet):
 
     def filter_queryset(self, queryset):
         queryset = super().filter_queryset(queryset)
+        if self.action == "list":
+            queryset = self._apply_cost_status_filter(queryset)
         ordering = self.request.query_params.get("ordering", "")
         custom_ordering = UNIVERSITY_NULLS_LAST_ORDERINGS.get(ordering)
         if self.action == "list" and custom_ordering:
             return queryset.order_by(*custom_ordering)
         return queryset
+
+    def _apply_cost_status_filter(self, queryset):
+        cost_status = self.request.query_params.get("cost_status", "")
+        if cost_status not in {"within_budget", "above_budget", "needs_aid"}:
+            return queryset
+
+        user = self.request.user
+        profile = getattr(user, "student_profile", None) if user.is_authenticated else None
+        budget_amount = getattr(profile, "annual_budget_amount", None) if profile else None
+        if profile is None or budget_amount is None:
+            # No budget entered yet: budget-dependent filters can't be
+            # evaluated honestly, so they're a no-op rather than hiding
+            # everything or guessing.
+            return queryset
+
+        budget_currency = getattr(profile, "annual_budget_currency", "") or "USD"
+        budget_usd, _rate, _status = normalize_amount_to_usd(budget_amount, budget_currency)
+        if budget_usd is None:
+            return queryset
+
+        needs_aid_signal = profile.scholarship_need == profile.ScholarshipNeed.YES
+        if cost_status == "needs_aid" and not needs_aid_signal:
+            return queryset.none()
+        if cost_status == "above_budget" and needs_aid_signal:
+            return queryset.none()
+
+        cost_known = Q(total_cost_usd_amount__isnull=False) | Q(tuition_usd_amount__isnull=False)
+        within = Q(total_cost_usd_amount__lte=budget_usd) | Q(
+            total_cost_usd_amount__isnull=True, tuition_usd_amount__lte=budget_usd
+        )
+        if cost_status == "within_budget":
+            return queryset.filter(cost_known).filter(within)
+        # above_budget and needs_aid share the same "cost exceeds budget" set;
+        # which label applies depends on the user's own aid signal, checked above.
+        return queryset.filter(cost_known).exclude(within)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -192,6 +233,11 @@ class UniversityViewSet(ModelViewSet):
     def recommendations(self, request):
         profile, preferences = ensure_profile_records(request.user)
         return Response(calculate_university_recommendations(profile, preferences))
+
+    @action(detail=False, methods=["get"], url_path="strategy")
+    def strategy(self, request):
+        profile, preferences = ensure_profile_records(request.user)
+        return Response(build_application_strategy(profile, preferences))
 
 
 class AdminUniversityImportBaseView(APIView):

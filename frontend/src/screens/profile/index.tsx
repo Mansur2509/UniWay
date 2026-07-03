@@ -10,6 +10,8 @@ import {
 
 import type {
   Activity,
+  BudgetFlexibility,
+  CourseRigorLevel,
   EssayDraft,
   Honor,
   Olympiad,
@@ -61,6 +63,7 @@ import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { fieldClassName } from "@/shared/ui/field";
+import { HelpTooltip } from "@/shared/ui/help-tooltip";
 import { UnsavedChangesDialog } from "@/shared/ui/unsaved-changes-dialog";
 
 type ProfileFormState = {
@@ -76,12 +79,20 @@ type ProfileFormState = {
   gpaScaleType: StudentProfileDetails["original_gpa_scale_type"];
   curriculumType: StudentProfileDetails["curriculum_type"];
   curriculumCountry: string;
+  courseRigorLevel: CourseRigorLevel;
+  apCoursesCount: string;
+  ibCoursesCount: string;
+  aLevelSubjectsCount: string;
+  honorsCoursesCount: string;
   educationStatus: string;
   intendedDegree: string;
   targetCountries: string;
   intendedMajors: string;
   targetUniversities: string;
   scholarshipNeed: ScholarshipNeed;
+  annualBudgetAmount: string;
+  annualBudgetCurrency: string;
+  budgetFlexibility: BudgetFlexibility;
   interests: string;
   languages: string;
   sat: string;
@@ -111,12 +122,20 @@ const emptyForm: ProfileFormState = {
   gpaScaleType: "custom_unknown",
   curriculumType: "unknown",
   curriculumCountry: "",
+  courseRigorLevel: "unknown",
+  apCoursesCount: "",
+  ibCoursesCount: "",
+  aLevelSubjectsCount: "",
+  honorsCoursesCount: "",
   educationStatus: "",
   intendedDegree: "",
   targetCountries: "",
   intendedMajors: "",
   targetUniversities: "",
   scholarshipNeed: "unsure",
+  annualBudgetAmount: "",
+  annualBudgetCurrency: "USD",
+  budgetFlexibility: "unknown",
   interests: "",
   languages: "",
   sat: "",
@@ -169,12 +188,23 @@ function profileToForm(profile: StudentProfileDetails): ProfileFormState {
     gpaScaleType: profile.original_gpa_scale_type,
     curriculumType: profile.curriculum_type,
     curriculumCountry: profile.curriculum_country,
+    courseRigorLevel: profile.course_rigor_level,
+    apCoursesCount: profile.ap_courses_count === null ? "" : String(profile.ap_courses_count),
+    ibCoursesCount: profile.ib_courses_count === null ? "" : String(profile.ib_courses_count),
+    aLevelSubjectsCount:
+      profile.a_level_subjects_count === null ? "" : String(profile.a_level_subjects_count),
+    honorsCoursesCount:
+      profile.honors_courses_count === null ? "" : String(profile.honors_courses_count),
     educationStatus: profile.education_status,
     intendedDegree: profile.intended_degree,
     targetCountries: listToText(profile.target_countries),
     intendedMajors: listToText(profile.intended_majors),
     targetUniversities: listToText(profile.target_universities),
     scholarshipNeed: profile.scholarship_need,
+    annualBudgetAmount:
+      profile.annual_budget_amount === null ? "" : String(profile.annual_budget_amount),
+    annualBudgetCurrency: profile.annual_budget_currency || "USD",
+    budgetFlexibility: profile.budget_flexibility,
     interests: listToText(profile.interests),
     languages: listToText(profile.languages),
     sat: scoreToText(profile.test_scores.sat),
@@ -206,7 +236,7 @@ function Field({
   children,
   wide = false
 }: {
-  label: string;
+  label: ReactNode;
   helper?: string;
   children: ReactNode;
   wide?: boolean;
@@ -384,12 +414,22 @@ export function ProfileScreen() {
         original_gpa_scale_type: form.gpaScaleType,
         curriculum_type: form.curriculumType,
         curriculum_country: form.curriculumCountry,
+        course_rigor_level: form.courseRigorLevel,
+        ap_courses_count: form.apCoursesCount === "" ? null : Number(form.apCoursesCount),
+        ib_courses_count: form.ibCoursesCount === "" ? null : Number(form.ibCoursesCount),
+        a_level_subjects_count:
+          form.aLevelSubjectsCount === "" ? null : Number(form.aLevelSubjectsCount),
+        honors_courses_count:
+          form.honorsCoursesCount === "" ? null : Number(form.honorsCoursesCount),
         education_status: form.educationStatus,
         intended_degree: form.intendedDegree,
         target_countries: textToList(form.targetCountries),
         intended_majors: textToList(form.intendedMajors),
         target_universities: textToList(form.targetUniversities),
         scholarship_need: form.scholarshipNeed,
+        annual_budget_amount: form.annualBudgetAmount === "" ? null : form.annualBudgetAmount,
+        annual_budget_currency: form.annualBudgetCurrency,
+        budget_flexibility: form.budgetFlexibility,
         interests: textToList(form.interests),
         languages: textToList(form.languages),
         test_scores: testScores,
@@ -757,12 +797,101 @@ export function ProfileScreen() {
             value={form.curriculumCountry}
           />
         </Field>
+        <Field
+          label={
+            <>
+              {t("profile.courseRigorLevel")} <HelpTooltip label={t("help.curriculumRigor")} />
+            </>
+          }
+        >
+          <select
+            className={fieldClassName}
+            onChange={(event) =>
+              updateField("courseRigorLevel", event.target.value as CourseRigorLevel)
+            }
+            value={form.courseRigorLevel}
+          >
+            <option value="unknown">{t("profile.courseRigorLevel.unknown")}</option>
+            <option value="standard">{t("profile.courseRigorLevel.standard")}</option>
+            <option value="advanced">{t("profile.courseRigorLevel.advanced")}</option>
+            <option value="highly_advanced">{t("profile.courseRigorLevel.highly_advanced")}</option>
+          </select>
+        </Field>
+        <Field label={t("profile.apCoursesCount")}>
+          <input
+            className={fieldClassName}
+            max={40}
+            min={0}
+            onChange={(event) => updateField("apCoursesCount", event.target.value)}
+            type="number"
+            value={form.apCoursesCount}
+          />
+        </Field>
+        <Field label={t("profile.ibCoursesCount")}>
+          <input
+            className={fieldClassName}
+            max={40}
+            min={0}
+            onChange={(event) => updateField("ibCoursesCount", event.target.value)}
+            type="number"
+            value={form.ibCoursesCount}
+          />
+        </Field>
+        <Field label={t("profile.aLevelSubjectsCount")}>
+          <input
+            className={fieldClassName}
+            max={40}
+            min={0}
+            onChange={(event) => updateField("aLevelSubjectsCount", event.target.value)}
+            type="number"
+            value={form.aLevelSubjectsCount}
+          />
+        </Field>
+        <Field label={t("profile.honorsCoursesCount")}>
+          <input
+            className={fieldClassName}
+            max={40}
+            min={0}
+            onChange={(event) => updateField("honorsCoursesCount", event.target.value)}
+            type="number"
+            value={form.honorsCoursesCount}
+          />
+        </Field>
         {profile?.normalized_gpa_4 ? (
           <div className="rounded-sm border bg-surface p-3 text-xs text-muted-foreground sm:col-span-2">
             <p className="font-semibold text-foreground">
               {t("profile.normalizedGpa", { value: String(profile.normalized_gpa_4) })}
             </p>
             <p className="mt-1">{profile.academic_normalization_note}</p>
+          </div>
+        ) : null}
+        {profile?.curriculum_rigor ? (
+          <div className="rounded-sm border bg-surface p-3 text-xs text-muted-foreground sm:col-span-2">
+            <p className="font-semibold text-foreground">
+              {t("profile.curriculumRigorSummary", {
+                score: String(profile.curriculum_rigor.rigor_score),
+                confidence: t(
+                  `profile.curriculumRigor.confidence.${profile.curriculum_rigor.rigor_confidence}` as TranslationKey
+                )
+              })}
+            </p>
+            {profile.curriculum_rigor.missing_curriculum_data.length > 0 ? (
+              <ul className="mt-2 list-disc space-y-0.5 pl-4">
+                {profile.curriculum_rigor.missing_curriculum_data.map((code) => (
+                  <li key={code}>
+                    {t(`profile.curriculumRigor.missing.${code}` as TranslationKey)}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {profile.major_curriculum_fit.recommended_coursework.length > 0 ? (
+              <p className="mt-2">
+                {t("profile.curriculumRigor.recommendedCoursework")}{" "}
+                {profile.major_curriculum_fit.recommended_coursework
+                  .map((code) => t(`profile.coursework.${code}` as TranslationKey))
+                  .join(", ")}
+              </p>
+            ) : null}
           </div>
         ) : null}
       </ProfileSection>
@@ -796,6 +925,47 @@ export function ProfileScreen() {
             <option value="yes">{t("profile.options.scholarship.yes")}</option>
             <option value="no">{t("profile.options.scholarship.no")}</option>
             <option value="unsure">{t("profile.options.scholarship.unsure")}</option>
+          </select>
+        </Field>
+        <Field
+          label={
+            <>
+              {t("profile.annualBudgetAmount")} <HelpTooltip label={t("help.budgetComparison")} />
+            </>
+          }
+        >
+          <input
+            className={fieldClassName}
+            min={0}
+            onChange={(event) => updateField("annualBudgetAmount", event.target.value)}
+            placeholder={t("profile.annualBudgetAmountPlaceholder")}
+            step="0.01"
+            type="number"
+            value={form.annualBudgetAmount}
+          />
+        </Field>
+        <Field label={t("profile.annualBudgetCurrency")}>
+          <input
+            className={fieldClassName}
+            maxLength={10}
+            onChange={(event) =>
+              updateField("annualBudgetCurrency", event.target.value.toUpperCase())
+            }
+            placeholder="USD"
+            value={form.annualBudgetCurrency}
+          />
+        </Field>
+        <Field label={t("profile.budgetFlexibility")}>
+          <select
+            className={fieldClassName}
+            onChange={(event) =>
+              updateField("budgetFlexibility", event.target.value as BudgetFlexibility)
+            }
+            value={form.budgetFlexibility}
+          >
+            <option value="unknown">{t("profile.budgetFlexibility.unknown")}</option>
+            <option value="strict">{t("profile.budgetFlexibility.strict")}</option>
+            <option value="flexible">{t("profile.budgetFlexibility.flexible")}</option>
           </select>
         </Field>
         <Field

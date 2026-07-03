@@ -26,7 +26,9 @@ const emptyFilters: UniversityFilters = {
   ielts_minimum__lte: "",
   sat_average__gte: "",
   sat_average__lte: "",
-  gpa_average__lte: ""
+  gpa_average__lte: "",
+  currency_conversion_confidence: "",
+  cost_status: undefined
 };
 
 const MAX_COMPARE = 4;
@@ -346,7 +348,51 @@ export function UniversitiesScreen() {
                   {t("universities.filters.scholarshipAvailable")}
                 </span>
               </label>
+              <label className="block">
+                <span className="flex items-center gap-1 text-sm font-semibold">
+                  {t("universities.filters.costStatus")}
+                  <HelpTooltip label={t("help.budgetComparison")} />
+                </span>
+                <select
+                  className={fieldClassName}
+                  onChange={(event) =>
+                    setFilters((current) => ({
+                      ...current,
+                      cost_status: event.target.value as UniversityFilters["cost_status"]
+                    }))
+                  }
+                  value={filters.cost_status ?? ""}
+                >
+                  <option value="">{t("universities.filters.costStatusAny")}</option>
+                  <option value="within_budget">{t("universities.cost.budgetStatus.within_budget")}</option>
+                  <option value="above_budget">{t("universities.cost.budgetStatus.above_budget")}</option>
+                  <option value="needs_aid">{t("universities.cost.budgetStatus.needs_aid")}</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-sm font-semibold">
+                  {t("universities.filters.costConfidence")}
+                </span>
+                <select
+                  className={fieldClassName}
+                  onChange={(event) =>
+                    setFilters((current) => ({
+                      ...current,
+                      currency_conversion_confidence: event.target.value
+                    }))
+                  }
+                  value={filters.currency_conversion_confidence ?? ""}
+                >
+                  <option value="">{t("universities.filters.costConfidenceAny")}</option>
+                  <option value="high">{t("universities.fit.confidence.high")}</option>
+                  <option value="medium">{t("universities.fit.confidence.medium")}</option>
+                  <option value="low">{t("universities.fit.confidence.low")}</option>
+                </select>
+              </label>
             </div>
+            <p className="text-xs italic text-muted-foreground">
+              {t("universities.cost.disclaimer")}
+            </p>
           </section>
 
           <section className="space-y-3 border-t pt-4">

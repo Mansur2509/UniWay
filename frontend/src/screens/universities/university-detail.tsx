@@ -21,6 +21,7 @@ import type { SuggestedItem } from "@/entities/suggestion";
 import {
   formatTuitionAmount,
   getFieldVerification,
+  type BudgetComparisonStatus,
   type UniversityDetails,
   type UniversityFitAnalysis
 } from "@/entities/university";
@@ -56,6 +57,14 @@ const CATEGORY_STYLES: Record<string, string> = {
   competitive: "border-warning/35 bg-warning/10 text-warning",
   target: "border-accent/35 bg-accent/10 text-accent",
   safety: "border-success/35 bg-success/10 text-success"
+};
+
+const BUDGET_COMPARISON_BADGE_STYLES: Record<BudgetComparisonStatus, string> = {
+  within_budget: "border-success/35 bg-success/10 text-success",
+  above_budget: "border-warning/35 bg-warning/10 text-warning",
+  needs_aid: "border-warning/35 bg-warning/10 text-warning",
+  unknown_budget: "border-muted-foreground/30 bg-surface text-muted-foreground",
+  cost_unavailable: "border-muted-foreground/30 bg-surface text-muted-foreground"
 };
 
 type RequirementStatus =
@@ -836,6 +845,18 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
                           })}
                         </p>
                       ) : null}
+                      {university.budget_comparison ? (
+                        <p className="flex items-center gap-1 text-xs">
+                          <span
+                            className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide ${BUDGET_COMPARISON_BADGE_STYLES[university.budget_comparison.status]}`}
+                          >
+                            {t(
+                              `universities.cost.budgetStatus.${university.budget_comparison.status}` as TranslationKey
+                            )}
+                          </span>
+                          <HelpTooltip label={t("help.budgetComparison")} />
+                        </p>
+                      ) : null}
                     </div>
                   </DetailItem>
                   <DetailItem label={t("universities.fields.scholarshipAvailable")}>
@@ -867,6 +888,9 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
                   text={university.financial_aid_notes}
                   title={t("universities.detail.financialAidNotes")}
                 />
+                <p className="mt-4 text-xs italic text-muted-foreground">
+                  {t("universities.cost.disclaimer")}
+                </p>
               </Card>
               <Card>
                 <h2 className="text-2xl font-semibold">{t("universities.detail.scholarships")}</h2>
@@ -1177,10 +1201,16 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
                   </p>
                 </div>
 
+                <div className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
+                  {t("universities.fit.subscoreBreakdown")}
+                  <HelpTooltip label={t("help.fitSubscores")} />
+                </div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <FitSubscore label={t("universities.fit.subscore.academic")} value={fit.academic_subscore} />
                   <FitSubscore label={t("universities.fit.subscore.program")} value={fit.program_subscore} />
                   <FitSubscore label={t("universities.fit.subscore.profile")} value={fit.profile_subscore} />
+                  <FitSubscore label={t("universities.fit.subscore.essay")} value={fit.essay_subscore} />
+                  <FitSubscore label={t("universities.fit.subscore.timeline")} value={fit.deadline_subscore} />
                   <FitSubscore label={t("universities.fit.subscore.cost")} value={fit.cost_subscore} />
                 </div>
 

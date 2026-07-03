@@ -29,6 +29,12 @@ class StudentProfile(models.Model):
         OTHER = "other", "Other"
         UNKNOWN = "unknown", "Unknown"
 
+    class CourseRigorLevel(models.TextChoices):
+        STANDARD = "standard", "Standard"
+        ADVANCED = "advanced", "Advanced"
+        HIGHLY_ADVANCED = "highly_advanced", "Highly advanced"
+        UNKNOWN = "unknown", "Unknown"
+
     class NormalizationConfidence(models.TextChoices):
         LOW = "low", "Low"
         MEDIUM = "medium", "Medium"
@@ -43,6 +49,11 @@ class StudentProfile(models.Model):
         YES = "yes", "Yes"
         NO = "no", "No"
         NOT_YET = "not_yet", "Not yet"
+
+    class BudgetFlexibility(models.TextChoices):
+        STRICT = "strict", "Strict"
+        FLEXIBLE = "flexible", "Flexible"
+        UNKNOWN = "unknown", "Unknown"
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -82,6 +93,17 @@ class StudentProfile(models.Model):
         default=CurriculumType.UNKNOWN,
     )
     curriculum_country = models.CharField(max_length=100, blank=True)
+    # Course-load counts are all optional context signals, not verified
+    # official records: null means "not entered", never zero.
+    course_rigor_level = models.CharField(
+        max_length=20,
+        choices=CourseRigorLevel.choices,
+        default=CourseRigorLevel.UNKNOWN,
+    )
+    ap_courses_count = models.PositiveSmallIntegerField(null=True, blank=True)
+    ib_courses_count = models.PositiveSmallIntegerField(null=True, blank=True)
+    a_level_subjects_count = models.PositiveSmallIntegerField(null=True, blank=True)
+    honors_courses_count = models.PositiveSmallIntegerField(null=True, blank=True)
     academic_normalization_confidence = models.CharField(
         max_length=12,
         choices=NormalizationConfidence.choices,
@@ -113,6 +135,17 @@ class StudentProfile(models.Model):
         max_length=10,
         choices=ScholarshipNeed.choices,
         default=ScholarshipNeed.UNSURE,
+    )
+    # Budget fields are all optional: a null annual_budget_amount means the
+    # student has not entered a budget yet, never that their budget is zero.
+    annual_budget_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    annual_budget_currency = models.CharField(max_length=10, blank=True, default="USD")
+    budget_flexibility = models.CharField(
+        max_length=10,
+        choices=BudgetFlexibility.choices,
+        default=BudgetFlexibility.UNKNOWN,
     )
     sat_level = models.CharField(max_length=100, blank=True)
     ielts_level = models.CharField(max_length=100, blank=True)

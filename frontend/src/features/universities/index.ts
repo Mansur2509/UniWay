@@ -6,5 +6,6 @@ export {
   addToShortlistRequest,
   removeFromShortlistRequest,
   getShortlistRequest,
-  getRecommendationsRequest
+  getRecommendationsRequest,
+  getApplicationStrategyRequest
 } from "./api/universities-api";

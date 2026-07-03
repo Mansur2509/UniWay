@@ -18,6 +18,7 @@ from services.essay_service.models import EssayWorkspace
 from services.event_service.models import EventRegistration
 from services.event_service.services import ACTIVE_REGISTRATION_STATUSES
 from services.exam_content_service.models import OfficialExamDate
+from services.exam_content_service.official_links import official_exam_link
 from services.university_service.deadline_normalization import (
     normalize_university_deadline,
 )
@@ -120,6 +121,12 @@ def _planned_exam_type(plan: dict) -> str:
         return "SAT"
     if "AP" in raw_name:
         return "AP"
+    if "IELTS" in raw_name:
+        return "IELTS"
+    if "TOEFL" in raw_name:
+        return "TOEFL"
+    if "ACT" in raw_name:
+        return "ACT"
     return ""
 
 
@@ -436,11 +443,39 @@ class RoadmapBuilder:
                 evidence_note=f"Planned exam date from your profile: {exam_date_str}.",
             )
 
+    def _official_link_exam_task(self, exam_type: str) -> None:
+        """IELTS/TOEFL/ACT have no verified date dataset, so this links to the
+        exam's own official site instead of inventing or scraping a date.
+        """
+
+        link = official_exam_link(exam_type)
+        if link is None:
+            return
+        self.add(
+            f"official_exam_link:{exam_type}",
+            title=f"Check official {exam_type} dates",
+            description=(
+                f"EduVerse has no verified date dataset for {exam_type}. "
+                "Check current test dates, registration deadlines, and score-delivery "
+                "timing on the official site before planning around them."
+            ),
+            category=Category.EXAMS,
+            priority=Priority.MEDIUM,
+            source_type=SourceType.PROFILE_GAP,
+            source_url=link["source_url"],
+            generated_reason=f"You plan to take {exam_type}; verify current dates on the official source.",
+            evidence_note=f"Official source: {link['source_name']}.",
+        )
+
     def _official_exam_date_task(
         self,
         exam_type: str,
         nearest_application_deadline: date | None,
     ) -> None:
+        if exam_type in {"IELTS", "TOEFL", "ACT"}:
+            self._official_link_exam_task(exam_type)
+            return
+
         official_date = _next_official_exam_date(exam_type, self.today)
         if official_date is None:
             self.add(

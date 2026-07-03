@@ -236,6 +236,48 @@ class RoadmapGenerationTests(APITestCase):
         self.assertEqual(task.source_url, official.source_url)
         self.assertIn("Official SAT test date", task.evidence_note)
 
+    def test_ielts_plan_creates_official_link_task_not_a_fake_date(self):
+        profile, _ = ensure_profile_records(self.user)
+        profile.exam_plans = {
+            "taken": [],
+            "planned": [{"name": "IELTS", "exam_type": "IELTS", "target_score": "7.5"}],
+        }
+        profile.save()
+
+        plan, _ = generate_roadmap(self.user)
+        task = plan.tasks.get(dedup_key="official_exam_link:IELTS")
+
+        self.assertIsNone(task.due_date)
+        self.assertEqual(task.source_url, "https://www.ielts.org")
+
+    def test_toefl_plan_creates_official_link_task(self):
+        profile, _ = ensure_profile_records(self.user)
+        profile.exam_plans = {
+            "taken": [],
+            "planned": [{"name": "TOEFL", "exam_type": "TOEFL", "target_score": "110"}],
+        }
+        profile.save()
+
+        plan, _ = generate_roadmap(self.user)
+        task = plan.tasks.get(dedup_key="official_exam_link:TOEFL")
+
+        self.assertIsNone(task.due_date)
+        self.assertEqual(task.source_url, "https://www.ets.org/toefl")
+
+    def test_act_plan_creates_official_link_task(self):
+        profile, _ = ensure_profile_records(self.user)
+        profile.exam_plans = {
+            "taken": [],
+            "planned": [{"name": "ACT", "exam_type": "ACT", "target_score": "34"}],
+        }
+        profile.save()
+
+        plan, _ = generate_roadmap(self.user)
+        task = plan.tasks.get(dedup_key="official_exam_link:ACT")
+
+        self.assertIsNone(task.due_date)
+        self.assertEqual(task.source_url, "https://www.act.org")
+
     def test_verified_sat_date_rejects_non_college_board_source(self):
         with self.assertRaises(ValidationError):
             OfficialExamDate.objects.create(
