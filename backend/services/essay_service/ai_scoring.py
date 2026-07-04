@@ -208,6 +208,14 @@ ESSAY_SCORING_JSON_SCHEMA_INSTRUCTIONS = (
     "the backend computes those itself."
 )
 
+ESSAY_SCORING_JSON_OUTPUT_RULES = (
+    "Output format rules: return exactly one JSON object and nothing else. "
+    "Do not wrap it in markdown. Do not use ```json code fences. Do not include "
+    "any commentary, explanation, or text before or after the JSON object. Use "
+    "double quotes for every key and string value. Use null where the schema "
+    "allows null. Do not use trailing commas."
+)
+
 
 def build_user_prompt(payload: dict) -> str:
     return (
@@ -223,7 +231,7 @@ def build_user_prompt(payload: dict) -> str:
         f"Cached profile keywords:\n{payload['profile_keywords'] or []}\n\n"
         f"Student essay:\n{payload['essay_text']}\n\n"
         f"{ESSAY_SCORING_JSON_SCHEMA_INSTRUCTIONS}\n\n"
-        "Return JSON only."
+        f"{ESSAY_SCORING_JSON_OUTPUT_RULES}"
     )
 
 

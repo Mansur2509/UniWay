@@ -8,6 +8,7 @@ from django.test import SimpleTestCase, override_settings
 from services.ai_gateway_service.essay_scoring_client import GeminiEssayScoringClient
 from services.ai_gateway_service.exceptions import AIProviderError, parse_gemini_error_body
 from services.ai_gateway_service.gemini_client import GeminiProfileAssessmentClient
+from services.ai_gateway_service.json_extraction import parse_json_response
 
 
 class _FakeResponse:
@@ -52,6 +53,35 @@ class ParseGeminiErrorBodyTests(SimpleTestCase):
 
     def test_returns_none_none_for_non_object_json(self):
         self.assertEqual(parse_gemini_error_body(json.dumps([1, 2, 3])), (None, None))
+
+
+class ParseJsonResponseTests(SimpleTestCase):
+    def test_raw_valid_json_parses(self):
+        self.assertEqual(parse_json_response('{"a": 1}'), {"a": 1})
+
+    def test_json_wrapped_in_json_fence_parses(self):
+        text = '```json\n{"a": 1, "b": ["x", "y"]}\n```'
+        self.assertEqual(parse_json_response(text), {"a": 1, "b": ["x", "y"]})
+
+    def test_json_wrapped_in_generic_fence_parses(self):
+        text = '```\n{"a": 1}\n```'
+        self.assertEqual(parse_json_response(text), {"a": 1})
+
+    def test_prose_wrapped_single_json_object_is_extracted(self):
+        text = 'Sure, here is the result:\n{"a": 1, "b": [1, 2]}\nLet me know if you need more.'
+        self.assertEqual(parse_json_response(text), {"a": 1, "b": [1, 2]})
+
+    def test_braces_inside_string_values_do_not_break_extraction(self):
+        text = 'Result:\n{"note": "use { and } carefully", "score": 5}\nDone.'
+        self.assertEqual(parse_json_response(text), {"note": "use { and } carefully", "score": 5})
+
+    def test_malformed_json_still_raises(self):
+        with self.assertRaises(json.JSONDecodeError):
+            parse_json_response('{"a": 1, "b": [1, 2,')
+
+    def test_prose_without_any_json_object_still_raises(self):
+        with self.assertRaises(json.JSONDecodeError):
+            parse_json_response("I cannot evaluate this essay right now.")
 
 
 @override_settings(GEMINI_API_KEY="test-key")
@@ -132,6 +162,38 @@ class GeminiEssayScoringClientDiagnosticsTests(SimpleTestCase):
         error = ctx.exception
         self.assertEqual(error.cause_class, "JSONDecodeError")
         self.assertTrue(error.error_body)
+
+    def test_response_wrapped_in_json_fence_is_extracted_and_parsed(self):
+        fenced_text = '```json\n{"overall_essay_readiness": 80, "confidence": "high"}\n```'
+        ok_body = json.dumps(
+            {"candidates": [{"content": {"parts": [{"text": fenced_text}]}}]}
+        ).encode("utf-8")
+        with patch("urllib.request.urlopen", return_value=_FakeResponse(ok_body)):
+            result = self._score()
+        self.assertEqual(result, {"overall_essay_readiness": 80, "confidence": "high"})
+
+    def test_response_with_prose_wrapper_is_extracted_and_parsed(self):
+        prose_text = 'Here is the evaluation:\n{"overall_essay_readiness": 55}\nHope that helps.'
+        ok_body = json.dumps(
+            {"candidates": [{"content": {"parts": [{"text": prose_text}]}}]}
+        ).encode("utf-8")
+        with patch("urllib.request.urlopen", return_value=_FakeResponse(ok_body)):
+            result = self._score()
+        self.assertEqual(result, {"overall_essay_readiness": 55})
+
+    def test_truncated_json_still_fails_with_sanitized_error(self):
+        truncated_text = '{"overall_essay_readiness": 80, "confidence": "medium", "subscores": {"prompt_fit"'
+        ok_body = json.dumps(
+            {"candidates": [{"content": {"parts": [{"text": truncated_text}]}}]}
+        ).encode("utf-8")
+        with patch("urllib.request.urlopen", return_value=_FakeResponse(ok_body)):
+            with self.assertRaises(AIProviderError) as ctx:
+                self._score()
+        error = ctx.exception
+        self.assertEqual(error.cause_class, "JSONDecodeError")
+        self.assertTrue(error.error_body)
+        self.assertNotIn("prompt_fit", error.error_body)
+        self.assertNotIn(truncated_text, error.error_body)
 
 
 @override_settings(GEMINI_API_KEY="test-key")

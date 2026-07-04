@@ -7,6 +7,7 @@ import urllib.request
 from django.conf import settings
 
 from .exceptions import AIProviderError, AIProviderUnavailable, parse_gemini_error_body
+from .json_extraction import parse_json_response
 from .schemas import PROFILE_ASSESSMENT_RESPONSE_SCHEMA, PROFILE_ASSESSMENT_SYSTEM_PROMPT
 
 
@@ -102,10 +103,12 @@ class GeminiProfileAssessmentClient:
 
         text = self._extract_text(data)
         try:
-            return json.loads(text)
+            return parse_json_response(text)
         except json.JSONDecodeError as error:
             raise AIProviderError(
-                "Gemini returned non-JSON profile assessment output.", cause_class=type(error).__name__
+                "Gemini returned non-JSON profile assessment output.",
+                error_body=f"json decode failed: {error.msg} at pos {error.pos}",
+                cause_class=type(error).__name__,
             ) from error
 
     @staticmethod
