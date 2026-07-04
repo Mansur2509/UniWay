@@ -1,4 +1,4 @@
-from django.db.models import F, Q
+from django.db.models import F, Prefetch, Q
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -10,6 +10,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
+from common.pagination import CompactListPagination
 from common.permissions import IsAdminOrReadOnly, IsAdminRole
 from services.user_profile_service.services import ensure_profile_records
 
@@ -21,9 +22,11 @@ from .models import (
     UniversityFieldVerification,
     UniversityImportJob,
     UniversityProgram,
+    UniversitySubjectRanking,
 )
 from .recommendations import calculate_university_recommendations
 from .serializers import (
+    SavedUniversityLiteSerializer,
     SavedUniversitySerializer,
     UniversityImportJobSerializer,
     UniversityImportUploadSerializer,
@@ -337,13 +340,31 @@ class UniversityViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="shortlist")
     def shortlisted(self, request):
-        queryset = (
-            SavedUniversity.objects.filter(user=request.user)
-            .select_related("university")
-            .order_by("-created_at")
-        )
+        is_lite = request.query_params.get("lite") in ("1", "true", "True")
+        queryset = SavedUniversity.objects.filter(user=request.user).select_related("university")
+        if not is_lite:
+            # The lite payload only needs University's own columns (covered by
+            # select_related above); the full payload nests programs/rankings/
+            # requirements/scholarships/data_sources/field_verifications, so
+            # prefetch those once here instead of per-row N+1 queries.
+            # UniversitySubjectRankingSerializer also reads `.program.name` per
+            # ranking, so select_related("program") on both ranking prefetches
+            # avoids a query per ranking on top of the prefetch itself.
+            rankings_with_program = UniversitySubjectRanking.objects.select_related("program")
+            queryset = queryset.prefetch_related(
+                Prefetch("university__programs__subject_rankings", queryset=rankings_with_program),
+                Prefetch("university__subject_rankings", queryset=rankings_with_program),
+                "university__requirements",
+                "university__scholarships",
+                "university__data_sources",
+                "university__field_verifications",
+            )
+        queryset = queryset.order_by("-created_at")
+
+        self.pagination_class = CompactListPagination
         page = self.paginate_queryset(queryset)
-        serializer = SavedUniversitySerializer(
+        serializer_class = SavedUniversityLiteSerializer if is_lite else SavedUniversitySerializer
+        serializer = serializer_class(
             page if page is not None else queryset,
             many=True,
             context=self.get_serializer_context(),

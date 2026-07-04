@@ -9,7 +9,7 @@ import {
   type EssayType,
   type EssayWorkspace
 } from "@/entities/essay";
-import type { SavedUniversity } from "@/entities/university";
+import type { SavedUniversityLite } from "@/entities/university";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { useUnsavedChangesGuard } from "@/shared/lib/use-unsaved-changes-guard";
 import { Button } from "@/shared/ui/button";
@@ -32,12 +32,16 @@ export type EssayFormValues = {
 export function EssayForm({
   essay,
   shortlist,
+  isShortlistLoading = false,
+  shortlistLoadError = false,
   onSubmit,
   onCancel,
   isSubmitting
 }: {
   essay: EssayWorkspace | null;
-  shortlist: SavedUniversity[];
+  shortlist: SavedUniversityLite[];
+  isShortlistLoading?: boolean;
+  shortlistLoadError?: boolean;
   onSubmit: (values: EssayFormValues) => Promise<void>;
   onCancel: () => void;
   isSubmitting?: boolean;
@@ -162,6 +166,13 @@ export function EssayForm({
                 </option>
               ))}
             </select>
+            {shortlistLoadError ? (
+              <p className="mt-1 text-xs text-warning" role="alert">
+                {t("essays.form.shortlistLoadError")}
+              </p>
+            ) : isShortlistLoading ? (
+              <p className="mt-1 text-xs text-muted-foreground">{t("common.loading")}</p>
+            ) : null}
           </label>
         </div>
         <label className="block">

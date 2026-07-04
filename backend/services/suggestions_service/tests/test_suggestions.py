@@ -54,6 +54,25 @@ class SuggestionsApiTests(APITestCase):
         response = self.client.get("/api/suggestions/")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+    def test_list_page_size_is_capped_below_global_default(self):
+        for index in range(60):
+            SuggestedItem.objects.create(
+                user=self.user1,
+                suggestion_type=SuggestedItem.SuggestionType.PROFILE_GAP,
+                title=f"Suggestion {index}",
+                description="Check the official admissions source before planning.",
+                priority=SuggestedItem.Priority.LOW,
+                source_type=SuggestedItem.SourceType.MISSING_DATA_WARNING,
+                dedup_key=f"cap-test:{index}",
+            )
+        self.client.force_authenticate(self.user1)
+
+        response = self.client.get("/api/suggestions/?page_size=1000")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 50)
+        self.assertEqual(response.data["count"], 60)
+
     def test_generate_creates_profile_course_and_roadmap_suggestions(self):
         profile, preferences = ensure_profile_records(self.user1)
         profile.intended_majors = ["Computer Science"]

@@ -49,6 +49,8 @@ export function SuggestionPanel({
   suggestions,
   isLoading = false,
   isRefreshing = false,
+  loadError = false,
+  loadErrorMessage,
   onGenerate,
   onAddToRoadmap,
   onDismiss
@@ -58,6 +60,8 @@ export function SuggestionPanel({
   suggestions: SuggestedItem[];
   isLoading?: boolean;
   isRefreshing?: boolean;
+  loadError?: boolean;
+  loadErrorMessage?: string;
   limit?: number;
   onGenerate?: () => void;
   onAddToRoadmap?: (suggestion: SuggestedItem) => void | Promise<void>;
@@ -137,7 +141,11 @@ export function SuggestionPanel({
         ) : null}
       </div>
 
-      {isLoading ? (
+      {loadError ? (
+        <p className="mt-4 text-sm text-warning" role="alert">
+          {loadErrorMessage || t("suggestions.states.loadError")}
+        </p>
+      ) : isLoading ? (
         <p className="mt-4 text-sm text-muted-foreground">{t("suggestions.states.loading")}</p>
       ) : groups.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">{t("suggestions.states.empty")}</p>

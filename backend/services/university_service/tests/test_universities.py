@@ -1,6 +1,8 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -495,6 +497,96 @@ class ShortlistTests(APITestCase):
         self.client.post(f"/api/v1/universities/{self.university.slug}/shortlist/")
         response = self.client.get(f"/api/v1/universities/{self.university.slug}/")
         self.assertTrue(response.data["is_shortlisted"])
+
+    def _shortlist_with_nested_program_data(self, count=5, slug="shortlist-heavy-university"):
+        university = create_university(slug)
+        for index in range(count):
+            program = UniversityProgram.objects.create(
+                university=university,
+                name=f"Program {index}",
+                major_cluster=UniversityProgram.MajorCluster.COMPUTER_SCIENCE_AI_DATA,
+            )
+            UniversitySubjectRanking.objects.create(
+                university=university,
+                program=program,
+                subject_area=f"Subject {index}",
+                rank=index + 1,
+                source_name="QS Subject",
+                source_url="https://example.com/qs-subject",
+                ranking_year=2026,
+                last_verified_date=timezone.now().date(),
+                confidence=UniversitySubjectRanking.Confidence.PARTIAL,
+            )
+        SavedUniversity.objects.create(user=self.user1, university=university)
+        return university
+
+    def test_shortlist_lite_mode_returns_compact_payload(self):
+        university = self._shortlist_with_nested_program_data()
+        self.client.force_authenticate(self.user1)
+
+        response = self.client.get("/api/v1/universities/shortlist/?lite=1")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        entry = response.data["results"][0]
+        self.assertEqual(
+            set(entry["university"].keys()), {"id", "slug", "name", "country", "city"}
+        )
+        self.assertEqual(entry["university"]["id"], university.id)
+        self.assertNotIn("programs", entry["university"])
+        self.assertNotIn("subject_rankings", entry["university"])
+
+    def test_shortlist_full_mode_still_returns_nested_university_detail(self):
+        self._shortlist_with_nested_program_data()
+        self.client.force_authenticate(self.user1)
+
+        response = self.client.get("/api/v1/universities/shortlist/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        entry = response.data["results"][0]
+        self.assertIn("programs", entry["university"])
+        self.assertEqual(len(entry["university"]["programs"]), 5)
+
+    def test_shortlist_full_mode_query_count_does_not_grow_with_program_count(self):
+        # The exact query count includes a conditional one-off profile lookup
+        # (get_budget_comparison) that can vary by one request-to-request for
+        # reasons unrelated to this fix, so this asserts both the 10-program
+        # and 25-program cases stay under a small, flat ceiling rather than
+        # pinning an exact number or requiring bit-for-bit equality -- what
+        # matters is that query count does not scale with program count.
+        self._shortlist_with_nested_program_data(count=10)
+        self.client.force_authenticate(self.user1)
+
+        with CaptureQueriesContext(connection) as small:
+            response = self.client.get("/api/v1/universities/shortlist/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertLess(len(small.captured_queries), 15)
+
+        SavedUniversity.objects.all().delete()
+        self._shortlist_with_nested_program_data(count=25, slug="shortlist-heavy-university-2")
+        with CaptureQueriesContext(connection) as large:
+            response = self.client.get("/api/v1/universities/shortlist/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertLess(len(large.captured_queries), 15)
+
+    def test_shortlist_lite_mode_query_count_is_small(self):
+        self._shortlist_with_nested_program_data(count=10)
+        self.client.force_authenticate(self.user1)
+
+        with self.assertNumQueries(3):
+            response = self.client.get("/api/v1/universities/shortlist/?lite=1")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_shortlist_page_size_is_capped_below_global_default(self):
+        for index in range(60):
+            university = create_university(f"shortlist-cap-{index}")
+            SavedUniversity.objects.create(user=self.user1, university=university)
+        self.client.force_authenticate(self.user1)
+
+        response = self.client.get("/api/v1/universities/shortlist/?lite=1&page_size=1000")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 50)
+        self.assertEqual(response.data["count"], 60)
 
 
 class CompareTests(APITestCase):

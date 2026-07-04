@@ -13,7 +13,7 @@ import {
   type EssayWorkspace
 } from "@/entities/essay";
 import type { SuggestedItem } from "@/entities/suggestion";
-import type { SavedUniversity } from "@/entities/university";
+import type { SavedUniversityLite } from "@/entities/university";
 import {
   createEssayRequest,
   createEssayRevisionTaskRequest,
@@ -103,7 +103,12 @@ export function EssaysScreen() {
   const [essays, setEssays] = useState<EssayWorkspace[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [suggestions, setSuggestions] = useState<SuggestedItem[]>([]);
-  const [shortlist, setShortlist] = useState<SavedUniversity[]>([]);
+  const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(true);
+  const [suggestionsLoadError, setSuggestionsLoadError] = useState(false);
+  const [shortlist, setShortlist] = useState<SavedUniversityLite[]>([]);
+  const [isShortlistLoading, setIsShortlistLoading] = useState(false);
+  const [shortlistLoadError, setShortlistLoadError] = useState(false);
+  const [shortlistRequested, setShortlistRequested] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [filter, setFilter] = useState<string>("all");
@@ -131,22 +136,17 @@ export function EssaysScreen() {
     existing: number;
   } | null>(null);
 
+  // Essays are the only thing this page actually needs to render on load.
+  // Shortlist and suggestions used to be fetched in the same Promise.all --
+  // that meant every Essays page view also fired the (much heavier)
+  // shortlist query, and a slow/failing suggestions call could visually stall
+  // essays even though the essays request itself had already succeeded.
   const loadEssays = useCallback(async () => {
     setIsLoading(true);
     setHasError(false);
     try {
-      const [essaysResponse, shortlistResponse, suggestionsResponse] = await Promise.allSettled([
-        getEssaysRequest({ page_size: 100 }),
-        getShortlistRequest(),
-        getSuggestionsRequest()
-      ]);
-      if (essaysResponse.status === "rejected") {
-        setHasError(true);
-        return;
-      }
-      setEssays(essaysResponse.value.results);
-      setShortlist(shortlistResponse.status === "fulfilled" ? shortlistResponse.value.results : []);
-      setSuggestions(suggestionsResponse.status === "fulfilled" ? suggestionsResponse.value.results : []);
+      const essaysResponse = await getEssaysRequest({ page_size: 100 });
+      setEssays(essaysResponse.results);
     } catch {
       setHasError(true);
     } finally {
@@ -157,6 +157,56 @@ export function EssaysScreen() {
   useEffect(() => {
     void loadEssays();
   }, [loadEssays]);
+
+  // Suggestions power the always-visible SuggestionPanel below, so they still
+  // load on mount -- but independently, with their own error state, so a
+  // failure only disables that panel instead of the whole page.
+  useEffect(() => {
+    let cancelled = false;
+    setIsSuggestionsLoading(true);
+    setSuggestionsLoadError(false);
+    getSuggestionsRequest()
+      .then((response) => {
+        if (cancelled) return;
+        setSuggestions(response.results);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSuggestionsLoadError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setIsSuggestionsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Shortlist only feeds the university dropdown inside the create/edit essay
+  // modal, so it is fetched lazily the first time that modal opens (lite
+  // payload: id/name/slug/country/city only, not the full university record).
+  useEffect(() => {
+    if (!isFormOpen || shortlistRequested) return;
+    let cancelled = false;
+    setShortlistRequested(true);
+    setIsShortlistLoading(true);
+    setShortlistLoadError(false);
+    getShortlistRequest({ lite: true })
+      .then((response) => {
+        if (cancelled) return;
+        setShortlist(response.results);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setShortlistLoadError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setIsShortlistLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isFormOpen, shortlistRequested]);
 
   const selectedEssay = essays.find((essay) => essay.id === selectedEssayId) ?? null;
   const hasUnsavedDraftChanges = Boolean(
@@ -537,18 +587,23 @@ export function EssaysScreen() {
       {isFormOpen ? (
         <EssayForm
           essay={editingEssay}
+          isShortlistLoading={isShortlistLoading}
           onCancel={() => {
             setIsFormOpen(false);
             setEditingEssay(null);
           }}
           onSubmit={handleFormSubmit}
           shortlist={shortlist}
+          shortlistLoadError={shortlistLoadError}
         />
       ) : null}
 
       <SuggestionPanel
         description={t("essays.suggestions.description")}
+        isLoading={isSuggestionsLoading}
         isRefreshing={isRefreshingSuggestions}
+        loadError={suggestionsLoadError}
+        loadErrorMessage={t("suggestions.states.loadError")}
         onAddToRoadmap={(suggestion) => void handleAddSuggestion(suggestion)}
         onDismiss={(suggestion) => void handleDismissSuggestion(suggestion)}
         onGenerate={() => void handleRefreshSuggestions()}

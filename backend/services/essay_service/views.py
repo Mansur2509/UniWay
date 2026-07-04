@@ -32,11 +32,18 @@ class EssayWorkspaceViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return (
+        queryset = (
             EssayWorkspace.objects.filter(user=self.request.user)
             .select_related("university", "application", "application__university")
-            .prefetch_related("feedback_entries", "revision_tasks", "ai_score_reports")
+            .prefetch_related("feedback_entries", "revision_tasks")
         )
+        # `EssayWorkspaceSerializer` never serializes ai_score_reports (each
+        # report carries a raw_output_json blob), so only prefetch it for the
+        # actions that actually read it -- prefetching it for every list/
+        # retrieve call was pure wasted memory across every essay in the page.
+        if self.action in ("scores", "score_latest"):
+            queryset = queryset.prefetch_related("ai_score_reports")
+        return queryset
 
     def get_throttles(self):
         if self.action == "score":

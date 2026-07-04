@@ -4,6 +4,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from common.pagination import CompactListPagination
+
 from .models import SuggestedItem
 from .serializers import SuggestedItemSerializer
 from .services import add_suggestion_to_roadmap, generate_suggestions
@@ -38,6 +40,10 @@ class SuggestionQuerysetMixin:
 class SuggestionListView(SuggestionQuerysetMixin, generics.ListAPIView):
     serializer_class = SuggestedItemSerializer
     permission_classes = [IsAuthenticated]
+    # Suggestions are generated per-user from a bounded set of universities/
+    # applications/essays/exams, not a catalog -- cap page_size tighter than
+    # the global default so a caller can't force an unbounded response.
+    pagination_class = CompactListPagination
 
 
 class GenerateSuggestionsView(APIView):

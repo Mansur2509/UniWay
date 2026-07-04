@@ -2,6 +2,7 @@ import type { RecommendationsResponse } from "@/entities/recommendation";
 import type { ApplicationStrategyResponse } from "@/entities/strategy";
 import type {
   SavedUniversity,
+  SavedUniversityLite,
   UniversityDetails,
   UniversityFilterOptions,
   UniversityFilters,
@@ -94,11 +95,19 @@ export function removeFromShortlistRequest(slug: string) {
   });
 }
 
-export async function getShortlistRequest() {
-  const response = await apiRequest<unknown>("/universities/shortlist/", {
-    base: "api"
-  });
-  return normalizePaginatedResponse<SavedUniversity>(response, "university shortlist");
+export function getShortlistRequest(
+  options: { lite: true }
+): Promise<ReturnType<typeof normalizePaginatedResponse<SavedUniversityLite>>>;
+export function getShortlistRequest(
+  options?: { lite?: false }
+): Promise<ReturnType<typeof normalizePaginatedResponse<SavedUniversity>>>;
+export async function getShortlistRequest(options: { lite?: boolean } = {}) {
+  const path = options.lite ? "/universities/shortlist/?lite=1" : "/universities/shortlist/";
+  const response = await apiRequest<unknown>(path, { base: "api" });
+  return normalizePaginatedResponse<SavedUniversity | SavedUniversityLite>(
+    response,
+    "university shortlist"
+  );
 }
 
 export function getRecommendationsRequest() {

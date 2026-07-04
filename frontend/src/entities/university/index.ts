@@ -424,6 +424,20 @@ export type SavedUniversity = {
   created_at: string;
 };
 
+// Returned by GET /universities/shortlist/?lite=1 -- a compact payload for
+// dropdown/linking UI that skips the full nested programs/rankings/cost data
+// (see SavedUniversityLiteSerializer on the backend).
+export type ShortlistUniversitySummary = Pick<
+  UniversityDetails,
+  "id" | "name" | "slug" | "country" | "city"
+>;
+
+export type SavedUniversityLite = {
+  id: number;
+  university: ShortlistUniversitySummary;
+  created_at: string;
+};
+
 export type PaginatedResponse<Item> = {
   count: number;
   next: string | null;

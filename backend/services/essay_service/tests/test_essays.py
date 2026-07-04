@@ -215,6 +215,37 @@ class EssayWorkspaceApiTests(APITestCase):
         self.assertEqual(len(list_response.data["results"]), 1)
         self.assertEqual(list_response.data["results"][0]["id"], essay_id)
 
+    def test_list_query_count_does_not_grow_with_ai_score_report_count(self):
+        self.client.force_authenticate(self.user1)
+        essay = EssayWorkspace.objects.create(
+            user=self.user1, title="Scored essay", draft_text="Some content here."
+        )
+        for index in range(8):
+            AIEssayScoreReport.objects.create(
+                user=self.user1,
+                essay=essay,
+                essay_text_hash=f"hash-{index}",
+                context_hash=f"context-{index}",
+                model_name="test-model",
+                raw_output_json={"padding": "x" * 500},
+                overall_essay_readiness=70,
+                prompt_fit=20,
+                structure=15,
+                specificity_evidence=15,
+                authenticity=10,
+                language_clarity=8,
+                confidence=AIEssayScoreReport.Confidence.MEDIUM,
+                word_count=100,
+                word_limit_status=AIEssayScoreReport.WordLimitStatus.WITHIN,
+                ai_paraphrase_style_signal=AIEssayScoreReport.StyleSignal.LOW,
+                generic_language_signal="low",
+                unsupported_claims_signal=AIEssayScoreReport.ClaimsSignal.LOW,
+            )
+
+        with self.assertNumQueries(4):
+            response = self.client.get("/api/essays/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
     def test_essays_are_self_only(self):
         self.client.force_authenticate(self.user1)
         self.client.post("/api/essays/", {"title": "Mine", "draft_text": ""}, format="json")

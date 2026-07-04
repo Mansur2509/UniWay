@@ -133,9 +133,11 @@ class UniversitySerializer(serializers.ModelSerializer):
         return compare_cost_to_budget(obj, profile)
 
     def get_program_display_names(self, obj) -> list[str]:
-        return format_program_display_names(
-            program.name for program in obj.programs.order_by("id")
-        )
+        # `.order_by()` builds a new queryset and bypasses Django's
+        # prefetch_related cache for `programs`, forcing an extra query per
+        # university; sorting the already-fetched list in Python reuses it.
+        programs = sorted(obj.programs.all(), key=lambda program: program.id)
+        return format_program_display_names(program.name for program in programs)
 
     def get_program_matching(self, obj):
         if not self.context.get("include_program_matching"):
@@ -155,6 +157,28 @@ class SavedUniversitySerializer(serializers.ModelSerializer):
         model = SavedUniversity
         fields = ("id", "university", "created_at")
         read_only_fields = ("id", "university", "created_at")
+
+
+class ShortlistUniversitySummarySerializer(serializers.ModelSerializer):
+    """Minimal university fields for dropdown/linking UI -- deliberately skips
+    the full `UniversitySerializer`'s nested programs/rankings/requirements/
+    scholarships/data_sources, which is expensive to serialize across an
+    entire shortlist and unnecessary when the caller only needs a label.
+    """
+
+    class Meta:
+        model = University
+        fields = ("id", "slug", "name", "country", "city")
+        read_only_fields = fields
+
+
+class SavedUniversityLiteSerializer(serializers.ModelSerializer):
+    university = ShortlistUniversitySummarySerializer(read_only=True)
+
+    class Meta:
+        model = SavedUniversity
+        fields = ("id", "university", "created_at")
+        read_only_fields = fields
 
 
 class UniversityImportUploadSerializer(serializers.Serializer):
