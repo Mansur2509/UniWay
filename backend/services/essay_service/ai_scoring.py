@@ -508,13 +508,19 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
         raw_output = client.score_essay(system_prompt=ESSAY_SCORING_SYSTEM_PROMPT, user_prompt=user_prompt)
     except AIProviderError as error:
         # Never log the essay text, the prompt, or the API key -- only enough
-        # structured, sanitized detail (status code + truncated provider error
-        # body) to diagnose a production failure from Render logs.
+        # structured, sanitized detail (status code, wrapped-exception class,
+        # Gemini's own error code/status, message, and truncated provider
+        # error body) to diagnose a production failure from Render logs.
         logger.warning(
-            "Gemini provider error feature=essay_scoring model=%s status=%s exception=%s error=%s",
+            "Gemini provider error feature=essay_scoring model=%s status=%s exception=%s cause=%s "
+            "provider_code=%s provider_status=%s message=\"%s\" error=\"%s\"",
             model_name,
             getattr(error, "status_code", None),
             type(error).__name__,
+            getattr(error, "cause_class", None),
+            getattr(error, "provider_code", None),
+            getattr(error, "provider_status", None),
+            str(error)[:1000],
             getattr(error, "error_body", "")[:1000],
         )
         return {
@@ -528,7 +534,16 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
     try:
         normalized = validate_and_normalize_output(raw_output, payload=payload)
     except EssayScoringValidationError as error:
-        logger.warning("Essay scoring output failed validation for essay_id=%s: %s", essay.id, error)
+        # `error` only ever names a schema field/key or an out-of-range number
+        # (see the _validate_* helpers above) -- never raw essay/profile text.
+        # Still truncated defensively since one branch echoes back whatever
+        # value Gemini put in an enum field.
+        logger.warning(
+            "Gemini schema validation error feature=essay_scoring model=%s essay_id=%s message=\"%s\"",
+            model_name,
+            essay.id,
+            str(error)[:300],
+        )
         return {
             "reason": "validation_failed",
             "cached": False,

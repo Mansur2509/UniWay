@@ -7,6 +7,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from services.ai_gateway_service.exceptions import AIProviderError
 from services.application_service.models import ApplicationTrackerItem
 from services.essay_service.ai_scoring import (
     EssayScoringValidationError,
@@ -85,6 +86,14 @@ class FakeEssayScoringClient:
         self.calls += 1
         self.prompts.append({"system_prompt": system_prompt, "user_prompt": user_prompt})
         return self.output
+
+
+class FakeFailingEssayScoringClient:
+    def __init__(self, error: AIProviderError):
+        self.error = error
+
+    def score_essay(self, *, system_prompt, user_prompt):
+        raise self.error
 
 
 class EssayFeedbackEngineTests(APITestCase):
@@ -730,6 +739,47 @@ class AIEssayScoringTests(APITestCase):
             validate_and_normalize_output(forbidden, payload=payload)
         with self.assertRaises(EssayScoringValidationError):
             validate_and_normalize_output(rewrite, payload=payload)
+
+    def test_provider_error_logs_sanitized_diagnostics_without_secrets_or_essay_text(self):
+        essay = self._essay(draft_text="A very private essay about my grandmother's garden.")
+        error = AIProviderError(
+            "Gemini essay scoring request failed.",
+            status_code=404,
+            error_body='{"error": {"code": 404, "message": "models/x is not found", "status": "NOT_FOUND"}}',
+            cause_class="HTTPError",
+            provider_code=404,
+            provider_status="NOT_FOUND",
+        )
+        client = FakeFailingEssayScoringClient(error)
+
+        with self.assertLogs("services.essay_service.ai_scoring", level="WARNING") as captured:
+            response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.data["reason"], "ai_unavailable")
+        log_line = "\n".join(captured.output)
+        self.assertIn("feature=essay_scoring", log_line)
+        self.assertIn("status=404", log_line)
+        self.assertIn("exception=AIProviderError", log_line)
+        self.assertIn("cause=HTTPError", log_line)
+        self.assertIn("provider_code=404", log_line)
+        self.assertIn("provider_status=NOT_FOUND", log_line)
+        self.assertIn("NOT_FOUND", log_line)
+        self.assertNotIn("grandmother's garden", log_line)
+        self.assertNotIn("test-gemini-key", log_line)
+
+    def test_validation_failure_logs_sanitized_message_without_essay_text(self):
+        essay = self._essay(draft_text="A very private essay about my grandmother's garden.")
+        client = FakeEssayScoringClient({"overall_essay_readiness": 70})
+
+        with self.assertLogs("services.essay_service.ai_scoring", level="WARNING") as captured:
+            response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
+        log_line = "\n".join(captured.output)
+        self.assertIn("feature=essay_scoring", log_line)
+        self.assertIn("essay_id=", log_line)
+        self.assertNotIn("grandmother's garden", log_line)
 
     def test_missing_draft_returns_safe_missing_text_reason(self):
         essay = self._essay(draft_text="")

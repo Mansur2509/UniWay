@@ -669,14 +669,20 @@ def run_profile_assessment(user, *, force: bool = False, client=None) -> Assessm
         )
     except (AIProviderError, AIProviderUnavailable) as error:
         # Never log the profile input, the prompt, or the API key -- only
-        # enough structured, sanitized detail (status code + truncated
+        # enough structured, sanitized detail (status code, wrapped-exception
+        # class, Gemini's own error code/status, message, and truncated
         # provider error body) to diagnose a production failure from Render
         # logs.
         logger.warning(
-            "Gemini provider error feature=profile_assessment model=%s status=%s exception=%s error=%s",
+            "Gemini provider error feature=profile_assessment model=%s status=%s exception=%s cause=%s "
+            "provider_code=%s provider_status=%s message=\"%s\" error=\"%s\"",
             getattr(assessment_client, "model_name", settings.AI_PROFILE_ASSESSMENT_MODEL),
             getattr(error, "status_code", None),
             type(error).__name__,
+            getattr(error, "cause_class", None),
+            getattr(error, "provider_code", None),
+            getattr(error, "provider_status", None),
+            str(error)[:1000],
             getattr(error, "error_body", "")[:1000],
         )
         return AssessmentRunResult(
@@ -687,7 +693,16 @@ def run_profile_assessment(user, *, force: bool = False, client=None) -> Assessm
             next_available_at=None,
             ai_available=False,
         )
-    except AssessmentValidationError:
+    except AssessmentValidationError as error:
+        # `error` only ever names a schema field/key or an out-of-range value
+        # (see the _validate_* helpers above) -- never raw profile text.
+        # Still truncated defensively since one branch echoes back whatever
+        # value the AI put in an enum field.
+        logger.warning(
+            "Gemini schema validation error feature=profile_assessment model=%s message=\"%s\"",
+            getattr(assessment_client, "model_name", settings.AI_PROFILE_ASSESSMENT_MODEL),
+            str(error)[:300],
+        )
         return AssessmentRunResult(
             assessment=latest,
             cached=False,

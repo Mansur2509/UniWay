@@ -5,6 +5,7 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from services.ai_gateway_service.exceptions import AIProviderError
 from services.essay_service.models import EssayWorkspace
 from services.profile_assessment_service.models import AIProfileAssessment
 from services.profile_assessment_service.services import (
@@ -34,6 +35,17 @@ class FakeProfileAssessmentClient:
         self.calls += 1
         self.last_input_summary = input_summary
         return self.output
+
+
+class FakeFailingProfileAssessmentClient:
+    provider_name = "fake"
+    model_name = "fake-profile-model"
+
+    def __init__(self, error: AIProviderError):
+        self.error = error
+
+    def generate_profile_assessment(self, input_summary):
+        raise self.error
 
 
 def valid_ai_output(**overrides):
@@ -264,6 +276,43 @@ class ProfileAssessmentServiceTests(APITestCase):
             "cached_profile_assessment_used",
             fit["profile_evidence"]["program_relevance_notes"],
         )
+
+    def test_provider_error_logs_sanitized_diagnostics_without_secrets_or_profile_text(self):
+        error = AIProviderError(
+            "Gemini profile assessment request failed.",
+            status_code=404,
+            error_body='{"error": {"code": 404, "message": "models/x is not found", "status": "NOT_FOUND"}}',
+            cause_class="HTTPError",
+            provider_code=404,
+            provider_status="NOT_FOUND",
+        )
+        client = FakeFailingProfileAssessmentClient(error)
+
+        with self.assertLogs("services.profile_assessment_service.services", level="WARNING") as captured:
+            result = run_profile_assessment(self.user, client=client)
+
+        self.assertEqual(result.reason, "ai_unavailable")
+        log_line = "\n".join(captured.output)
+        self.assertIn("feature=profile_assessment", log_line)
+        self.assertIn("status=404", log_line)
+        self.assertIn("exception=AIProviderError", log_line)
+        self.assertIn("cause=HTTPError", log_line)
+        self.assertIn("provider_code=404", log_line)
+        self.assertIn("provider_status=NOT_FOUND", log_line)
+        self.assertIn("NOT_FOUND", log_line)
+        self.assertNotIn("Tashkent", log_line)
+        self.assertNotIn("test-key", log_line)
+
+    def test_validation_failure_logs_sanitized_message_without_profile_text(self):
+        client = FakeProfileAssessmentClient({"overall_profile_score": 50})
+
+        with self.assertLogs("services.profile_assessment_service.services", level="WARNING") as captured:
+            result = run_profile_assessment(self.user, client=client)
+
+        self.assertEqual(result.reason, "validation_failed")
+        log_line = "\n".join(captured.output)
+        self.assertIn("feature=profile_assessment", log_line)
+        self.assertNotIn("Tashkent", log_line)
 
 
 @override_settings(

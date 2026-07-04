@@ -6,7 +6,7 @@ import urllib.request
 
 from django.conf import settings
 
-from .exceptions import AIProviderError, AIProviderUnavailable
+from .exceptions import AIProviderError, AIProviderUnavailable, parse_gemini_error_body
 from .schemas import PROFILE_ASSESSMENT_RESPONSE_SCHEMA, PROFILE_ASSESSMENT_SYSTEM_PROMPT
 
 
@@ -72,17 +72,41 @@ class GeminiProfileAssessmentClient:
                 body = error.read().decode("utf-8", errors="replace")
             except Exception:
                 body = ""
+            provider_code, provider_status = parse_gemini_error_body(body)
             raise AIProviderError(
-                "Gemini profile assessment request failed.", status_code=error.code, error_body=body
+                "Gemini profile assessment request failed.",
+                status_code=error.code,
+                error_body=body,
+                cause_class=type(error).__name__,
+                provider_code=provider_code,
+                provider_status=provider_status,
             ) from error
-        except (TimeoutError, urllib.error.URLError, json.JSONDecodeError) as error:
-            raise AIProviderError("Gemini profile assessment request failed.") from error
+        except TimeoutError as error:
+            raise AIProviderError(
+                "Gemini profile assessment request timed out.",
+                error_body="timeout while calling Gemini",
+                cause_class=type(error).__name__,
+            ) from error
+        except urllib.error.URLError as error:
+            raise AIProviderError(
+                "Gemini profile assessment request failed.",
+                error_body=f"network error contacting Gemini: {error.reason}",
+                cause_class=type(error).__name__,
+            ) from error
+        except json.JSONDecodeError as error:
+            raise AIProviderError(
+                "Gemini returned an invalid JSON response.",
+                error_body=f"invalid Gemini JSON response: {error}",
+                cause_class=type(error).__name__,
+            ) from error
 
         text = self._extract_text(data)
         try:
             return json.loads(text)
         except json.JSONDecodeError as error:
-            raise AIProviderError("Gemini returned non-JSON profile assessment output.") from error
+            raise AIProviderError(
+                "Gemini returned non-JSON profile assessment output.", cause_class=type(error).__name__
+            ) from error
 
     @staticmethod
     def _extract_text(data: dict) -> str:
