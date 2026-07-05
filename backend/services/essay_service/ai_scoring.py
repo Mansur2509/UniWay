@@ -716,11 +716,12 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
 
     client = GeminiEssayScoringClient()
     user_prompt = build_user_prompt(payload)
+    response_schema = ESSAY_SCORE_RESPONSE_SCHEMA if settings.AI_GEMINI_RESPONSE_SCHEMA_ENABLED else None
     try:
         raw_output = client.score_essay(
             system_prompt=ESSAY_SCORING_SYSTEM_PROMPT,
             user_prompt=user_prompt,
-            response_schema=ESSAY_SCORE_RESPONSE_SCHEMA,
+            response_schema=response_schema,
         )
     except AIProviderError as first_error:
         if not _is_retryable_provider_error(first_error):
@@ -741,7 +742,7 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
             raw_output = client.score_essay(
                 system_prompt=ESSAY_SCORING_SYSTEM_PROMPT,
                 user_prompt=user_prompt,
-                response_schema=ESSAY_SCORE_RESPONSE_SCHEMA,
+                response_schema=response_schema,
             )
         except AIProviderError as retry_error:
             _log_provider_error(retry_error, model_name=model_name, essay_id=essay.id, attempt="2_final")

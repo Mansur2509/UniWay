@@ -30,6 +30,8 @@ class GeminiProfileAssessmentClient:
     def generate_profile_assessment(self, input_summary: dict) -> dict:
         if not self.api_key:
             raise AIProviderUnavailable("Gemini API key is not configured.")
+        if not self.model_name:
+            raise AIProviderUnavailable("Gemini model is not configured.")
 
         prompt = {
             "system": PROFILE_ASSESSMENT_SYSTEM_PROMPT,

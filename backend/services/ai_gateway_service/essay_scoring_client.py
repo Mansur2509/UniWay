@@ -41,6 +41,8 @@ class GeminiEssayScoringClient:
     def score_essay(self, *, system_prompt: str, user_prompt: str, response_schema: dict | None = None) -> dict:
         if not self.api_key:
             raise AIProviderUnavailable("Gemini API key is not configured.")
+        if not self.model_name:
+            raise AIProviderUnavailable("Gemini model is not configured.")
 
         url = (
             "https://generativelanguage.googleapis.com/v1beta/models/"

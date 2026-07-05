@@ -50,3 +50,6 @@ qa-artifacts/
 
 # Generated XLSX import reports (the dataset workbook itself is committed)
 **/import_report_*.json
+
+# Local-only diagnostic scripts (run with real provider keys; never commit)
+backend/tmp_check_gemini_models.py
