@@ -163,6 +163,33 @@ class GeminiEssayScoringClientDiagnosticsTests(SimpleTestCase):
         self.assertEqual(error.cause_class, "JSONDecodeError")
         self.assertTrue(error.error_body)
 
+    def _fake_urlopen_capturing_request(self, captured: dict):
+        def fake_urlopen(request, timeout=None):
+            captured["payload"] = json.loads(request.data.decode("utf-8"))
+            ok_body = json.dumps(
+                {"candidates": [{"content": {"parts": [{"text": '{"a": 1}'}]}}]}
+            ).encode("utf-8")
+            return _FakeResponse(ok_body)
+
+        return fake_urlopen
+
+    def test_response_schema_is_included_in_generation_config_when_provided(self):
+        captured: dict = {}
+        schema = {"type": "OBJECT", "properties": {"a": {"type": "INTEGER"}}}
+        with patch("urllib.request.urlopen", side_effect=self._fake_urlopen_capturing_request(captured)):
+            result = self._client().score_essay(system_prompt="s", user_prompt="u", response_schema=schema)
+
+        self.assertEqual(result, {"a": 1})
+        self.assertEqual(captured["payload"]["generationConfig"]["responseSchema"], schema)
+        self.assertEqual(captured["payload"]["generationConfig"]["responseMimeType"], "application/json")
+
+    def test_response_schema_is_omitted_when_not_provided(self):
+        captured: dict = {}
+        with patch("urllib.request.urlopen", side_effect=self._fake_urlopen_capturing_request(captured)):
+            self._client().score_essay(system_prompt="s", user_prompt="u")
+
+        self.assertNotIn("responseSchema", captured["payload"]["generationConfig"])
+
     def test_response_wrapped_in_json_fence_is_extracted_and_parsed(self):
         fenced_text = '```json\n{"overall_essay_readiness": 80, "confidence": "high"}\n```'
         ok_body = json.dumps(

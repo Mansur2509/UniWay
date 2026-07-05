@@ -42,6 +42,7 @@ import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { CollapsibleFilterPanel } from "@/shared/ui/collapsible-filter-panel";
+import { CollapsiblePanel } from "@/shared/ui/collapsible-panel";
 import { fieldClassName } from "@/shared/ui/field";
 import { HelpTooltip } from "@/shared/ui/help-tooltip";
 import { LoadingNotice } from "@/shared/ui/loading-notice";
@@ -49,6 +50,10 @@ import { PaginationControls } from "@/shared/ui/pagination";
 import { UnsavedChangesDialog } from "@/shared/ui/unsaved-changes-dialog";
 
 const ESSAYS_PAGE_SIZE = 5;
+
+function scoreCardStorageKey(essayId: number) {
+  return `eduverse.essay.${essayId}.scoreCardOpen`;
+}
 
 type Translate = ReturnType<typeof useI18n>["t"];
 
@@ -110,6 +115,7 @@ export function EssaysScreen() {
     nextAvailableAt: string | null;
   } | null>(null);
   const [scoreRequestFailed, setScoreRequestFailed] = useState(false);
+  const [isScoreCardOpen, setIsScoreCardOpen] = useState(false);
   const [actionError, setActionError] = useState(false);
   const [pendingTaskId, setPendingTaskId] = useState<number | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -204,9 +210,27 @@ export function EssaysScreen() {
 
   useEffect(() => {
     setScoreNotice(null);
+    setScoreRequestFailed(false);
     if (!selectedEssayId) {
       setLatestScore(null);
+      setIsScoreCardOpen(false);
       return;
+    }
+    // Collapsed by default whenever an essay is opened (including a fresh
+    // page load) or on any narrow/mobile viewport, regardless of a stored
+    // preference -- only a manual toggle or a fresh successful "Get score"
+    // click (handled in handleScoreEssay) should expand it.
+    const isNarrowViewport =
+      typeof window !== "undefined" && window.innerWidth < 768;
+    if (isNarrowViewport) {
+      setIsScoreCardOpen(false);
+    } else {
+      try {
+        const stored = window.localStorage.getItem(scoreCardStorageKey(selectedEssayId));
+        setIsScoreCardOpen(stored === "open");
+      } catch {
+        setIsScoreCardOpen(false);
+      }
     }
     let cancelled = false;
     getLatestEssayScoreRequest(selectedEssayId)
@@ -220,6 +244,18 @@ export function EssaysScreen() {
       cancelled = true;
     };
   }, [selectedEssayId]);
+
+  function toggleScoreCard() {
+    const next = !isScoreCardOpen;
+    setIsScoreCardOpen(next);
+    if (selectedEssayId) {
+      try {
+        window.localStorage.setItem(scoreCardStorageKey(selectedEssayId), next ? "open" : "closed");
+      } catch {
+        // Ignore private-mode/localStorage failures; the panel still works.
+      }
+    }
+  }
 
   function updateEssayInList(updated: EssayWorkspace) {
     setEssays((current) => current.map((essay) => (essay.id === updated.id ? updated : essay)));
@@ -359,6 +395,16 @@ export function EssaysScreen() {
       });
       if (response.score) {
         setLatestScore(response.score);
+        // A successful Get score click (fresh or cache-hit) is the one case
+        // that should expand the panel automatically -- every other path
+        // (page load, switching essays, a failed refresh) leaves whatever
+        // open/closed state was already showing untouched.
+        setIsScoreCardOpen(true);
+        try {
+          window.localStorage.setItem(scoreCardStorageKey(selectedEssay.id), "open");
+        } catch {
+          // Ignore private-mode/localStorage failures; the panel still works.
+        }
       }
     } catch {
       // A raw request failure (network error, unexpected non-JSON 5xx from
@@ -1023,8 +1069,35 @@ export function EssaysScreen() {
                   </Card>
                 ) : null}
 
-                {latestScore ? (
-                  <Card className="bg-elevated/45 p-5">
+                <CollapsiblePanel
+                  className="bg-elevated/45"
+                  header={
+                    !latestScore ? (
+                      t("essays.score.notReviewedYet")
+                    ) : (
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-sm border bg-card px-2 py-0.5 font-semibold">
+                          {t("essays.score.overall", { score: latestScore.overall_essay_readiness })}
+                        </span>
+                        {scoreRequestFailed ||
+                        (scoreNotice &&
+                          (scoreNotice.reason === "ai_unavailable" ||
+                            scoreNotice.reason === "validation_failed"))
+                          ? t("essays.score.refreshFailedShort")
+                          : t("essays.score.lastReviewed", {
+                              date: formatDate(latestScore.created_at, locale)
+                            })}
+                      </span>
+                    )
+                  }
+                  isOpen={isScoreCardOpen}
+                  onToggle={toggleScoreCard}
+                  toggleLabel={isScoreCardOpen ? t("essays.score.hide") : t("essays.score.show")}
+                >
+                  {!latestScore ? (
+                    <p className="text-sm text-muted-foreground">{t("essays.score.notReviewedYet")}</p>
+                  ) : (
+                    <>
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <h3 className="text-lg font-semibold">{t("essays.score.title")}</h3>
@@ -1195,8 +1268,9 @@ export function EssaysScreen() {
                         <li key={disclaimer}>{disclaimer}</li>
                       ))}
                     </ul>
-                  </Card>
-                ) : null}
+                    </>
+                  )}
+                </CollapsiblePanel>
 
                 <Card className="p-5">
                   <h3 className="text-lg font-semibold">{t("essays.revision.title")}</h3>

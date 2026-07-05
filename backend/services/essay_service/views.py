@@ -143,6 +143,7 @@ class EssayWorkspaceViewSet(viewsets.ModelViewSet):
                 "cached": result["cached"],
                 "quota_remaining": result["quota_remaining"],
                 "next_available_at": result["next_available_at"],
+                "validation_code": result["validation_code"],
                 "score": AIEssayScoreReportSerializer(report).data if report else None,
             },
             status=AI_SCORE_REASON_STATUS[result["reason"]],

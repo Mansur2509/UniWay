@@ -38,7 +38,7 @@ class GeminiEssayScoringClient:
         self.max_output_tokens = max_output_tokens or settings.AI_ESSAY_MAX_OUTPUT_TOKENS
         self.temperature = settings.AI_ESSAY_TEMPERATURE if temperature is None else temperature
 
-    def score_essay(self, *, system_prompt: str, user_prompt: str) -> dict:
+    def score_essay(self, *, system_prompt: str, user_prompt: str, response_schema: dict | None = None) -> dict:
         if not self.api_key:
             raise AIProviderUnavailable("Gemini API key is not configured.")
 
@@ -46,6 +46,18 @@ class GeminiEssayScoringClient:
             "https://generativelanguage.googleapis.com/v1beta/models/"
             f"{self.model_name}:generateContent?key={self.api_key}"
         )
+        generation_config = {
+            "temperature": self.temperature,
+            "maxOutputTokens": self.max_output_tokens,
+            "responseMimeType": "application/json",
+        }
+        if response_schema is not None:
+            # Constrains Gemini to the exact key set/types/enums at generation
+            # time -- this is defense-in-depth only. `validate_and_normalize_output`
+            # still enforces every numeric range, forbidden phrase, and
+            # verbatim-reuse rule itself and must never be relaxed based on
+            # this being present.
+            generation_config["responseSchema"] = response_schema
         payload = {
             "system_instruction": {"parts": [{"text": system_prompt}]},
             "contents": [
@@ -54,11 +66,7 @@ class GeminiEssayScoringClient:
                     "parts": [{"text": user_prompt}],
                 }
             ],
-            "generationConfig": {
-                "temperature": self.temperature,
-                "maxOutputTokens": self.max_output_tokens,
-                "responseMimeType": "application/json",
-            },
+            "generationConfig": generation_config,
         }
         request = urllib.request.Request(
             url,

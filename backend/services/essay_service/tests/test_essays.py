@@ -83,7 +83,7 @@ class FakeEssayScoringClient:
         self.calls = 0
         self.prompts = []
 
-    def score_essay(self, *, system_prompt, user_prompt):
+    def score_essay(self, *, system_prompt, user_prompt, response_schema=None):
         self.calls += 1
         self.prompts.append({"system_prompt": system_prompt, "user_prompt": user_prompt})
         return self.output
@@ -93,7 +93,7 @@ class FakeFailingEssayScoringClient:
     def __init__(self, error: AIProviderError):
         self.error = error
 
-    def score_essay(self, *, system_prompt, user_prompt):
+    def score_essay(self, *, system_prompt, user_prompt, response_schema=None):
         raise self.error
 
 
@@ -106,7 +106,7 @@ class FakeFlakyEssayScoringClient:
         self.output = output or valid_ai_score_output()
         self.calls = 0
 
-    def score_essay(self, *, system_prompt, user_prompt):
+    def score_essay(self, *, system_prompt, user_prompt, response_schema=None):
         self.calls += 1
         if self.calls <= self.fail_times:
             raise self.error
@@ -126,7 +126,7 @@ class FakeRacingEssayScoringClient:
         self.output = output or valid_ai_score_output()
         self.calls = 0
 
-    def score_essay(self, *, system_prompt, user_prompt):
+    def score_essay(self, *, system_prompt, user_prompt, response_schema=None):
         self.calls += 1
         AIEssayScoreReport.objects.create(
             user=self.user,
@@ -780,6 +780,7 @@ class AIEssayScoringTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE, response.data)
         self.assertEqual(response.data["reason"], "validation_failed")
+        self.assertEqual(response.data["validation_code"], "invalid_enum")
         self.assertEqual(AIEssayScoreReport.objects.count(), 0)
 
     def test_out_of_range_scores_are_rejected(self):
@@ -790,6 +791,71 @@ class AIEssayScoringTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE, response.data)
         self.assertEqual(response.data["reason"], "validation_failed")
+        self.assertEqual(response.data["validation_code"], "score_out_of_range")
+
+    def test_missing_required_subscore_is_rejected_with_missing_required_field_code(self):
+        # `_essay()` sets word_limit=650, so word_limit_discipline MUST be an
+        # integer, never null -- this is the exact ambiguity the hardened
+        # prompt now spells out explicitly for Gemini.
+        essay = self._essay()
+        client = FakeEssayScoringClient(valid_ai_score_output(subscores={"word_limit_discipline": None}))
+
+        response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE, response.data)
+        self.assertEqual(response.data["reason"], "validation_failed")
+        self.assertEqual(response.data["validation_code"], "missing_required_field")
+
+    def test_unexpected_top_level_key_is_rejected_with_unexpected_key_code(self):
+        essay = self._essay()
+        client = FakeEssayScoringClient(valid_ai_score_output(reasoning="internal chain of thought"))
+
+        response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE, response.data)
+        self.assertEqual(response.data["validation_code"], "unexpected_key")
+
+    def test_numeric_string_subscore_is_normalized_and_accepted(self):
+        essay = self._essay()
+        client = FakeEssayScoringClient(
+            valid_ai_score_output(overall_essay_readiness="78", subscores={"prompt_fit": "20"})
+        )
+
+        response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["score"]["overall_essay_readiness"], 78)
+        self.assertEqual(response.data["score"]["subscores"]["prompt_fit"], 20)
+
+    def test_enum_with_surrounding_whitespace_is_trimmed_and_accepted(self):
+        essay = self._essay()
+        client = FakeEssayScoringClient(valid_ai_score_output(confidence=" medium "))
+
+        response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["score"]["confidence"], "medium")
+
+    @override_settings(AI_ESSAY_DAILY_FREE_LIMIT=2)
+    def test_failed_validation_does_not_delete_previous_score(self):
+        essay = self._essay()
+        good_client = FakeEssayScoringClient()
+        first = self._score_with_client(essay, good_client)
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED, first.data)
+        report_id = first.data["score"]["id"]
+
+        essay.draft_text = essay.draft_text + " A meaningfully different revised ending for this test."
+        essay.save(update_fields=["draft_text", "updated_at"])
+        bad_client = FakeEssayScoringClient({"overall_essay_readiness": 70})
+        second = self._score_with_client(essay, bad_client)
+        self.assertEqual(second.status_code, status.HTTP_503_SERVICE_UNAVAILABLE, second.data)
+        self.assertEqual(second.data["reason"], "validation_failed")
+
+        self.assertTrue(AIEssayScoreReport.objects.filter(id=report_id).exists())
+        self.client.force_authenticate(essay.user)
+        latest = self.client.get(f"/api/essays/{essay.id}/score/latest/")
+        self.assertEqual(latest.status_code, status.HTTP_200_OK)
+        self.assertEqual(latest.data["score"]["id"], report_id)
 
     def test_suggestions_limits_are_enforced(self):
         payload = build_scoring_payload(self._essay())
@@ -802,20 +868,37 @@ class AIEssayScoringTests(APITestCase):
             ]
         )
 
-        with self.assertRaises(EssayScoringValidationError):
+        with self.assertRaises(EssayScoringValidationError) as many_ctx:
             validate_and_normalize_output(too_many, payload=payload)
-        with self.assertRaises(EssayScoringValidationError):
+        self.assertEqual(many_ctx.exception.code, "too_many_suggestions")
+        with self.assertRaises(EssayScoringValidationError) as long_ctx:
             validate_and_normalize_output(too_long, payload=payload)
+        self.assertEqual(long_ctx.exception.code, "suggestion_too_long")
 
     def test_forbidden_outcome_language_and_rewrite_keys_are_rejected(self):
         payload = build_scoring_payload(self._essay())
         forbidden = valid_ai_score_output(risk_flags=["This improves admission chance."])
         rewrite = valid_ai_score_output(rewritten_text="Here is a replacement paragraph.")
 
-        with self.assertRaises(EssayScoringValidationError):
+        with self.assertRaises(EssayScoringValidationError) as forbidden_ctx:
             validate_and_normalize_output(forbidden, payload=payload)
-        with self.assertRaises(EssayScoringValidationError):
+        self.assertEqual(forbidden_ctx.exception.code, "forbidden_outcome_language")
+        with self.assertRaises(EssayScoringValidationError) as rewrite_ctx:
             validate_and_normalize_output(rewrite, payload=payload)
+        self.assertEqual(rewrite_ctx.exception.code, "forbidden_rewrite_key")
+
+    def test_verbatim_essay_reuse_in_suggestion_is_rejected_with_stable_code(self):
+        essay = self._essay(
+            draft_text="I built a student library project serving over one hundred students each week."
+        )
+        payload = build_scoring_payload(essay)
+        verbatim = valid_ai_score_output(
+            approximate_suggestions=["I built a student library project serving over one hundred students"]
+        )
+
+        with self.assertRaises(EssayScoringValidationError) as ctx:
+            validate_and_normalize_output(verbatim, payload=payload)
+        self.assertEqual(ctx.exception.code, "verbatim_essay_reuse")
 
     def test_provider_error_logs_sanitized_diagnostics_without_secrets_or_essay_text(self):
         essay = self._essay(draft_text="A very private essay about my grandmother's garden.")

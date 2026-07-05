@@ -59,7 +59,11 @@ ESSAY_SCORING_SYSTEM_PROMPT = (
     "program data exists. Do not provide admissions outcome promises. "
     "Suggestions must be approximate, high-level, and max 20 words each. If "
     "official prompt or school data is missing, lower confidence and state "
-    "the limitation."
+    "the limitation. Never use the words \"probability\", \"chance\", \"odds\", "
+    "or \"guarantee\" (or close variants) anywhere in your output, in any "
+    "field, even about something other than admissions -- rephrase instead. "
+    "Suggestions must describe the issue and direction in your own words; "
+    "never quote or closely echo the essay's own sentences back."
 )
 
 ALLOWED_TOP_LEVEL_KEYS = {
@@ -95,7 +99,31 @@ DISALLOWED_GENERATION_KEYS = {
 
 
 class EssayScoringValidationError(Exception):
-    """Raised when the AI response fails strict schema/content validation."""
+    """Raised when the AI response fails strict schema/content validation.
+
+    `code` is a small stable machine-readable label (never raw model output)
+    safe to put in logs and in the API response body, so production failures
+    can be told apart without guessing -- e.g. `score_out_of_range` vs
+    `invalid_enum` vs `forbidden_outcome_language` need very different fixes.
+    """
+
+    def __init__(self, message: str, *, code: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+class ValidationCode:
+    INVALID_SHAPE = "invalid_shape"
+    UNEXPECTED_KEY = "unexpected_key"
+    FORBIDDEN_REWRITE_KEY = "forbidden_rewrite_key"
+    MISSING_REQUIRED_FIELD = "missing_required_field"
+    INVALID_NUMBER_TYPE = "invalid_number_type"
+    SCORE_OUT_OF_RANGE = "score_out_of_range"
+    INVALID_ENUM = "invalid_enum"
+    TOO_MANY_SUGGESTIONS = "too_many_suggestions"
+    SUGGESTION_TOO_LONG = "suggestion_too_long"
+    FORBIDDEN_OUTCOME_LANGUAGE = "forbidden_outcome_language"
+    VERBATIM_ESSAY_REUSE = "verbatim_essay_reuse"
 
 
 def compute_essay_text_hash(essay_text: str) -> str:
@@ -190,19 +218,23 @@ def compute_context_hash(payload: dict, *, model_name: str) -> str:
 
 
 ESSAY_SCORING_JSON_SCHEMA_INSTRUCTIONS = (
-    "Return JSON with exactly these top-level keys and nothing else: "
+    "Return JSON with exactly these top-level keys and nothing else -- any other "
+    "key, including explanations or reasoning fields, will cause the response to "
+    "be rejected: "
     "overall_essay_readiness (integer 1-100), "
-    "confidence (\"low\"|\"medium\"|\"high\"), "
-    "subscores (object with exactly: prompt_fit integer 0-25, structure integer 0-20, "
-    "specificity_evidence integer 0-20, authenticity integer 0-15, language_clarity "
-    "integer 0-10, word_limit_discipline integer 0-5 or null, school_program_alignment "
-    "integer 0-5 or null), "
-    "ai_paraphrase_style_signal (\"low\"|\"medium\"|\"high\"|\"inconclusive\"), "
-    "generic_language_signal (\"low\"|\"medium\"|\"high\"), "
-    "unsupported_claims_signal (\"low\"|\"medium\"|\"high\"|\"inconclusive\"), "
+    "confidence (exactly one of \"low\", \"medium\", \"high\"), "
+    "subscores (object with exactly these keys and no others: prompt_fit integer "
+    "0-25, structure integer 0-20, specificity_evidence integer 0-20, authenticity "
+    "integer 0-15, language_clarity integer 0-10, word_limit_discipline integer "
+    "0-5 (see word-limit rule below), school_program_alignment integer 0-5 or "
+    "null (see alignment rule below)), "
+    "ai_paraphrase_style_signal (exactly one of \"low\", \"medium\", \"high\", \"inconclusive\"), "
+    "generic_language_signal (exactly one of \"low\", \"medium\", \"high\"), "
+    "unsupported_claims_signal (exactly one of \"low\", \"medium\", \"high\", \"inconclusive\"), "
     "strength_flags (array of short strings), risk_flags (array of short strings), "
-    "approximate_suggestions (array of at most 3 strings, each at most 20 words, "
-    "high-level only, never a rewritten sentence or paragraph), "
+    "approximate_suggestions (array of AT MOST 3 strings, each AT MOST 20 words, "
+    "high-level only, never a rewritten sentence or paragraph, never a direct "
+    "quote from the essay), "
     "source_warnings (array of short strings). "
     "Do not include word_count, word_limit_status, disclaimers, or any essay text -- "
     "the backend computes those itself."
@@ -212,12 +244,34 @@ ESSAY_SCORING_JSON_OUTPUT_RULES = (
     "Output format rules: return exactly one JSON object and nothing else. "
     "Do not wrap it in markdown. Do not use ```json code fences. Do not include "
     "any commentary, explanation, or text before or after the JSON object. Use "
-    "double quotes for every key and string value. Use null where the schema "
-    "allows null. Do not use trailing commas."
+    "double quotes for every key and string value. Use null only where explicitly "
+    "allowed above. Do not use trailing commas. Every enum string must match one "
+    "of the listed options exactly (same case, no extra words)."
 )
 
 
 def build_user_prompt(payload: dict) -> str:
+    word_limit = payload["word_limit"]
+    word_limit_rule = (
+        "Word-limit rule: no word limit was provided for this essay, so "
+        "subscores.word_limit_discipline MUST be null."
+        if word_limit is None
+        else (
+            f"Word-limit rule: the word limit is {word_limit}, so "
+            "subscores.word_limit_discipline MUST be an integer from 0 to 5 -- "
+            "never null."
+        )
+    )
+    alignment_rule = (
+        "Alignment rule: verified school/program prompt data IS available, so "
+        "subscores.school_program_alignment MUST be an integer from 0 to 5."
+        if payload["verified_context_used"]
+        else (
+            "Alignment rule: no verified school/program prompt data is "
+            "available for this essay, so subscores.school_program_alignment "
+            "MUST be null -- do not estimate or guess a number here."
+        )
+    )
     return (
         "Evaluate this essay using the schema.\n\n"
         f"University:\n{payload['linked_university_name'] or 'Not linked'}\n\n"
@@ -225,32 +279,115 @@ def build_user_prompt(payload: dict) -> str:
         f"Application round:\n{payload['linked_application_round'] or 'Not linked'}\n\n"
         f"Essay type:\n{payload['essay_type']}\n\n"
         f"Verified official prompt:\n{payload['official_prompt_text'] or 'null'}\n\n"
-        f"Word limit:\n{payload['word_limit'] if payload['word_limit'] is not None else 'null'}\n\n"
+        f"Word limit:\n{word_limit if word_limit is not None else 'null'}\n\n"
         f"Source confidence:\n{payload['prompt_source_confidence']}\n\n"
         f"Last verified:\n{payload['prompt_last_verified_date'] or 'null'}\n\n"
         f"Cached profile keywords:\n{payload['profile_keywords'] or []}\n\n"
         f"Student essay:\n{payload['essay_text']}\n\n"
         f"{ESSAY_SCORING_JSON_SCHEMA_INSTRUCTIONS}\n\n"
+        f"{word_limit_rule}\n\n"
+        f"{alignment_rule}\n\n"
         f"{ESSAY_SCORING_JSON_OUTPUT_RULES}"
     )
+
+
+# Gemini structured-output schema (OpenAPI 3.0 subset) mirroring the keys/types
+# above -- constrains generation so extra keys, wrong types, and unlisted enum
+# values are far less likely, but this is defense-in-depth only. Numeric
+# ranges, forbidden phrases, and verbatim-reuse are NOT expressible in this
+# schema dialect and remain fully enforced by `validate_and_normalize_output`.
+ESSAY_SCORE_RESPONSE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "overall_essay_readiness": {"type": "INTEGER"},
+        "confidence": {"type": "STRING", "enum": ["low", "medium", "high"]},
+        "subscores": {
+            "type": "OBJECT",
+            "properties": {
+                "prompt_fit": {"type": "INTEGER"},
+                "structure": {"type": "INTEGER"},
+                "specificity_evidence": {"type": "INTEGER"},
+                "authenticity": {"type": "INTEGER"},
+                "language_clarity": {"type": "INTEGER"},
+                "word_limit_discipline": {"type": "INTEGER", "nullable": True},
+                "school_program_alignment": {"type": "INTEGER", "nullable": True},
+            },
+            "required": [
+                "prompt_fit",
+                "structure",
+                "specificity_evidence",
+                "authenticity",
+                "language_clarity",
+                "word_limit_discipline",
+                "school_program_alignment",
+            ],
+        },
+        "ai_paraphrase_style_signal": {
+            "type": "STRING",
+            "enum": ["low", "medium", "high", "inconclusive"],
+        },
+        "generic_language_signal": {"type": "STRING", "enum": ["low", "medium", "high"]},
+        "unsupported_claims_signal": {
+            "type": "STRING",
+            "enum": ["low", "medium", "high", "inconclusive"],
+        },
+        "strength_flags": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "risk_flags": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "approximate_suggestions": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "source_warnings": {"type": "ARRAY", "items": {"type": "STRING"}},
+    },
+    "required": [
+        "overall_essay_readiness",
+        "confidence",
+        "subscores",
+        "ai_paraphrase_style_signal",
+        "generic_language_signal",
+        "unsupported_claims_signal",
+        "strength_flags",
+        "risk_flags",
+        "approximate_suggestions",
+        "source_warnings",
+    ],
+}
 
 
 def _validate_range(value, *, lo: int, hi: int, field: str, allow_null: bool = False):
     if value is None:
         if allow_null:
             return None
-        raise EssayScoringValidationError(f"{field} must not be null.")
+        raise EssayScoringValidationError(f"{field} must not be null.", code=ValidationCode.MISSING_REQUIRED_FIELD)
+    if isinstance(value, str):
+        # Purely mechanical normalization: some models occasionally quote a
+        # number as a JSON string (e.g. "8" instead of 8). This never changes
+        # the scored value or hides an actual schema/content violation --
+        # anything that isn't a clean int/float string still gets rejected
+        # below.
+        stripped = value.strip()
+        try:
+            value = int(stripped) if stripped.lstrip("-").isdigit() else float(stripped)
+        except ValueError:
+            raise EssayScoringValidationError(
+                f"{field} must be numeric.", code=ValidationCode.INVALID_NUMBER_TYPE
+            ) from None
     if isinstance(value, bool) or not isinstance(value, int | float):
-        raise EssayScoringValidationError(f"{field} must be numeric.")
+        raise EssayScoringValidationError(f"{field} must be numeric.", code=ValidationCode.INVALID_NUMBER_TYPE)
     rounded = int(round(value))
     if rounded < lo or rounded > hi:
-        raise EssayScoringValidationError(f"{field} out of range: {rounded}")
+        raise EssayScoringValidationError(
+            f"{field} out of range: {rounded}", code=ValidationCode.SCORE_OUT_OF_RANGE
+        )
     return rounded
 
 
 def _validate_choice(value, *, choices: set[str], field: str) -> str:
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped in choices:
+            return stripped
     if value not in choices:
-        raise EssayScoringValidationError(f"{field} has invalid value: {value!r}")
+        raise EssayScoringValidationError(
+            f"{field} has invalid value: {value!r}", code=ValidationCode.INVALID_ENUM
+        )
     return value
 
 
@@ -261,36 +398,54 @@ def _contains_forbidden_phrase(text: str) -> bool:
 
 def _validate_string_list(raw, *, field: str) -> list[str]:
     if not isinstance(raw, list):
-        raise EssayScoringValidationError(f"{field} must be a list.")
+        raise EssayScoringValidationError(f"{field} must be a list.", code=ValidationCode.INVALID_SHAPE)
     cleaned = []
     for item in raw:
         if not isinstance(item, str) or not item.strip():
-            raise EssayScoringValidationError(f"{field} must contain non-empty strings.")
+            raise EssayScoringValidationError(
+                f"{field} must contain non-empty strings.", code=ValidationCode.INVALID_SHAPE
+            )
         if _contains_forbidden_phrase(item):
-            raise EssayScoringValidationError(f"{field} used forbidden admissions-outcome wording.")
+            raise EssayScoringValidationError(
+                f"{field} used forbidden admissions-outcome wording.",
+                code=ValidationCode.FORBIDDEN_OUTCOME_LANGUAGE,
+            )
         cleaned.append(item.strip())
     return cleaned
 
 
 def _validate_suggestions(raw, *, essay_text: str) -> list[str]:
     if not isinstance(raw, list):
-        raise EssayScoringValidationError("approximate_suggestions must be a list.")
+        raise EssayScoringValidationError(
+            "approximate_suggestions must be a list.", code=ValidationCode.INVALID_SHAPE
+        )
     if len(raw) > MAX_SUGGESTIONS:
-        raise EssayScoringValidationError("approximate_suggestions exceeds the max item count.")
+        raise EssayScoringValidationError(
+            "approximate_suggestions exceeds the max item count.", code=ValidationCode.TOO_MANY_SUGGESTIONS
+        )
     normalized_essay = " ".join(essay_text.split()).lower()
     cleaned = []
     for item in raw:
         if not isinstance(item, str) or not item.strip():
-            raise EssayScoringValidationError("approximate_suggestions must contain non-empty strings.")
+            raise EssayScoringValidationError(
+                "approximate_suggestions must contain non-empty strings.", code=ValidationCode.INVALID_SHAPE
+            )
         text = item.strip()
         words = text.split()
         if len(words) > MAX_SUGGESTION_WORDS:
-            raise EssayScoringValidationError("A suggestion exceeds the 20-word limit.")
+            raise EssayScoringValidationError(
+                "A suggestion exceeds the 20-word limit.", code=ValidationCode.SUGGESTION_TOO_LONG
+            )
         if _contains_forbidden_phrase(text):
-            raise EssayScoringValidationError("A suggestion used forbidden admissions-outcome wording.")
+            raise EssayScoringValidationError(
+                "A suggestion used forbidden admissions-outcome wording.",
+                code=ValidationCode.FORBIDDEN_OUTCOME_LANGUAGE,
+            )
         normalized_suggestion = " ".join(words).lower()
         if len(normalized_suggestion) >= MIN_VERBATIM_MATCH_LEN and normalized_suggestion in normalized_essay:
-            raise EssayScoringValidationError("A suggestion reuses essay text verbatim.")
+            raise EssayScoringValidationError(
+                "A suggestion reuses essay text verbatim.", code=ValidationCode.VERBATIM_ESSAY_REUSE
+            )
         cleaned.append(text)
     return cleaned
 
@@ -302,22 +457,29 @@ def validate_and_normalize_output(raw: dict, *, payload: dict) -> dict:
     """
 
     if not isinstance(raw, dict):
-        raise EssayScoringValidationError("AI output was not a JSON object.")
+        raise EssayScoringValidationError("AI output was not a JSON object.", code=ValidationCode.INVALID_SHAPE)
     extra_keys = set(raw) - ALLOWED_TOP_LEVEL_KEYS
     if extra_keys:
         if extra_keys & DISALLOWED_GENERATION_KEYS:
-            raise EssayScoringValidationError("AI output attempted to include rewritten essay text.")
-        raise EssayScoringValidationError(f"AI output had unexpected keys: {sorted(extra_keys)}")
+            raise EssayScoringValidationError(
+                "AI output attempted to include rewritten essay text.",
+                code=ValidationCode.FORBIDDEN_REWRITE_KEY,
+            )
+        raise EssayScoringValidationError(
+            f"AI output had unexpected keys: {sorted(extra_keys)}", code=ValidationCode.UNEXPECTED_KEY
+        )
 
     overall = _validate_range(raw.get("overall_essay_readiness"), lo=1, hi=100, field="overall_essay_readiness")
     confidence = _validate_choice(raw.get("confidence"), choices={"low", "medium", "high"}, field="confidence")
 
     subscores = raw.get("subscores")
     if not isinstance(subscores, dict):
-        raise EssayScoringValidationError("subscores must be an object.")
+        raise EssayScoringValidationError("subscores must be an object.", code=ValidationCode.INVALID_SHAPE)
     extra_subscore_keys = set(subscores) - ALLOWED_SUBSCORE_KEYS
     if extra_subscore_keys:
-        raise EssayScoringValidationError(f"subscores had unexpected keys: {sorted(extra_subscore_keys)}")
+        raise EssayScoringValidationError(
+            f"subscores had unexpected keys: {sorted(extra_subscore_keys)}", code=ValidationCode.UNEXPECTED_KEY
+        )
 
     prompt_fit = _validate_range(subscores.get("prompt_fit"), lo=0, hi=25, field="prompt_fit")
     structure = _validate_range(subscores.get("structure"), lo=0, hi=20, field="structure")
@@ -505,6 +667,7 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
             "report": None,
             "quota_remaining": None,
             "next_available_at": None,
+            "validation_code": None,
         }
 
     payload = build_scoring_payload(essay)
@@ -527,6 +690,7 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
             "report": cached_report,
             "quota_remaining": quota.remaining,
             "next_available_at": None,
+            "validation_code": None,
         }
 
     if not settings.AI_ESSAY_SCORING_ENABLED:
@@ -536,6 +700,7 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
             "report": None,
             "quota_remaining": None,
             "next_available_at": None,
+            "validation_code": None,
         }
 
     quota = get_quota_status(user)
@@ -546,12 +711,17 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
             "report": None,
             "quota_remaining": 0,
             "next_available_at": quota.next_available_at,
+            "validation_code": None,
         }
 
     client = GeminiEssayScoringClient()
     user_prompt = build_user_prompt(payload)
     try:
-        raw_output = client.score_essay(system_prompt=ESSAY_SCORING_SYSTEM_PROMPT, user_prompt=user_prompt)
+        raw_output = client.score_essay(
+            system_prompt=ESSAY_SCORING_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            response_schema=ESSAY_SCORE_RESPONSE_SCHEMA,
+        )
     except AIProviderError as first_error:
         if not _is_retryable_provider_error(first_error):
             _log_provider_error(first_error, model_name=model_name, essay_id=essay.id, attempt="1_final")
@@ -561,13 +731,18 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
                 "report": None,
                 "quota_remaining": quota.remaining,
                 "next_available_at": None,
+                "validation_code": None,
             }
         _log_provider_error(first_error, model_name=model_name, essay_id=essay.id, attempt="1_retrying")
         try:
             # Exactly one retry, same sanitized system/user prompt -- covers a
             # single flaky timeout/network blip/malformed response without
             # multiplying provider load or quota usage.
-            raw_output = client.score_essay(system_prompt=ESSAY_SCORING_SYSTEM_PROMPT, user_prompt=user_prompt)
+            raw_output = client.score_essay(
+                system_prompt=ESSAY_SCORING_SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                response_schema=ESSAY_SCORE_RESPONSE_SCHEMA,
+            )
         except AIProviderError as retry_error:
             _log_provider_error(retry_error, model_name=model_name, essay_id=essay.id, attempt="2_final")
             return {
@@ -576,6 +751,7 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
                 "report": None,
                 "quota_remaining": quota.remaining,
                 "next_available_at": None,
+                "validation_code": None,
             }
 
     try:
@@ -584,11 +760,13 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
         # `error` only ever names a schema field/key or an out-of-range number
         # (see the _validate_* helpers above) -- never raw essay/profile text.
         # Still truncated defensively since one branch echoes back whatever
-        # value Gemini put in an enum field.
+        # value Gemini put in an enum field. `error.code` is a small stable
+        # label safe to log and to return to the client for diagnosis.
         logger.warning(
-            "Gemini schema validation error feature=essay_scoring model=%s essay_id=%s message=\"%s\"",
+            "Gemini schema validation error feature=essay_scoring model=%s essay_id=%s code=%s message=\"%s\"",
             model_name,
             essay.id,
+            error.code,
             str(error)[:300],
         )
         return {
@@ -597,6 +775,7 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
             "report": None,
             "quota_remaining": quota.remaining,
             "next_available_at": None,
+            "validation_code": error.code,
         }
 
     # Guard against two near-simultaneous score requests for the same essay
@@ -619,6 +798,7 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
             "report": concurrent_report,
             "quota_remaining": quota_after.remaining,
             "next_available_at": None,
+            "validation_code": None,
         }
 
     application = essay.application
@@ -653,4 +833,5 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
         "report": report,
         "quota_remaining": quota_after.remaining,
         "next_available_at": None,
+        "validation_code": None,
     }
