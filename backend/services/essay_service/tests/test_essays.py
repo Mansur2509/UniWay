@@ -1026,7 +1026,11 @@ class AIEssayScoringTests(APITestCase):
         self.assertEqual(response.data["reason"], "ai_unavailable")
         self.assertEqual(client.calls, 1)
 
+    @override_settings(AI_ESSAY_MODEL="gemini-flash-latest")
     def test_concurrent_scoring_reuses_winning_report_instead_of_duplicating(self):
+        # `context_hash` is keyed by `settings.AI_ESSAY_MODEL` -- pinned here so
+        # this pre-computed hash always matches whatever `score_essay()` itself
+        # computes, regardless of the model configured elsewhere.
         essay = self._essay()
         essay_text_hash = compute_essay_text_hash(essay.draft_text)
         payload = build_scoring_payload(essay)

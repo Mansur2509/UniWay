@@ -1,4 +1,5 @@
 import json
+import pathlib
 import urllib.error
 from io import BytesIO
 from unittest.mock import patch
@@ -170,6 +171,7 @@ class GeminiEssayScoringClientDiagnosticsTests(SimpleTestCase):
     def _fake_urlopen_capturing_request(self, captured: dict):
         def fake_urlopen(request, timeout=None):
             captured["payload"] = json.loads(request.data.decode("utf-8"))
+            captured.setdefault("urls", []).append(request.full_url)
             ok_body = json.dumps(
                 {"candidates": [{"content": {"parts": [{"text": '{"a": 1}'}]}}]}
             ).encode("utf-8")
@@ -236,6 +238,39 @@ class GeminiEssayScoringClientDiagnosticsTests(SimpleTestCase):
             with self.assertRaises(AIProviderUnavailable):
                 client.score_essay(system_prompt="s", user_prompt="u")
 
+    @override_settings(AI_ESSAY_MODEL="gemini-2.0-lite")
+    def test_essay_client_uses_configured_model_string_exactly(self):
+        client = GeminiEssayScoringClient(api_key="test-key", model_name=None)
+        self.assertEqual(client.model_name, "gemini-2.0-lite")
+
+        captured: dict = {}
+        with patch("urllib.request.urlopen", side_effect=self._fake_urlopen_capturing_request(captured)):
+            client.score_essay(system_prompt="s", user_prompt="u")
+
+        self.assertEqual(len(captured["urls"]), 1)
+        self.assertIn("/models/gemini-2.0-lite:generateContent", captured["urls"][0])
+
+    @override_settings(AI_ESSAY_MODEL="gemini-2.0-lite")
+    def test_essay_client_never_switches_model_across_a_retry_sequence(self):
+        # `ai_scoring.score_essay()`'s single retry re-invokes this same client
+        # instance -- confirm every call it makes targets the identical
+        # configured model, never a different one, even after a failure.
+        client = GeminiEssayScoringClient(api_key="test-key", model_name=None)
+        captured: dict = {}
+        fake_urlopen = self._fake_urlopen_capturing_request(captured)
+
+        with patch("urllib.request.urlopen", side_effect=_http_error(500, b"upstream error")):
+            with self.assertRaises(AIProviderError):
+                client.score_essay(system_prompt="s", user_prompt="u")
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            client.score_essay(system_prompt="s", user_prompt="u")
+
+        self.assertEqual(len(captured["urls"]), 1)
+        self.assertIn("/models/gemini-2.0-lite:generateContent", captured["urls"][0])
+        # No other model name was ever used by this client.
+        model_paths = {url.split("/models/")[1].split("?")[0] for url in captured["urls"]}
+        self.assertEqual(model_paths, {"gemini-2.0-lite:generateContent"})
+
 
 @override_settings(GEMINI_API_KEY="test-key")
 class GeminiProfileAssessmentClientDiagnosticsTests(SimpleTestCase):
@@ -267,3 +302,40 @@ class GeminiProfileAssessmentClientDiagnosticsTests(SimpleTestCase):
         with patch("urllib.request.urlopen", side_effect=AssertionError("should not call network")):
             with self.assertRaises(AIProviderUnavailable):
                 client.generate_profile_assessment({"foo": "bar"})
+
+    @override_settings(AI_PROFILE_ASSESSMENT_MODEL="gemini-2.0-lite")
+    def test_profile_client_uses_configured_model_string_exactly(self):
+        client = GeminiProfileAssessmentClient(api_key="test-key", model_name=None)
+        self.assertEqual(client.model_name, "gemini-2.0-lite")
+
+        captured: dict = {}
+
+        def fake_urlopen(request, timeout=None):
+            captured.setdefault("urls", []).append(request.full_url)
+            ok_body = json.dumps(
+                {"candidates": [{"content": {"parts": [{"text": '{"a": 1}'}]}}]}
+            ).encode("utf-8")
+            return _FakeResponse(ok_body)
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            client.generate_profile_assessment({"foo": "bar"})
+
+        self.assertEqual(len(captured["urls"]), 1)
+        self.assertIn("/models/gemini-2.0-lite:generateContent", captured["urls"][0])
+
+
+class FrontendNeverReferencesGeminiTests(SimpleTestCase):
+    def test_no_frontend_source_file_references_gemini_key_or_endpoint(self):
+        # Gemini is a backend-only, server-side-only integration -- the
+        # frontend must never hold the key or call the provider directly.
+        frontend_src = pathlib.Path(__file__).resolve().parents[4] / "frontend" / "src"
+        self.assertTrue(frontend_src.is_dir(), f"expected frontend src dir at {frontend_src}")
+
+        forbidden_substrings = ("GEMINI_API_KEY", "generativelanguage.googleapis.com")
+        offenders = []
+        for path in sorted({*frontend_src.rglob("*.ts"), *frontend_src.rglob("*.tsx")}):
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            if any(substring in text for substring in forbidden_substrings):
+                offenders.append(str(path))
+
+        self.assertEqual(offenders, [], f"Gemini references found in frontend source: {offenders}")

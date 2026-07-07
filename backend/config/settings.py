@@ -171,16 +171,18 @@ OPENROUTER_DEFAULT_MODEL = os.getenv("OPENROUTER_DEFAULT_MODEL", "")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
-# Model names are never guessed for a real deployment: a wrong/unverified name
-# only fails at call time (404 from Gemini), not at startup. Outside local dev
-# (DJANGO_DEBUG=true) both model settings default to "" -- unset -- so a
-# missing env var degrades to a clean, sanitized "not configured" response
-# instead of silently calling an unverified model name. Locally, a documented
-# default keeps `runserver`/tests usable without an env file. Use
-# `tmp_check_gemini_models.py` (gitignored, local-only) to verify which model
-# name actually works for a given key/project before setting these on Render.
-_LOCAL_DEV_DEFAULT_GEMINI_MODEL = "gemini-flash-latest" if DEBUG else ""
-AI_PROFILE_ASSESSMENT_MODEL = os.getenv("AI_PROFILE_ASSESSMENT_MODEL", _LOCAL_DEV_DEFAULT_GEMINI_MODEL)
+# Single-model policy: EduVerse never guesses, discovers, or falls back to a
+# different Gemini model. Both model settings default to "" -- unset -- in
+# every environment, including local dev, so a missing/blank env var always
+# degrades to a clean, sanitized "not configured" response (AIProviderUnavailable)
+# instead of silently calling a hardcoded model name. Whatever exact string is
+# set in `AI_ESSAY_MODEL`/`AI_PROFILE_ASSESSMENT_MODEL` is used verbatim and
+# only that string is ever sent to Gemini. Use `tmp_check_gemini_models.py`
+# (gitignored, local-only) to verify a candidate model name against a real key
+# before setting it here -- never hardcode a "known good" default in code.
+# `AI_PROFILE_ASSESSMENT_MODEL` is the canonical env var name for profile
+# assessment -- do not introduce or read `AI_PROFILE_MODEL`.
+AI_PROFILE_ASSESSMENT_MODEL = os.getenv("AI_PROFILE_ASSESSMENT_MODEL", "")
 AI_TIMEOUT_SECONDS = int(os.getenv("AI_TIMEOUT_SECONDS", "20"))
 AI_MAX_OUTPUT_TOKENS = int(os.getenv("AI_MAX_OUTPUT_TOKENS", "1200"))
 AI_PROFILE_ASSESSMENT_ENABLED = (
@@ -194,7 +196,7 @@ AI_PROFILE_ASSESSMENT_DAILY_LIMIT = int(
 # own env vars so quota/model/timeout tuning never collides with profile
 # assessment.
 AI_ESSAY_SCORING_ENABLED = os.getenv("AI_ESSAY_SCORING_ENABLED", "false").lower() == "true"
-AI_ESSAY_MODEL = os.getenv("AI_ESSAY_MODEL", _LOCAL_DEV_DEFAULT_GEMINI_MODEL)
+AI_ESSAY_MODEL = os.getenv("AI_ESSAY_MODEL", "")
 AI_ESSAY_TIMEOUT_SECONDS = int(os.getenv("AI_ESSAY_TIMEOUT_SECONDS", "30"))
 AI_ESSAY_MAX_OUTPUT_TOKENS = int(os.getenv("AI_ESSAY_MAX_OUTPUT_TOKENS", "2500"))
 AI_ESSAY_TEMPERATURE = float(os.getenv("AI_ESSAY_TEMPERATURE", "0"))
