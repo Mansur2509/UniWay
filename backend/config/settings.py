@@ -4,6 +4,8 @@ from pathlib import Path
 
 import dj_database_url
 
+from config.database_guard import validate_production_database
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -84,6 +86,14 @@ DATABASES = {
         conn_health_checks=True,
     )
 }
+
+# Fail loudly (ImproperlyConfigured) if production would start against a
+# fallback/local database -- see config/database_guard.py for the rationale.
+validate_production_database(
+    debug=DEBUG,
+    database_url=os.getenv("DATABASE_URL", ""),
+    engine=DATABASES["default"]["ENGINE"],
+)
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
