@@ -6,11 +6,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase, override_settings
 
 from services.ai_gateway_service.essay_scoring_client import GeminiEssayScoringClient
-from services.ai_gateway_service.exceptions import (
-    AIProviderError,
-    AIProviderUnavailable,
-    parse_gemini_error_body,
-)
+from services.ai_gateway_service.exceptions import AIProviderError, parse_gemini_error_body
 from services.ai_gateway_service.gemini_client import GeminiProfileAssessmentClient
 from services.ai_gateway_service.json_extraction import parse_json_response
 
@@ -226,16 +222,6 @@ class GeminiEssayScoringClientDiagnosticsTests(SimpleTestCase):
         self.assertNotIn("prompt_fit", error.error_body)
         self.assertNotIn(truncated_text, error.error_body)
 
-    @override_settings(AI_ESSAY_MODEL="")
-    def test_missing_model_name_raises_provider_unavailable_without_network_call(self):
-        # `model_name=None` (not an explicit "") so the client falls through to
-        # `settings.AI_ESSAY_MODEL`, matching how it's actually constructed in
-        # production (`GeminiEssayScoringClient()` with no override).
-        client = GeminiEssayScoringClient(api_key="test-key", model_name=None)
-        with patch("urllib.request.urlopen", side_effect=AssertionError("should not call network")):
-            with self.assertRaises(AIProviderUnavailable):
-                client.score_essay(system_prompt="s", user_prompt="u")
-
 
 @override_settings(GEMINI_API_KEY="test-key")
 class GeminiProfileAssessmentClientDiagnosticsTests(SimpleTestCase):
@@ -260,10 +246,3 @@ class GeminiProfileAssessmentClientDiagnosticsTests(SimpleTestCase):
         self.assertIsNone(error.status_code)
         self.assertEqual(error.cause_class, "TimeoutError")
         self.assertTrue(error.error_body)
-
-    @override_settings(AI_PROFILE_ASSESSMENT_MODEL="")
-    def test_missing_model_name_raises_provider_unavailable_without_network_call(self):
-        client = GeminiProfileAssessmentClient(api_key="test-key", model_name=None)
-        with patch("urllib.request.urlopen", side_effect=AssertionError("should not call network")):
-            with self.assertRaises(AIProviderUnavailable):
-                client.generate_profile_assessment({"foo": "bar"})

@@ -170,17 +170,10 @@ OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/ap
 OPENROUTER_DEFAULT_MODEL = os.getenv("OPENROUTER_DEFAULT_MODEL", "")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-
-# Model names are never guessed for a real deployment: a wrong/unverified name
-# only fails at call time (404 from Gemini), not at startup. Outside local dev
-# (DJANGO_DEBUG=true) both model settings default to "" -- unset -- so a
-# missing env var degrades to a clean, sanitized "not configured" response
-# instead of silently calling an unverified model name. Locally, a documented
-# default keeps `runserver`/tests usable without an env file. Use
-# `tmp_check_gemini_models.py` (gitignored, local-only) to verify which model
-# name actually works for a given key/project before setting these on Render.
-_LOCAL_DEV_DEFAULT_GEMINI_MODEL = "gemini-flash-latest" if DEBUG else ""
-AI_PROFILE_ASSESSMENT_MODEL = os.getenv("AI_PROFILE_ASSESSMENT_MODEL", _LOCAL_DEV_DEFAULT_GEMINI_MODEL)
+AI_PROFILE_ASSESSMENT_MODEL = os.getenv(
+    "AI_PROFILE_ASSESSMENT_MODEL",
+    "gemini-1.5-flash",
+)
 AI_TIMEOUT_SECONDS = int(os.getenv("AI_TIMEOUT_SECONDS", "20"))
 AI_MAX_OUTPUT_TOKENS = int(os.getenv("AI_MAX_OUTPUT_TOKENS", "1200"))
 AI_PROFILE_ASSESSMENT_ENABLED = (
@@ -194,7 +187,7 @@ AI_PROFILE_ASSESSMENT_DAILY_LIMIT = int(
 # own env vars so quota/model/timeout tuning never collides with profile
 # assessment.
 AI_ESSAY_SCORING_ENABLED = os.getenv("AI_ESSAY_SCORING_ENABLED", "false").lower() == "true"
-AI_ESSAY_MODEL = os.getenv("AI_ESSAY_MODEL", _LOCAL_DEV_DEFAULT_GEMINI_MODEL)
+AI_ESSAY_MODEL = os.getenv("AI_ESSAY_MODEL", "gemini-flash-latest")
 AI_ESSAY_TIMEOUT_SECONDS = int(os.getenv("AI_ESSAY_TIMEOUT_SECONDS", "30"))
 AI_ESSAY_MAX_OUTPUT_TOKENS = int(os.getenv("AI_ESSAY_MAX_OUTPUT_TOKENS", "2500"))
 AI_ESSAY_TEMPERATURE = float(os.getenv("AI_ESSAY_TEMPERATURE", "0"))
@@ -202,11 +195,3 @@ AI_ESSAY_DAILY_FREE_LIMIT = int(os.getenv("AI_ESSAY_DAILY_FREE_LIMIT", "1"))
 AI_ESSAY_BASIC_MONTHLY_LIMIT = int(os.getenv("AI_ESSAY_BASIC_MONTHLY_LIMIT", "10"))
 AI_ESSAY_PREMIUM_MONTHLY_LIMIT = int(os.getenv("AI_ESSAY_PREMIUM_MONTHLY_LIMIT", "30"))
 AI_ESSAY_PRO_MONTHLY_LIMIT = int(os.getenv("AI_ESSAY_PRO_MONTHLY_LIMIT", "100"))
-
-# Lets a free/limited-tier key stay in service even if its model rejects
-# structured-output `responseSchema` with a 400 -- the strict backend
-# validator (`validate_and_normalize_output`) is unaffected either way and
-# must never be loosened based on this flag.
-AI_GEMINI_RESPONSE_SCHEMA_ENABLED = (
-    os.getenv("AI_GEMINI_RESPONSE_SCHEMA_ENABLED", "true").lower() == "true"
-)

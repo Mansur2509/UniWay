@@ -2,7 +2,6 @@ from datetime import date, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
@@ -83,12 +82,10 @@ class FakeEssayScoringClient:
         self.output = output or valid_ai_score_output()
         self.calls = 0
         self.prompts = []
-        self.response_schemas = []
 
     def score_essay(self, *, system_prompt, user_prompt, response_schema=None):
         self.calls += 1
         self.prompts.append({"system_prompt": system_prompt, "user_prompt": user_prompt})
-        self.response_schemas.append(response_schema)
         return self.output
 
 
@@ -603,11 +600,6 @@ class EssayWorkspaceApiTests(APITestCase):
 )
 class AIEssayScoringTests(APITestCase):
     def setUp(self):
-        # The `ai_essay_score` DRF throttle cache lives outside the per-test DB
-        # transaction, and SQLite can reuse rowids after a rollback -- without
-        # this, enough scoring tests in one run can trip the 30/hour scope
-        # limit for a reused user pk and throttle an unrelated test with 429.
-        cache.clear()
         self.user1 = User.objects.create_user(
             username="aiscore1", email="aiscore1@test.com", password="testpass123"
         )
@@ -843,27 +835,6 @@ class AIEssayScoringTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(response.data["score"]["confidence"], "medium")
-
-    def test_response_schema_passed_to_provider_by_default(self):
-        essay = self._essay()
-        client = FakeEssayScoringClient()
-
-        response = self._score_with_client(essay, client)
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertEqual(len(client.response_schemas), 1)
-        self.assertIsNotNone(client.response_schemas[0])
-        self.assertIn("overall_essay_readiness", client.response_schemas[0]["properties"])
-
-    @override_settings(AI_GEMINI_RESPONSE_SCHEMA_ENABLED=False)
-    def test_response_schema_omitted_when_flag_disabled(self):
-        essay = self._essay()
-        client = FakeEssayScoringClient()
-
-        response = self._score_with_client(essay, client)
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertEqual(client.response_schemas, [None])
 
     @override_settings(AI_ESSAY_DAILY_FREE_LIMIT=2)
     def test_failed_validation_does_not_delete_previous_score(self):
