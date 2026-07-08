@@ -741,6 +741,8 @@ Catalog list query parameters:
 - `ordering` supports `name`, `country`, `created_at`, `acceptance_rate`, `qs_ranking`, `tuition_usd_amount`, and `total_cost_usd_amount`; prefix with `-` for descending order. QS ranking and USD cost sorts keep missing comparable values last.
 - `/api/v1/universities/filter-options/` returns distinct data-backed options for autocomplete/filter UIs. It follows the same demo-record visibility rule as the catalog: normal users do not see demo universities, while admins may opt into `?include_demo=true`.
 
+The catalog list uses a compact serializer for card/search UI only. It includes identity/location, public ranking/stat/cost summary fields, `scholarship_available`, an 8-item `majors_list` preview, `admissions_cycle_target`, timestamps, and caller-specific `is_shortlisted`. It deliberately excludes detail-only nested records and long/raw/import-derived text: `programs`, `subject_rankings`, `requirements`, `scholarships`, `data_sources`, `field_verifications`, `program_matching`, `budget_comparison`, source URLs/notes, audit/manual-review rows, import logs, signal-weight/system fields, essay/application requirement prose, and data-quality notes. `GET /api/v1/universities/{slug}/` remains the detail serializer for full public university profile data.
+
 University records carry two complementary sourcing mechanisms:
 
 - `data_sources[]` (existing) — page-level citations for the institution as a whole: `source_url`, `source_title`, `published_at` when known, `retrieved_at`, `is_official`. Used as the fit analysis's `source_notes` fallback.

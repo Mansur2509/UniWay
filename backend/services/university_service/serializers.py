@@ -95,7 +95,84 @@ class UniversityFieldVerificationSerializer(serializers.ModelSerializer):
         fields = ("field_name", "status", "source_url", "last_verified_date", "note")
 
 
-class UniversitySerializer(serializers.ModelSerializer):
+class UniversityShortlistMixin:
+    def get_is_shortlisted(self, obj) -> bool:
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if not user or not user.is_authenticated:
+            return False
+        saved_ids = self.context.get("saved_university_ids")
+        if saved_ids is not None:
+            return obj.id in saved_ids
+        return SavedUniversity.objects.filter(user=user, university=obj).exists()
+
+
+class UniversityListSerializer(UniversityShortlistMixin, serializers.ModelSerializer):
+    """Compact catalog-card payload.
+
+    The detail serializer intentionally exposes nested public profile data, but
+    a paginated catalog page only needs summary fields. Keeping this projection
+    narrow prevents imported long-text/source records from making `/list` slow.
+    """
+
+    is_shortlisted = serializers.SerializerMethodField()
+    majors_list = serializers.SerializerMethodField()
+
+    class Meta:
+        model = University
+        fields = (
+            "id",
+            "name",
+            "slug",
+            "country",
+            "city",
+            "official_website",
+            "summary",
+            "institution_type",
+            "is_published",
+            "is_demo",
+            "acceptance_rate",
+            "gpa_average",
+            "sat_average",
+            "sat_p25",
+            "sat_p50",
+            "sat_p75",
+            "ielts_minimum",
+            "ielts_competitive",
+            "test_policy",
+            "tuition_amount",
+            "tuition_currency",
+            "tuition_original_amount",
+            "tuition_original_currency",
+            "tuition_usd_amount",
+            "total_cost_original_amount",
+            "total_cost_original_currency",
+            "total_cost_usd_amount",
+            "currency_conversion_confidence",
+            "application_deadline",
+            "scholarship_available",
+            "qs_ranking",
+            "qs_ranking_year",
+            "global_rank",
+            "the_rank",
+            "national_rank",
+            "ranking_source",
+            "ranking_year",
+            "ranking_confidence",
+            "majors_list",
+            "admissions_cycle_target",
+            "is_shortlisted",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+    def get_majors_list(self, obj) -> list[str]:
+        majors = obj.majors_list if isinstance(obj.majors_list, list) else []
+        return majors[:8]
+
+
+class UniversitySerializer(UniversityShortlistMixin, serializers.ModelSerializer):
     programs = UniversityProgramSerializer(many=True, read_only=True)
     program_display_names = serializers.SerializerMethodField()
     subject_rankings = UniversitySubjectRankingSerializer(many=True, read_only=True)
@@ -111,16 +188,6 @@ class UniversitySerializer(serializers.ModelSerializer):
         model = University
         fields = "__all__"
         read_only_fields = ("created_at", "updated_at")
-
-    def get_is_shortlisted(self, obj) -> bool:
-        request = self.context.get("request")
-        user = getattr(request, "user", None)
-        if not user or not user.is_authenticated:
-            return False
-        saved_ids = self.context.get("saved_university_ids")
-        if saved_ids is not None:
-            return obj.id in saved_ids
-        return SavedUniversity.objects.filter(user=user, university=obj).exists()
 
     def get_budget_comparison(self, obj):
         request = self.context.get("request")

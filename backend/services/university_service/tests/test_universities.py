@@ -12,8 +12,11 @@ from services.university_service.models import (
     ExchangeRate,
     SavedUniversity,
     University,
+    UniversityDataSource,
     UniversityFieldVerification,
     UniversityProgram,
+    UniversityRequirement,
+    UniversityScholarship,
     UniversitySubjectRanking,
 )
 from services.university_service.services import calculate_university_fit
@@ -290,6 +293,140 @@ class UniversityCatalogTests(APITestCase):
             [item["slug"] for item in response.data["results"]],
             [ranked.slug],
         )
+
+    def test_list_uses_compact_serializer_without_detail_or_import_fields(self):
+        heavy = create_university(
+            "heavy-catalog-university",
+            majors_list=[f"Major {index}" for index in range(12)],
+            essay_requirements="Long essay prompt text that belongs on detail only.",
+            application_requirements="Long application requirements text.",
+            standardized_testing_policy_text="Verbose testing policy.",
+            data_quality_notes="Importer caveat for detail/source review.",
+            need_based_aid_notes="Need-based aid details.",
+            profile_evidence_notes="Internal matching notes.",
+        )
+        program = UniversityProgram.objects.create(
+            university=heavy,
+            name="Computer Science",
+            major_cluster=UniversityProgram.MajorCluster.COMPUTER_SCIENCE_AI_DATA,
+        )
+        UniversitySubjectRanking.objects.create(
+            university=heavy,
+            program=program,
+            subject_area="Computer Science",
+            major_cluster=UniversityProgram.MajorCluster.COMPUTER_SCIENCE_AI_DATA,
+            rank=10,
+            source_name="QS Subject",
+            source_url="https://example.com/qs-cs",
+            ranking_year=2026,
+            last_verified_date=timezone.now().date(),
+            confidence=UniversitySubjectRanking.Confidence.VERIFIED,
+        )
+        UniversityRequirement.objects.create(
+            university=heavy,
+            requirement_type="SAT",
+            value="1500",
+            notes="Detail-only requirement row.",
+        )
+        UniversityScholarship.objects.create(
+            university=heavy,
+            name="Detail Scholarship",
+            summary="Scholarship detail text.",
+            official_url="https://example.com/scholarship",
+        )
+        UniversityDataSource.objects.create(
+            university=heavy,
+            source_title="Official source",
+            source_url="https://example.com/source",
+        )
+        UniversityFieldVerification.objects.create(
+            university=heavy,
+            field_name="acceptance_rate",
+            status=UniversityFieldVerification.Status.VERIFIED,
+            source_url="https://example.com/acceptance",
+            last_verified_date=timezone.now().date(),
+        )
+        SavedUniversity.objects.create(user=self.user, university=heavy)
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get("/api/v1/universities/", {"search": heavy.name})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        item = response.data["results"][0]
+        self.assertEqual(item["slug"], heavy.slug)
+        self.assertTrue(item["is_shortlisted"])
+        self.assertEqual(item["majors_list"], [f"Major {index}" for index in range(8)])
+        excluded_fields = {
+            "programs",
+            "program_display_names",
+            "subject_rankings",
+            "program_matching",
+            "requirements",
+            "scholarships",
+            "data_sources",
+            "field_verifications",
+            "budget_comparison",
+            "essay_requirements",
+            "application_requirements",
+            "standardized_testing_policy_text",
+            "data_quality_notes",
+            "need_based_aid_notes",
+            "profile_evidence_notes",
+        }
+        for field_name in excluded_fields:
+            self.assertNotIn(field_name, item)
+
+    def test_list_query_count_and_response_size_stay_compact_with_nested_data(self):
+        for index in range(21):
+            university = create_university(
+                f"catalog-heavy-{index}",
+                majors_list=[f"Major {index}-{item}" for item in range(10)],
+                essay_requirements="Essay text that should not appear in list payload.",
+                data_quality_notes="Importer notes should not appear in list payload.",
+            )
+            program = UniversityProgram.objects.create(
+                university=university,
+                name=f"Program {index}",
+                major_cluster=UniversityProgram.MajorCluster.ENGINEERING,
+            )
+            UniversitySubjectRanking.objects.create(
+                university=university,
+                program=program,
+                subject_area=f"Engineering {index}",
+                major_cluster=UniversityProgram.MajorCluster.ENGINEERING,
+                rank=index + 1,
+                source_name="QS Subject",
+                source_url=f"https://example.com/ranking-{index}",
+                ranking_year=2026,
+                last_verified_date=timezone.now().date(),
+                confidence=UniversitySubjectRanking.Confidence.PARTIAL,
+            )
+            UniversityRequirement.objects.create(
+                university=university,
+                requirement_type="IELTS",
+                value="7.0",
+            )
+            UniversityScholarship.objects.create(
+                university=university,
+                name=f"Scholarship {index}",
+                summary="Detailed scholarship text.",
+                official_url=f"https://example.com/scholarship-{index}",
+            )
+            UniversityDataSource.objects.create(
+                university=university,
+                source_title=f"Source {index}",
+                source_url=f"https://example.com/source-{index}",
+            )
+
+        self.client.force_authenticate(self.user)
+
+        with CaptureQueriesContext(connection) as captured:
+            response = self.client.get("/api/v1/universities/", {"page": 1, "page_size": 21})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 21)
+        self.assertLessEqual(len(captured.captured_queries), 6)
+        self.assertLess(len(response.content), 45_000)
 
     def test_retrieve_serializes_missing_and_present_program_ranking_data(self):
         profile, _ = ensure_profile_records(self.user)

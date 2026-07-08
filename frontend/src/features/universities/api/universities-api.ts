@@ -11,6 +11,8 @@ import type {
 import { ApiError, apiRequest, normalizePaginatedResponse } from "@/shared/api/client";
 import { env } from "@/shared/config/env";
 
+export const UNIVERSITY_CATALOG_TIMEOUT_MS = 60_000;
+
 type PaginationParams = {
   page?: number;
   page_size?: number;
@@ -34,7 +36,10 @@ export async function getUniversitiesRequest(
 ) {
   const path = `/universities/${buildQuery({ ...filters, ...pagination })}`;
   try {
-    const response = await apiRequest<unknown>(path, { base: "api" });
+    const response = await apiRequest<unknown>(path, {
+      base: "api",
+      timeoutMs: UNIVERSITY_CATALOG_TIMEOUT_MS
+    });
     // The catalog endpoint may return a bare array or a DRF `{ results: [...] }`
     // page; normalize both. An empty list yields `{ results: [] }` so the screen
     // shows its empty state rather than an error.
@@ -58,12 +63,16 @@ export async function getUniversitiesRequest(
 }
 
 export function getUniversityFilterOptionsRequest() {
-  return apiRequest<UniversityFilterOptions>("/universities/filter-options/", { base: "api" });
+  return apiRequest<UniversityFilterOptions>("/universities/filter-options/", {
+    base: "api",
+    timeoutMs: UNIVERSITY_CATALOG_TIMEOUT_MS
+  });
 }
 
 export function getUniversityRequest(slug: string) {
   return apiRequest<UniversityDetails>(`/universities/${encodeURIComponent(slug)}/`, {
-    base: "api"
+    base: "api",
+    timeoutMs: UNIVERSITY_CATALOG_TIMEOUT_MS
   });
 }
 

@@ -30,6 +30,7 @@ from .serializers import (
     SavedUniversitySerializer,
     UniversityImportJobSerializer,
     UniversityImportUploadSerializer,
+    UniversityListSerializer,
     UniversitySerializer,
 )
 from .services import calculate_university_fit
@@ -64,6 +65,51 @@ UNIVERSITY_NULLS_LAST_ORDERINGS = {
     "-total_cost_usd_amount": (F("total_cost_usd_amount").desc(nulls_last=True), "name"),
 }
 
+UNIVERSITY_LIST_ONLY_FIELDS = (
+    "id",
+    "name",
+    "slug",
+    "country",
+    "city",
+    "official_website",
+    "summary",
+    "institution_type",
+    "is_published",
+    "is_demo",
+    "acceptance_rate",
+    "gpa_average",
+    "sat_average",
+    "sat_p25",
+    "sat_p50",
+    "sat_p75",
+    "ielts_minimum",
+    "ielts_competitive",
+    "test_policy",
+    "tuition_amount",
+    "tuition_currency",
+    "tuition_original_amount",
+    "tuition_original_currency",
+    "tuition_usd_amount",
+    "total_cost_original_amount",
+    "total_cost_original_currency",
+    "total_cost_usd_amount",
+    "currency_conversion_confidence",
+    "application_deadline",
+    "scholarship_available",
+    "qs_ranking",
+    "qs_ranking_year",
+    "global_rank",
+    "the_rank",
+    "national_rank",
+    "ranking_source",
+    "ranking_year",
+    "ranking_confidence",
+    "majors_list",
+    "admissions_cycle_target",
+    "created_at",
+    "updated_at",
+)
+
 
 class UniversityViewSet(ModelViewSet):
     serializer_class = UniversitySerializer
@@ -97,16 +143,24 @@ class UniversityViewSet(ModelViewSet):
         "total_cost_usd_amount",
     )
 
+    def get_serializer_class(self):
+        if self.action == "list":
+            return UniversityListSerializer
+        return super().get_serializer_class()
+
     def get_queryset(self):
-        queryset = University.objects.prefetch_related(
-            "programs",
-            "programs__subject_rankings",
-            "subject_rankings",
-            "requirements",
-            "scholarships",
-            "data_sources",
-            "field_verifications",
-        )
+        if self.action == "list":
+            queryset = University.objects.only(*UNIVERSITY_LIST_ONLY_FIELDS)
+        else:
+            rankings_with_program = UniversitySubjectRanking.objects.select_related("program")
+            queryset = University.objects.prefetch_related(
+                Prefetch("programs__subject_rankings", queryset=rankings_with_program),
+                Prefetch("subject_rankings", queryset=rankings_with_program),
+                "requirements",
+                "scholarships",
+                "data_sources",
+                "field_verifications",
+            )
         user = self.request.user
         if not (user.is_authenticated and user.is_admin_role):
             queryset = queryset.filter(is_published=True)
@@ -127,6 +181,8 @@ class UniversityViewSet(ModelViewSet):
     def filter_queryset(self, queryset):
         queryset = super().filter_queryset(queryset)
         if self.action == "list":
+            if self.request.query_params.get("search", "").strip():
+                queryset = queryset.distinct()
             country = self.request.query_params.get("country", "").strip()
             city = self.request.query_params.get("city", "").strip()
             if country:
@@ -210,42 +266,53 @@ class UniversityViewSet(ModelViewSet):
 
     def _apply_program_and_ranking_filters(self, queryset):
         params = self.request.query_params
+        uses_related_filter = False
         major_cluster = params.get("major_cluster", "").strip()
         if major_cluster:
             queryset = queryset.filter(programs__major_cluster=major_cluster)
+            uses_related_filter = True
 
         program_search = params.get("program_search", "").strip()
         if program_search:
             queryset = queryset.filter(programs__name__icontains=program_search)
+            uses_related_filter = True
 
         subject_area = params.get("subject_area", "").strip()
         if subject_area:
             queryset = queryset.filter(subject_rankings__subject_area__icontains=subject_area)
+            uses_related_filter = True
 
         ranking_source = params.get("ranking_source", "").strip()
         if ranking_source:
             queryset = queryset.filter(subject_rankings__source_name__icontains=ranking_source)
+            uses_related_filter = True
 
         subject_rank_min = params.get("subject_rank_min", "").strip()
         if subject_rank_min.isdigit():
             queryset = queryset.filter(subject_rankings__rank__gte=int(subject_rank_min))
+            uses_related_filter = True
 
         subject_rank_max = params.get("subject_rank_max", "").strip()
         if subject_rank_max.isdigit():
             queryset = queryset.filter(subject_rankings__rank__lte=int(subject_rank_max))
+            uses_related_filter = True
 
         has_subject_ranking = params.get("has_subject_ranking", "").lower()
         if has_subject_ranking == "true":
             queryset = queryset.filter(subject_rankings__isnull=False)
+            uses_related_filter = True
         elif has_subject_ranking == "false":
             queryset = queryset.filter(subject_rankings__isnull=True)
+            uses_related_filter = True
 
         for key in ("portfolio_required", "research_heavy", "stem_heavy", "interdisciplinary"):
             value = params.get(key, "").lower()
             if value == "true":
                 queryset = queryset.filter(**{f"programs__{key}": True})
+                uses_related_filter = True
             elif value == "false":
                 queryset = queryset.filter(**{f"programs__{key}": False})
+                uses_related_filter = True
 
         source_confidence = params.get("source_confidence", "").strip()
         if source_confidence:
@@ -254,6 +321,7 @@ class UniversityViewSet(ModelViewSet):
                 | Q(subject_rankings__confidence=source_confidence)
                 | Q(ranking_confidence=source_confidence)
             )
+            uses_related_filter = True
 
         for field_name in ("global_rank", "qs_ranking", "the_rank", "national_rank"):
             min_value = params.get(f"{field_name}_min", "").strip()
@@ -263,7 +331,7 @@ class UniversityViewSet(ModelViewSet):
             if max_value.isdigit():
                 queryset = queryset.filter(**{f"{field_name}__lte": int(max_value)})
 
-        return queryset.distinct()
+        return queryset.distinct() if uses_related_filter else queryset
 
     def _apply_cost_status_filter(self, queryset):
         cost_status = self.request.query_params.get("cost_status", "")
