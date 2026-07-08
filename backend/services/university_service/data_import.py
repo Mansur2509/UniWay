@@ -32,7 +32,13 @@ from .models import (
     UniversitySignalWeights,
 )
 
-REQUIRED_COLUMNS = ("Name", "Country", "City")
+SOURCE_SHEET_FIELD = "__source_sheet_name"
+SOURCE_ROW_FIELD = "__source_row_number"
+DUPLICATE_SOURCE_FIELD = "__duplicate_source_values"
+CSV_SOURCE_SHEET_NAME = "(file)"
+HEADER_SCAN_LIMIT = 25
+
+REQUIRED_COLUMNS = ("Name", "Country")
 
 CELL_STATUS_ACCEPTED = "accepted"
 CELL_STATUS_NORMALIZED = "normalized"
@@ -243,6 +249,68 @@ ALIASES = {
     "university college london": "university college london",
 }
 
+ALL_IMPORT_COLUMNS = (
+    "Name",
+    "Country",
+    "City",
+    *PUBLIC_TEXT_FIELD_MAP.keys(),
+    "Majors",
+    *NUMERIC_FIELD_CONFIG.keys(),
+    *INTEGER_FIELD_CONFIG.keys(),
+    "QS World University Ranking",
+    "Tuition",
+    *GUIDANCE_TEXT_FIELD_MAP.keys(),
+    "Last Verified Date",
+    *SIGNAL_SCORE_FIELD_MAP.keys(),
+    "Profile Scoring Source",
+)
+
+HEADER_ALIASES = {
+    "name": "Name",
+    "university": "Name",
+    "university name": "Name",
+    "institution": "Name",
+    "institution name": "Name",
+    "country": "Country",
+    "nation": "Country",
+    "city": "City",
+    "location": "City",
+    "official website": "Official Website",
+    "website": "Official Website",
+    "url": "Official Website",
+    "admissions url": "Admissions URL",
+    "admission url": "Admissions URL",
+    "admissions website": "Admissions URL",
+    "admission website": "Admissions URL",
+    "financial aid website": "Financial Aid Website",
+    "financial aid url": "Financial Aid Website",
+    "majors": "Majors",
+    "programs": "Majors",
+    "programmes": "Majors",
+    "courses": "Majors",
+    "deadlines": "Deadlines",
+    "application deadline": "Deadlines",
+    "application deadlines": "Deadlines",
+    "average gpa": "Average GPA",
+    "gpa": "Average GPA",
+    "acceptance rate": "Acceptance Rate",
+    "qs world university ranking": "QS World University Ranking",
+    "qs ranking": "QS World University Ranking",
+    "qs rank": "QS World University Ranking",
+    "tuition": "Tuition",
+    "fees": "Tuition",
+    "scholarships": "Scholarships",
+    "financial aid": "Need-based Aid",
+    "ielts minimum": "IELTS Minimum",
+    "ielts": "IELTS Minimum",
+    "sat 25th": "SAT 25th",
+    "sat 25": "SAT 25th",
+    "sat 50th": "SAT 50th",
+    "sat 50": "SAT 50th",
+    "sat 75th": "SAT 75th",
+    "sat 75": "SAT 75th",
+}
+
 AI_CLASSIFICATION_CACHE: dict[str, str] = {}
 
 
@@ -265,6 +333,8 @@ class CleanedCell:
 
 @dataclass
 class AuditEntry:
+    source_sheet_name: str
+    source_row_number: int
     row_number: int
     university_name: str
     country: str
@@ -280,6 +350,8 @@ class AuditEntry:
 
 @dataclass
 class ManualReviewEntry:
+    source_sheet_name: str
+    source_row_number: int
     row_number: int
     raw_name: str
     raw_country: str
@@ -296,6 +368,8 @@ class RowResult:
     row_number: int
     name: str
     status: str
+    source_sheet_name: str = ""
+    source_row_number: int | None = None
     row_hash: str = ""
     matched_university_id: int | None = None
     warnings: list[str] = field(default_factory=list)
@@ -323,8 +397,11 @@ class ImportSummary:
     public_fields_imported: int = 0
     guidance_contexts_imported: int = 0
     signal_vectors_imported: int = 0
+    processed_sheets: int = 0
+    skipped_sheets: int = 0
     accepted_cells_by_field: Counter = field(default_factory=Counter)
     skipped_cells_by_field: Counter = field(default_factory=Counter)
+    sheet_actions: list[dict] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     rows: list[RowResult] = field(default_factory=list)
@@ -370,9 +447,21 @@ class ImportSummary:
             "generic_country_average_cells": self.generic_country_average_cells,
             "conflicts": self.conflicts,
             "ambiguous_matches": self.ambiguous_matches,
+            "processed_sheets": self.processed_sheets,
+            "skipped_sheets": self.skipped_sheets,
+            "sheet_actions": self.sheet_actions,
             "accepted_cells_by_field": dict(self.accepted_cells_by_field),
             "skipped_cells_by_field": dict(self.skipped_cells_by_field),
         }
+
+
+@dataclass(frozen=True)
+class SourceRows:
+    headers: list[str]
+    rows: list[dict]
+    sheet_actions: list[dict]
+    sheet_names: list[str] = field(default_factory=list)
+    enforce_required_columns: bool = True
 
 
 @dataclass(frozen=True)
@@ -823,8 +912,12 @@ def _row_hash(row: dict) -> str:
     normalized = {
         clean(key): normalize_text(value)
         for key, value in sorted(row.items())
-        if clean(key) and clean(value)
+        if clean(key) and clean(value) and key != DUPLICATE_SOURCE_FIELD
     }
+    normalized["__normalized_university_name"] = _canonical_name(clean(row.get("Name")))
+    normalized["__normalized_country"] = _canonical_country(clean(row.get("Country")))
+    normalized["__source_sheet_name"] = normalize_text(row.get(SOURCE_SHEET_FIELD))
+    normalized["__source_row_number"] = normalize_text(row.get(SOURCE_ROW_FIELD))
     return hashlib.sha256(json.dumps(normalized, sort_keys=True).encode("utf-8")).hexdigest()
 
 
@@ -846,20 +939,103 @@ def _dedupe_text_chunks(existing: str, new_text: str) -> str:
     return "\n".join([*existing_chunks, *additions]).strip()
 
 
-def read_rows(path: str) -> tuple[list[str], list[dict[str, str]]]:
+def _normalized_header_key(value) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", clean(value).lower()).strip()
+
+
+def canonical_header(value) -> str:
+    header_key = _normalized_header_key(value)
+    if not header_key:
+        return ""
+    if header_key in HEADER_ALIASES:
+        return HEADER_ALIASES[header_key]
+    for column in ALL_IMPORT_COLUMNS:
+        if header_key == _normalized_header_key(column):
+            return column
+    return ""
+
+
+def _parse_sheet_list(value: str | list[str] | tuple[str, ...] | None) -> set[str]:
+    if not value:
+        return set()
+    if isinstance(value, str):
+        pieces = value.split(",")
+    else:
+        pieces = list(value)
+    return {clean(piece) for piece in pieces if clean(piece)}
+
+
+def _build_canonical_row(
+    headers: list[str],
+    raw_row,
+    *,
+    sheet_name: str,
+    source_row_number: int,
+) -> dict:
+    row: dict = {
+        SOURCE_SHEET_FIELD: sheet_name,
+        SOURCE_ROW_FIELD: source_row_number,
+    }
+    chosen_headers: dict[str, str] = {}
+    duplicates: dict[str, list[dict[str, str]]] = {}
+    for index, raw_header in enumerate(headers):
+        target = canonical_header(raw_header)
+        if not target:
+            continue
+        value = raw_row[index] if index < len(raw_row) else None
+        if not clean(value):
+            continue
+        if target not in row or not clean(row.get(target)):
+            row[target] = value
+            chosen_headers[target] = clean(raw_header)
+            continue
+        if normalize_text(row[target]) == normalize_text(value):
+            continue
+        duplicates.setdefault(
+            target,
+            [
+                {
+                    "source_header": chosen_headers.get(target, target),
+                    "raw_value": _stringify(row[target]),
+                    "selected": "true",
+                }
+            ],
+        ).append(
+            {
+                "source_header": clean(raw_header),
+                "raw_value": _stringify(value),
+                "selected": "false",
+            }
+        )
+    if duplicates:
+        row[DUPLICATE_SOURCE_FIELD] = duplicates
+    return row
+
+
+def _find_header_row(rows_iter, *, sheet_header_row: int | None = None):
+    if sheet_header_row is not None:
+        for index, raw_row in enumerate(rows_iter, start=1):
+            if index == sheet_header_row:
+                headers = [clean(cell) for cell in raw_row]
+                return index, headers, rows_iter
+        return None, [], rows_iter
+
+    for index, raw_row in enumerate(rows_iter, start=1):
+        headers = [clean(cell) for cell in raw_row]
+        canonical = {canonical_header(header) for header in headers}
+        if "Name" in canonical and "Country" in canonical:
+            return index, headers, rows_iter
+        if index >= HEADER_SCAN_LIMIT:
+            return None, [], rows_iter
+    return None, [], rows_iter
+
+
+def list_source_sheets(path: str) -> list[str]:
     file_path = Path(path)
     if not file_path.is_file():
         raise ImportConfigurationError(f"File not found: {path}")
-
-    suffix = file_path.suffix.lower()
-    if suffix == ".xlsx":
-        return _read_xlsx(file_path)
-    if suffix in (".csv", ".tsv", ".txt"):
-        return _read_delimited(file_path)
-    raise ImportConfigurationError(f"Unsupported file extension: {suffix}")
-
-
-def _read_xlsx(file_path: Path) -> tuple[list[str], list[dict[str, str]]]:
+    if file_path.suffix.lower() != ".xlsx":
+        return [CSV_SOURCE_SHEET_NAME]
     try:
         import openpyxl
     except ImportError as error:  # pragma: no cover
@@ -867,25 +1043,145 @@ def _read_xlsx(file_path: Path) -> tuple[list[str], list[dict[str, str]]]:
 
     workbook = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
     try:
-        sheet = workbook["University Data"] if "University Data" in workbook.sheetnames else workbook.worksheets[0]
-        rows_iter = sheet.iter_rows(values_only=True)
-        try:
-            header_row = next(rows_iter)
-        except StopIteration:
-            return [], []
-        headers = [clean(cell) for cell in header_row]
-        rows = []
-        for raw_row in rows_iter:
-            if raw_row is None or all(cell is None or clean(cell) == "" for cell in raw_row):
-                continue
-            row = {headers[i]: raw_row[i] if i < len(raw_row) else None for i in range(len(headers))}
-            rows.append(row)
-        return headers, rows
+        return list(workbook.sheetnames)
     finally:
         workbook.close()
 
 
-def _read_delimited(file_path: Path) -> tuple[list[str], list[dict[str, str]]]:
+def read_rows(
+    path: str,
+    *,
+    sheets: str | list[str] | tuple[str, ...] | None = None,
+    exclude_sheets: str | list[str] | tuple[str, ...] | None = None,
+    sheet_header_row: int | None = None,
+    max_rows_per_sheet: int | None = None,
+) -> SourceRows:
+    file_path = Path(path)
+    if not file_path.is_file():
+        raise ImportConfigurationError(f"File not found: {path}")
+
+    suffix = file_path.suffix.lower()
+    if suffix == ".xlsx":
+        return _read_xlsx(
+            file_path,
+            sheets=sheets,
+            exclude_sheets=exclude_sheets,
+            sheet_header_row=sheet_header_row,
+            max_rows_per_sheet=max_rows_per_sheet,
+        )
+    if suffix in (".csv", ".tsv", ".txt"):
+        return _read_delimited(file_path)
+    raise ImportConfigurationError(f"Unsupported file extension: {suffix}")
+
+
+def _read_xlsx(
+    file_path: Path,
+    *,
+    sheets: str | list[str] | tuple[str, ...] | None = None,
+    exclude_sheets: str | list[str] | tuple[str, ...] | None = None,
+    sheet_header_row: int | None = None,
+    max_rows_per_sheet: int | None = None,
+) -> SourceRows:
+    try:
+        import openpyxl
+    except ImportError as error:  # pragma: no cover
+        raise ImportConfigurationError("openpyxl is required to read .xlsx files.") from error
+
+    requested_sheets = _parse_sheet_list(sheets)
+    excluded_sheets = _parse_sheet_list(exclude_sheets)
+    workbook = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    try:
+        missing_requested = requested_sheets.difference(workbook.sheetnames)
+        if missing_requested:
+            raise ImportConfigurationError(
+                f"Requested sheet(s) not found: {', '.join(sorted(missing_requested))}"
+            )
+
+        rows: list[dict] = []
+        headers_seen: set[str] = set()
+        sheet_actions: list[dict] = []
+        for sheet in workbook.worksheets:
+            sheet_name = sheet.title
+            if requested_sheets and sheet_name not in requested_sheets:
+                sheet_actions.append(
+                    {"sheet_name": sheet_name, "action": "skipped_not_selected", "row_count": 0, "reason": ""}
+                )
+                continue
+            if sheet_name in excluded_sheets:
+                sheet_actions.append(
+                    {"sheet_name": sheet_name, "action": "skipped_excluded", "row_count": 0, "reason": ""}
+                )
+                continue
+            rows_iter = sheet.iter_rows(values_only=True)
+            header_row_number, headers, data_iter = _find_header_row(
+                rows_iter,
+                sheet_header_row=sheet_header_row,
+            )
+            if header_row_number is None:
+                sheet_actions.append(
+                    {
+                        "sheet_name": sheet_name,
+                        "action": "skipped_no_headers",
+                        "row_count": 0,
+                        "reason": "no recognizable Name/Country headers",
+                    }
+                )
+                continue
+            canonical_headers = [canonical_header(header) for header in headers]
+            canonical_set = {header for header in canonical_headers if header}
+            if "Name" not in canonical_set or "Country" not in canonical_set:
+                sheet_actions.append(
+                    {
+                        "sheet_name": sheet_name,
+                        "action": "skipped_no_headers",
+                        "row_count": 0,
+                        "reason": "missing Name/Country identity headers",
+                    }
+                )
+                continue
+
+            row_count = 0
+            for offset, raw_row in enumerate(data_iter, start=header_row_number + 1):
+                if max_rows_per_sheet is not None and row_count >= max_rows_per_sheet:
+                    break
+                if raw_row is None or all(cell is None or clean(cell) == "" for cell in raw_row):
+                    continue
+                row = _build_canonical_row(
+                    headers,
+                    raw_row,
+                    sheet_name=sheet_name,
+                    source_row_number=offset,
+                )
+                if not any(
+                    clean(value)
+                    for key, value in row.items()
+                    if key not in {SOURCE_SHEET_FIELD, SOURCE_ROW_FIELD, DUPLICATE_SOURCE_FIELD}
+                ):
+                    continue
+                rows.append(row)
+                headers_seen.update(row.keys())
+                row_count += 1
+            sheet_actions.append(
+                {
+                    "sheet_name": sheet_name,
+                    "action": "processed" if row_count else "skipped_empty",
+                    "row_count": row_count,
+                    "header_row": header_row_number,
+                    "reason": "" if row_count else "no data rows after header",
+                }
+            )
+        return SourceRows(
+            headers=sorted(headers_seen),
+            rows=rows,
+            sheet_actions=sheet_actions,
+            sheet_names=list(workbook.sheetnames),
+            enforce_required_columns=False,
+        )
+    finally:
+        workbook.close()
+
+
+def _read_delimited(file_path: Path) -> SourceRows:
     with open(file_path, encoding="utf-8-sig", newline="") as handle:
         sample = handle.read(4096)
         handle.seek(0)
@@ -894,10 +1190,39 @@ def _read_delimited(file_path: Path) -> tuple[list[str], list[dict[str, str]]]:
         except csv.Error:
             dialect = csv.excel
             dialect.delimiter = "\t" if file_path.suffix.lower() == ".tsv" else ","
-        reader = csv.DictReader(handle, dialect=dialect)
-        headers = [clean(h) for h in (reader.fieldnames or [])]
-        rows = [row for row in reader if any(clean(value) for value in row.values())]
-        return headers, rows
+        reader = csv.reader(handle, dialect=dialect)
+        try:
+            raw_headers = next(reader)
+        except StopIteration:
+            return SourceRows(headers=[], rows=[], sheet_actions=[], enforce_required_columns=True)
+        headers = [clean(header) for header in raw_headers]
+        canonical_headers = [canonical_header(header) or clean(header) for header in headers]
+        rows = []
+        for offset, raw_row in enumerate(reader, start=2):
+            if raw_row is None or all(cell is None or clean(cell) == "" for cell in raw_row):
+                continue
+            row = _build_canonical_row(
+                canonical_headers,
+                raw_row,
+                sheet_name=CSV_SOURCE_SHEET_NAME,
+                source_row_number=offset,
+            )
+            rows.append(row)
+        return SourceRows(
+            headers=canonical_headers,
+            rows=rows,
+            sheet_actions=[
+                {
+                    "sheet_name": CSV_SOURCE_SHEET_NAME,
+                    "action": "processed",
+                    "row_count": len(rows),
+                    "header_row": 1,
+                    "reason": "",
+                }
+            ],
+            sheet_names=[CSV_SOURCE_SHEET_NAME],
+            enforce_required_columns=True,
+        )
 
 
 def _build_fields(row: dict, row_number: int, context: dict, summary: ImportSummary) -> tuple[dict, dict, dict]:
@@ -905,10 +1230,14 @@ def _build_fields(row: dict, row_number: int, context: dict, summary: ImportSumm
     guidance_fields: dict = {}
     signal_fields: dict = {}
     raw_context: dict = {}
+    source_sheet_name = clean(context.get("source_sheet_name"))
+    source_row_number = int(context.get("source_row_number") or row_number)
 
     def add_audit(column: str, cell: CleanedCell, action: str = "validate") -> None:
         summary.add_cell_audit(
             AuditEntry(
+                source_sheet_name=source_sheet_name,
+                source_row_number=source_row_number,
                 row_number=row_number,
                 university_name=context["name"],
                 country=context["country"],
@@ -922,6 +1251,33 @@ def _build_fields(row: dict, row_number: int, context: dict, summary: ImportSumm
                 confidence=cell.confidence,
             )
         )
+
+    for field_name, entries in (row.get(DUPLICATE_SOURCE_FIELD) or {}).items():
+        selected = next((entry for entry in entries if entry.get("selected") == "true"), entries[0])
+        selected_cell = clean_raw_cell(selected.get("raw_value"), field_name, context)
+        for entry in entries:
+            if entry is selected:
+                continue
+            duplicate_cell = clean_raw_cell(entry.get("raw_value"), field_name, context)
+            if not selected_cell.importable or not duplicate_cell.importable:
+                continue
+            if _values_equal(selected_cell.cleaned_value, duplicate_cell.cleaned_value):
+                continue
+            summary.add_manual_review(
+                ManualReviewEntry(
+                    source_sheet_name=source_sheet_name,
+                    source_row_number=source_row_number,
+                    row_number=row_number,
+                    raw_name=context["name"],
+                    raw_country=context["country"],
+                    possible_matches="",
+                    conflict_fields=field_name,
+                    raw_value=entry.get("raw_value", ""),
+                    existing_value=selected.get("raw_value", ""),
+                    new_cleaned_value=_stringify(duplicate_cell.cleaned_value),
+                    reason=f"conflicting_duplicate_header:{entry.get('source_header', field_name)}",
+                )
+            )
 
     for column, attr in PUBLIC_TEXT_FIELD_MAP.items():
         cell = clean_raw_cell(row.get(column), column, context)
@@ -1101,6 +1457,8 @@ def _apply_fields(
     fields: dict,
     *,
     row_number: int,
+    source_sheet_name: str,
+    source_row_number: int,
     raw_name: str,
     raw_country: str,
     summary: ImportSummary,
@@ -1131,6 +1489,8 @@ def _apply_fields(
             continue
         summary.add_manual_review(
             ManualReviewEntry(
+                source_sheet_name=source_sheet_name,
+                source_row_number=source_row_number,
                 row_number=row_number,
                 raw_name=raw_name,
                 raw_country=raw_country,
@@ -1165,27 +1525,52 @@ def _process_row(
     existing_exact: dict[tuple[str, str], University],
     existing_domains: dict[str, list[University]],
     existing_universities: list[University],
-    seen_keys: set[tuple[str, str]],
+    seen_keys: set[tuple[str, str, str]],
     update_existing: bool,
     force_reprocess: bool,
     source_file_name: str,
     summary: ImportSummary,
 ) -> None:
+    source_sheet_name = clean(row.get(SOURCE_SHEET_FIELD)) or CSV_SOURCE_SHEET_NAME
+    source_row_number = int(row.get(SOURCE_ROW_FIELD) or row_number)
     name = clean(row.get("Name"))
     country = clean(row.get("Country"))
     city = clean(row.get("City"))
     row_hash = _row_hash(row)
 
-    if not any(clean(value) for value in row.values()):
+    if not any(
+        clean(value)
+        for key_name, value in row.items()
+        if key_name not in {SOURCE_SHEET_FIELD, SOURCE_ROW_FIELD, DUPLICATE_SOURCE_FIELD}
+    ):
         summary.skipped_empty_rows += 1
-        summary.rows.append(RowResult(row_number, "(blank)", "skipped_empty", row_hash=row_hash))
+        summary.rows.append(
+            RowResult(
+                row_number,
+                "(blank)",
+                "skipped_empty",
+                source_sheet_name=source_sheet_name,
+                source_row_number=source_row_number,
+                row_hash=row_hash,
+            )
+        )
         return
-    if not name or not country or not city:
+    if not name or not country:
         summary.missing_required += 1
         summary.skipped_errors += 1
-        message = f"row {row_number}: missing required Name/Country/City"
+        message = f"{source_sheet_name} row {source_row_number}: missing required Name/Country"
         summary.errors.append(message)
-        summary.rows.append(RowResult(row_number, name or "(blank)", "skipped_error", row_hash=row_hash, errors=[message]))
+        summary.rows.append(
+            RowResult(
+                row_number,
+                name or "(blank)",
+                "skipped_error",
+                source_sheet_name=source_sheet_name,
+                source_row_number=source_row_number,
+                row_hash=row_hash,
+                errors=[message],
+            )
+        )
         return
     if (
         not force_reprocess
@@ -1193,18 +1578,42 @@ def _process_row(
     ):
         summary.already_imported_rows += 1
         summary.skipped_duplicate_rows += 1
-        summary.rows.append(RowResult(row_number, name, "already_imported", row_hash=row_hash))
+        summary.rows.append(
+            RowResult(
+                row_number,
+                name,
+                "already_imported",
+                source_sheet_name=source_sheet_name,
+                source_row_number=source_row_number,
+                row_hash=row_hash,
+            )
+        )
         return
 
     key = normalized_university_key(name, country)
-    if key in seen_keys:
+    source_key = (source_sheet_name, *key)
+    if source_key in seen_keys:
         summary.duplicate_keys_in_file += 1
         summary.skipped_duplicate_rows += 1
-        summary.rows.append(RowResult(row_number, name, "skip_duplicate", row_hash=row_hash))
+        summary.rows.append(
+            RowResult(
+                row_number,
+                name,
+                "skip_duplicate",
+                source_sheet_name=source_sheet_name,
+                source_row_number=source_row_number,
+                row_hash=row_hash,
+            )
+        )
         return
-    seen_keys.add(key)
+    seen_keys.add(source_key)
 
-    context = {"name": name, "country": country}
+    context = {
+        "name": name,
+        "country": country,
+        "source_sheet_name": source_sheet_name,
+        "source_row_number": source_row_number,
+    }
     public_fields, guidance_fields, signal_fields = _build_fields(row, row_number, context, summary)
     match = _match_university(
         name,
@@ -1217,6 +1626,8 @@ def _process_row(
     if match.ambiguous:
         summary.add_manual_review(
             ManualReviewEntry(
+                source_sheet_name=source_sheet_name,
+                source_row_number=source_row_number,
                 row_number=row_number,
                 raw_name=name,
                 raw_country=country,
@@ -1228,7 +1639,16 @@ def _process_row(
                 reason="ambiguous_university_match",
             )
         )
-        summary.rows.append(RowResult(row_number, name, "manual_review", row_hash=row_hash))
+        summary.rows.append(
+            RowResult(
+                row_number,
+                name,
+                "manual_review",
+                source_sheet_name=source_sheet_name,
+                source_row_number=source_row_number,
+                row_hash=row_hash,
+            )
+        )
         return
 
     existing = match.university
@@ -1257,6 +1677,8 @@ def _process_row(
             existing,
             {**({"city": city} if city else {}), **public_fields},
             row_number=row_number,
+            source_sheet_name=source_sheet_name,
+            source_row_number=source_row_number,
             raw_name=name,
             raw_country=country,
             summary=summary,
@@ -1270,6 +1692,8 @@ def _process_row(
             guidance,
             guidance_fields,
             row_number=row_number,
+            source_sheet_name=source_sheet_name,
+            source_row_number=source_row_number,
             raw_name=name,
             raw_country=country,
             summary=summary,
@@ -1283,6 +1707,8 @@ def _process_row(
             signals,
             signal_fields,
             row_number=row_number,
+            source_sheet_name=source_sheet_name,
+            source_row_number=source_row_number,
             raw_name=name,
             raw_country=country,
             summary=summary,
@@ -1304,20 +1730,30 @@ def _process_row(
         university = existing
 
     for entry in summary.audit_entries:
-        if entry.row_number == row_number:
+        if entry.row_number == row_number and entry.source_sheet_name == source_sheet_name:
             entry.matched_university_id = university.id
             entry.action = action
     if batch is not None:
         UniversityDataImportRowLog.objects.create(
             batch=batch,
             source_file_name=source_file_name,
+            source_sheet_name=source_sheet_name,
+            source_row_number=source_row_number,
             row_number=row_number,
             row_hash=row_hash,
             matched_university=university,
             action=action,
         )
     summary.rows.append(
-        RowResult(row_number, name, action, row_hash=row_hash, matched_university_id=university.id)
+        RowResult(
+            row_number,
+            name,
+            action,
+            source_sheet_name=source_sheet_name,
+            source_row_number=source_row_number,
+            row_hash=row_hash,
+            matched_university_id=university.id,
+        )
     )
 
 
@@ -1328,23 +1764,38 @@ def import_universities_data(
     update_existing: bool = False,
     missing_only: bool = True,
     limit: int | None = None,
+    sheets: str | list[str] | tuple[str, ...] | None = None,
+    exclude_sheets: str | list[str] | tuple[str, ...] | None = None,
+    sheet_header_row: int | None = None,
+    max_rows_per_sheet: int | None = None,
     audit_out: str | None = None,
     manual_review_out: str | None = None,
     force_reprocess: bool = False,
 ) -> ImportSummary:
     """Clean, dedupe, and safely upsert the university data file."""
 
-    headers, rows = read_rows(path)
+    source_rows = read_rows(
+        path,
+        sheets=sheets,
+        exclude_sheets=exclude_sheets,
+        sheet_header_row=sheet_header_row,
+        max_rows_per_sheet=max_rows_per_sheet,
+    )
+    headers = source_rows.headers
+    rows = source_rows.rows
     missing_columns = [column for column in REQUIRED_COLUMNS if column not in headers]
-    if missing_columns:
+    if source_rows.enforce_required_columns and missing_columns:
         raise ImportConfigurationError(f"Missing required column(s): {', '.join(missing_columns)}")
     if limit is not None:
         rows = rows[:limit]
 
     source_file_name = Path(path).name
     summary = ImportSummary(rows_read=len(rows))
+    summary.sheet_actions = list(source_rows.sheet_actions)
+    summary.processed_sheets = sum(1 for action in summary.sheet_actions if action.get("action") == "processed")
+    summary.skipped_sheets = sum(1 for action in summary.sheet_actions if action.get("action", "").startswith("skipped"))
     existing_exact, existing_domains, existing_universities = _build_existing_indexes()
-    seen_keys: set[tuple[str, str]] = set()
+    seen_keys: set[tuple[str, str, str]] = set()
     batch: UniversityDataImportBatch | None = None
 
     def run() -> None:
@@ -1355,7 +1806,7 @@ def import_universities_data(
                 committed=True,
                 row_count=len(rows),
             )
-        for index, row in enumerate(rows, start=2):
+        for index, row in enumerate(rows, start=1):
             try:
                 _process_row(
                     index,
@@ -1372,10 +1823,22 @@ def import_universities_data(
                 )
             except Exception as error:  # noqa: BLE001 - row-level isolation
                 summary.skipped_errors += 1
-                message = f"row {index}: unexpected error ({type(error).__name__}): {error}"
+                source_sheet_name = clean(row.get(SOURCE_SHEET_FIELD)) or CSV_SOURCE_SHEET_NAME
+                source_row_number = int(row.get(SOURCE_ROW_FIELD) or index)
+                message = (
+                    f"{source_sheet_name} row {source_row_number}: unexpected error "
+                    f"({type(error).__name__}): {error}"
+                )
                 summary.errors.append(message)
                 summary.rows.append(
-                    RowResult(index, clean(row.get("Name")) or "(unknown)", "skipped_error", errors=[message])
+                    RowResult(
+                        index,
+                        clean(row.get("Name")) or "(unknown)",
+                        "skipped_error",
+                        source_sheet_name=source_sheet_name,
+                        source_row_number=source_row_number,
+                        errors=[message],
+                    )
                 )
         if batch is not None:
             batch.summary_json = summary.to_summary_json()
@@ -1395,6 +1858,8 @@ def import_universities_data(
 
 def write_audit_csv(summary: ImportSummary, path: str) -> None:
     fieldnames = [
+        "source_sheet_name",
+        "source_row_number",
         "row_number",
         "university_name",
         "country",
@@ -1416,6 +1881,8 @@ def write_audit_csv(summary: ImportSummary, path: str) -> None:
 
 def write_manual_review_csv(summary: ImportSummary, path: str) -> None:
     fieldnames = [
+        "source_sheet_name",
+        "source_row_number",
         "row_number",
         "raw_name",
         "raw_country",

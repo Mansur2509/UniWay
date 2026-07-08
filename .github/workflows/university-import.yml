@@ -1,0 +1,122 @@
+name: University workbook import
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Import mode"
+        type: choice
+        required: true
+        default: dry_run
+        options:
+          - dry_run
+          - commit
+      dataset_path:
+        description: "Repository-relative dataset path"
+        type: string
+        required: true
+      sheets:
+        description: "Optional comma-separated worksheet names"
+        type: string
+        required: false
+        default: ""
+      limit:
+        description: "Optional total row limit"
+        type: string
+        required: false
+        default: ""
+      missing_only:
+        description: "Fill only missing fields"
+        type: boolean
+        required: true
+        default: true
+      list_sheets:
+        description: "List workbook sheets without importing"
+        type: boolean
+        required: true
+        default: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DJANGO_SETTINGS_MODULE: config.settings
+      IMPORT_AUDIT_OUT: import_audit.csv
+      IMPORT_MANUAL_REVIEW_OUT: manual_review.csv
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Diagnostics
+        working-directory: backend
+        run: |
+          python --version
+          python manage.py check
+          test -n "$DATABASE_URL"
+
+      - name: Run migrations
+        working-directory: backend
+        run: python manage.py migrate --noinput
+
+      - name: List sheets
+        if: ${{ inputs.list_sheets }}
+        working-directory: backend
+        run: python manage.py import_universities_data "../${{ inputs.dataset_path }}" --list-sheets
+
+      - name: Run import
+        if: ${{ !inputs.list_sheets }}
+        working-directory: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mode_flag="--dry-run"
+          if [ "${{ inputs.mode }}" = "commit" ]; then
+            mode_flag="--commit"
+          fi
+
+          missing_flag=""
+          if [ "${{ inputs.missing_only }}" = "true" ]; then
+            missing_flag="--missing-only"
+          fi
+
+          sheets_flag=()
+          if [ -n "${{ inputs.sheets }}" ]; then
+            sheets_flag=(--sheets "${{ inputs.sheets }}")
+          fi
+
+          limit_flag=()
+          if [ -n "${{ inputs.limit }}" ]; then
+            limit_flag=(--limit "${{ inputs.limit }}")
+          fi
+
+          python manage.py import_universities_data "../${{ inputs.dataset_path }}" \
+            "$mode_flag" \
+            $missing_flag \
+            "${sheets_flag[@]}" \
+            "${limit_flag[@]}" \
+            --audit-out "$IMPORT_AUDIT_OUT" \
+            --manual-review-out "$IMPORT_MANUAL_REVIEW_OUT"
+
+      - name: Upload import artifacts
+        if: ${{ always() && !inputs.list_sheets }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: university-import-audit
+          path: |
+            backend/import_audit.csv
+            backend/manual_review.csv
+          if-no-files-found: ignore

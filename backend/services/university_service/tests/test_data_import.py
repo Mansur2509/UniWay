@@ -1,7 +1,9 @@
 import csv
 import tempfile
+from io import StringIO
 from pathlib import Path
 
+from django.core.management import call_command
 from django.test import TestCase
 
 from services.university_service.data_import import (
@@ -145,6 +147,28 @@ def write_csv(rows: list[dict], *, headers: list[str] | None = None) -> str:
         writer.writerow({header: row.get(header, "") for header in headers})
     handle.close()
     return handle.name
+
+
+def write_xlsx(sheets: dict[str, list[dict]], *, headers: list[str] | None = None) -> str:
+    openpyxl = __import__("openpyxl")
+    headers = headers or FULL_HEADERS
+    workbook = openpyxl.Workbook()
+    first = True
+    for sheet_name, rows in sheets.items():
+        if first:
+            sheet = workbook.active
+            sheet.title = sheet_name
+            first = False
+        else:
+            sheet = workbook.create_sheet(sheet_name)
+        if rows:
+            sheet.append(headers)
+            for row in rows:
+                sheet.append([row.get(header, "") for header in headers])
+    path = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False).name
+    workbook.save(path)
+    workbook.close()
+    return path
 
 
 class ParsingHelperTests(TestCase):
@@ -371,17 +395,200 @@ class ImportUniversitiesDataTests(TestCase):
         self.assertIn("conflict_fields", Path(review_path).read_text(encoding="utf-8"))
 
     def test_xlsx_file_is_supported(self):
-        openpyxl = __import__("openpyxl")
-        workbook = openpyxl.Workbook()
-        sheet = workbook.active
-        sheet.append(FULL_HEADERS)
-        row = sample_row()
-        sheet.append([row.get(header, "") for header in FULL_HEADERS])
-        path = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False).name
-        workbook.save(path)
+        path = write_xlsx({"University Data": [sample_row()]})
         self._temp_files = getattr(self, "_temp_files", []) + [path]
         summary = import_universities_data(path, commit=True)
         self.assertEqual(summary.created, 1)
+
+    def test_multisheet_xlsx_imports_universities_from_both_sheets(self):
+        path = write_xlsx(
+            {
+                "Top 500": [sample_row(Name="Alpha University", Country="Aland")],
+                "Extra Data": [sample_row(Name="Beta University", Country="Betaland")],
+            }
+        )
+        self._temp_files = getattr(self, "_temp_files", []) + [path]
+        summary = import_universities_data(path, commit=True)
+        self.assertEqual(summary.created, 2)
+        self.assertEqual(summary.processed_sheets, 2)
+        self.assertTrue(University.objects.filter(name="Alpha University").exists())
+        self.assertTrue(University.objects.filter(name="Beta University").exists())
+
+    def test_multisheet_empty_and_non_data_sheets_are_skipped(self):
+        path = write_xlsx(
+            {
+                "README": [],
+                "University Data": [sample_row()],
+            }
+        )
+        self._temp_files = getattr(self, "_temp_files", []) + [path]
+        summary = import_universities_data(path, commit=True)
+        self.assertEqual(summary.created, 1)
+        actions = {item["sheet_name"]: item["action"] for item in summary.sheet_actions}
+        self.assertEqual(actions["README"], "skipped_no_headers")
+        self.assertEqual(actions["University Data"], "processed")
+
+    def test_sheet_without_name_country_headers_is_skipped(self):
+        path = write_xlsx(
+            {
+                "Notes": [{"City": "Cambridge", "Majors": "Computer Science"}],
+                "University Data": [sample_row()],
+            },
+            headers=["City", "Majors"],
+        )
+        self._temp_files = getattr(self, "_temp_files", []) + [path]
+        summary = import_universities_data(path, commit=True)
+        self.assertEqual(summary.created, 0)
+        self.assertEqual(summary.rows_read, 0)
+        self.assertTrue(
+            all(action["action"] == "skipped_no_headers" for action in summary.sheet_actions)
+        )
+
+    def test_header_variations_are_normalized(self):
+        headers = ["Institution", "Nation", "Location", "Website", "Programs", "QS Rank", "IELTS"]
+        path = write_xlsx(
+            {
+                "Variant Headers": [
+                    {
+                        "Institution": "Variant University",
+                        "Nation": "Testland",
+                        "Location": "Variant City",
+                        "Website": "https://variant.example.edu/",
+                        "Programs": "Computer Science; Economics",
+                        "QS Rank": "1",
+                        "IELTS": "7.0",
+                    }
+                ]
+            },
+            headers=headers,
+        )
+        self._temp_files = getattr(self, "_temp_files", []) + [path]
+        summary = import_universities_data(path, commit=True)
+        self.assertEqual(summary.created, 1)
+        university = University.objects.get(name="Variant University")
+        self.assertEqual(university.country, "Testland")
+        self.assertEqual(university.city, "Variant City")
+        self.assertEqual(university.official_website, "https://variant.example.edu/")
+        self.assertEqual(university.majors_list, ["Computer Science", "Economics"])
+        self.assertEqual(university.qs_ranking, 1)
+        self.assertEqual(university.ielts_minimum, 7.0)
+
+    def test_same_university_across_two_sheets_updates_one_record_only(self):
+        path = write_xlsx(
+            {
+                "Admissions": [
+                    sample_row(
+                        Name="Cross Sheet University",
+                        Country="Testland",
+                        **{"IELTS Minimum": "7.0", "SAT 25th": ""},
+                    )
+                ],
+                "Scores": [
+                    sample_row(
+                        Name="Cross Sheet University",
+                        Country="Testland",
+                        **{"IELTS Minimum": "", "SAT 25th": "1450"},
+                    )
+                ],
+            }
+        )
+        self._temp_files = getattr(self, "_temp_files", []) + [path]
+        summary = import_universities_data(path, commit=True)
+        self.assertEqual(summary.created, 1)
+        self.assertEqual(summary.updated, 1)
+        self.assertEqual(University.objects.count(), 1)
+        university = University.objects.get(name="Cross Sheet University")
+        self.assertEqual(university.ielts_minimum, 7.0)
+        self.assertEqual(university.sat_p25, 1450)
+
+    def test_same_university_across_two_sheets_conflict_goes_to_manual_review(self):
+        path = write_xlsx(
+            {
+                "Admissions": [sample_row(Name="Conflict University", Country="Testland", **{"IELTS Minimum": "7.0"})],
+                "Scores": [sample_row(Name="Conflict University", Country="Testland", **{"IELTS Minimum": "6.0"})],
+            }
+        )
+        self._temp_files = getattr(self, "_temp_files", []) + [path]
+        summary = import_universities_data(path, commit=True)
+        self.assertEqual(summary.created, 1)
+        self.assertEqual(University.objects.count(), 1)
+        self.assertEqual(summary.conflicts, 1)
+        self.assertEqual(summary.manual_review_entries[0].source_sheet_name, "Scores")
+
+    def test_sheet_selection_and_exclusion(self):
+        path = write_xlsx(
+            {
+                "Top 500": [sample_row(Name="Included University")],
+                "Archive": [sample_row(Name="Excluded University")],
+            }
+        )
+        self._temp_files = getattr(self, "_temp_files", []) + [path]
+        summary = import_universities_data(path, commit=True, sheets="Top 500,Archive", exclude_sheets="Archive")
+        self.assertEqual(summary.created, 1)
+        self.assertTrue(University.objects.filter(name="Included University").exists())
+        self.assertFalse(University.objects.filter(name="Excluded University").exists())
+
+    def test_max_rows_per_sheet_limits_each_sheet(self):
+        path = write_xlsx(
+            {
+                "A": [sample_row(Name="A1"), sample_row(Name="A2")],
+                "B": [sample_row(Name="B1"), sample_row(Name="B2")],
+            }
+        )
+        self._temp_files = getattr(self, "_temp_files", []) + [path]
+        summary = import_universities_data(path, commit=True, max_rows_per_sheet=1)
+        self.assertEqual(summary.created, 2)
+        self.assertEqual(summary.rows_read, 2)
+
+    def test_list_sheets_prints_names_and_does_not_import(self):
+        path = write_xlsx({"Top 500": [sample_row()], "Extra Data": [sample_row(Name="Extra")]})
+        self._temp_files = getattr(self, "_temp_files", []) + [path]
+        output = StringIO()
+        call_command("import_universities_data", path, "--list-sheets", stdout=output)
+        text = output.getvalue()
+        self.assertIn("Top 500", text)
+        self.assertIn("Extra Data", text)
+        self.assertEqual(University.objects.count(), 0)
+
+    def test_row_fingerprint_is_sheet_aware_and_prevents_second_commit(self):
+        path = write_xlsx({"University Data": [sample_row()]})
+        self._temp_files = getattr(self, "_temp_files", []) + [path]
+        first = import_universities_data(path, commit=True)
+        second = import_universities_data(path, commit=True)
+        self.assertEqual(first.created, 1)
+        self.assertEqual(second.already_imported_rows, 1)
+        log = UniversityDataImportRowLog.objects.get()
+        self.assertEqual(log.source_sheet_name, "University Data")
+        self.assertEqual(log.source_row_number, 2)
+
+    def test_audit_csv_includes_sheet_name_and_row_number(self):
+        path = write_xlsx({"University Data": [sample_row()]})
+        audit_path = tempfile.NamedTemporaryFile(suffix=".csv", delete=False).name
+        self._temp_files = getattr(self, "_temp_files", []) + [path, audit_path]
+        import_universities_data(path, audit_out=audit_path)
+        text = Path(audit_path).read_text(encoding="utf-8")
+        self.assertIn("source_sheet_name", text)
+        self.assertIn("source_row_number", text)
+        self.assertIn("University Data", text)
+
+    def test_manual_review_csv_includes_sheet_name_and_row_number(self):
+        University.objects.create(
+            name="Sample University",
+            country="Testland",
+            city="Test City",
+            slug="sample-university",
+            official_website="https://sample.example.edu/",
+            ielts_minimum="7.0",
+            is_published=True,
+        )
+        path = write_xlsx({"University Data": [sample_row(**{"IELTS Minimum": "6.0"})]})
+        review_path = tempfile.NamedTemporaryFile(suffix=".csv", delete=False).name
+        self._temp_files = getattr(self, "_temp_files", []) + [path, review_path]
+        import_universities_data(path, manual_review_out=review_path)
+        text = Path(review_path).read_text(encoding="utf-8")
+        self.assertIn("source_sheet_name", text)
+        self.assertIn("source_row_number", text)
+        self.assertIn("University Data", text)
 
     def test_no_provider_call_is_made_during_import(self):
         import services.university_service.data_import as data_import_module

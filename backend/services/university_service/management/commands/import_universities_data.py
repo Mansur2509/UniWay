@@ -3,6 +3,7 @@ from django.core.management.base import BaseCommand, CommandError
 from services.university_service.data_import import (
     ImportConfigurationError,
     import_universities_data,
+    list_source_sheets,
 )
 
 
@@ -21,6 +22,33 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("path", help="Path to a .csv, .tsv, or .xlsx file")
+        parser.add_argument(
+            "--list-sheets",
+            action="store_true",
+            help="Print workbook sheet names and exit without importing.",
+        )
+        parser.add_argument(
+            "--sheets",
+            default=None,
+            help='Comma-separated worksheet names to process, for example "Top 500,Extra Data".',
+        )
+        parser.add_argument(
+            "--exclude-sheets",
+            default=None,
+            help='Comma-separated worksheet names to skip, for example "Notes,Archive".',
+        )
+        parser.add_argument(
+            "--sheet-header-row",
+            type=int,
+            default=None,
+            help="Optional 1-based header row to use for every selected sheet.",
+        )
+        parser.add_argument(
+            "--max-rows-per-sheet",
+            type=int,
+            default=None,
+            help="Optional maximum data rows to process from each selected sheet.",
+        )
         parser.add_argument(
             "--dry-run",
             action="store_true",
@@ -67,6 +95,17 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        if options["list_sheets"]:
+            try:
+                sheet_names = list_source_sheets(options["path"])
+            except ImportConfigurationError as error:
+                raise CommandError(str(error)) from error
+            self.stdout.write("sheets:")
+            for sheet_name in sheet_names:
+                self.stdout.write(_safe_line(f"  - {sheet_name}"))
+            self.stdout.write(self.style.SUCCESS("Sheet listing complete -- no data was written."))
+            return
+
         commit = bool(options["commit"])
         if options["dry_run"] and commit:
             raise CommandError("Pass either --dry-run or --commit, not both.")
@@ -84,6 +123,10 @@ class Command(BaseCommand):
                 update_existing=options["update_existing"],
                 missing_only=missing_only,
                 limit=options["limit"],
+                sheets=options["sheets"],
+                exclude_sheets=options["exclude_sheets"],
+                sheet_header_row=options["sheet_header_row"],
+                max_rows_per_sheet=options["max_rows_per_sheet"],
                 audit_out=options["audit_out"],
                 manual_review_out=options["manual_review_out"],
                 force_reprocess=options["force_reprocess"],
@@ -95,6 +138,8 @@ class Command(BaseCommand):
         lines = [
             f"mode: {mode_label}",
             f"rows read: {summary.rows_read}",
+            f"sheets processed: {summary.processed_sheets}",
+            f"sheets skipped: {summary.skipped_sheets}",
             f"universities created: {summary.created}",
             f"universities updated: {summary.updated}",
             f"universities skipped duplicate/already imported: {summary.skipped_duplicate_rows}",
@@ -116,6 +161,18 @@ class Command(BaseCommand):
         ]
         for line in lines:
             self.stdout.write(_safe_line(line))
+
+        if summary.sheet_actions:
+            self.stdout.write("-- sheet actions --")
+            for action in summary.sheet_actions:
+                self.stdout.write(
+                    _safe_line(
+                        "  "
+                        f"{action.get('sheet_name')}: {action.get('action')}"
+                        f" ({action.get('row_count', 0)} rows)"
+                        + (f" - {action.get('reason')}" if action.get("reason") else "")
+                    )
+                )
 
         if options["audit_out"]:
             self.stdout.write(_safe_line(f"audit csv: {options['audit_out']}"))

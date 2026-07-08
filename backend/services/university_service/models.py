@@ -481,6 +481,8 @@ class UniversityDataImportRowLog(models.Model):
         related_name="row_logs",
     )
     source_file_name = models.CharField(max_length=255)
+    source_sheet_name = models.CharField(max_length=255, blank=True)
+    source_row_number = models.PositiveIntegerField(null=True, blank=True)
     row_number = models.PositiveIntegerField()
     row_hash = models.CharField(max_length=64, db_index=True)
     matched_university = models.ForeignKey(
@@ -498,10 +500,13 @@ class UniversityDataImportRowLog(models.Model):
         indexes = [
             models.Index(fields=("row_hash", "action")),
             models.Index(fields=("source_file_name", "row_number")),
+            models.Index(fields=("source_file_name", "source_sheet_name", "source_row_number")),
         ]
 
     def __str__(self) -> str:
-        return f"{self.source_file_name} row {self.row_number}: {self.action}"
+        sheet = f"{self.source_sheet_name} " if self.source_sheet_name else ""
+        row_number = self.source_row_number or self.row_number
+        return f"{self.source_file_name} {sheet}row {row_number}: {self.action}"
 
 
 class UniversityGuidanceContext(models.Model):

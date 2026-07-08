@@ -433,3 +433,11 @@ The 72-column university admissions dataset importer is a CLI-only operations to
 Existing universities are matched conservatively by normalized name/country, website domain, safe aliases, and a high fuzzy threshold. Ambiguous matches go to manual review. Existing good values are not overwritten silently: missing/unknown fields may be filled, duplicate equal values are skipped, appendable text fields only receive genuinely new chunks, and scalar conflicts are written to the manual-review report.
 
 Committed rows are fingerprinted in `UniversityDataImportBatch` and `UniversityDataImportRowLog`, so rerunning the same committed file skips already imported rows unless `--force-reprocess` is explicit. Audit and manual-review CSVs are operator artifacts only; skipped raw cells, import logs, internal guidance context, and system-only signal weights remain excluded from public university serializers.
+
+## ADR-043: Multi-sheet university workbook import is sheet-aware and manual-only in CI
+
+Large real datasets may arrive as workbooks containing data, source links, ranking sheets, old imports, queues, and notes. The CLI importer now treats an Excel workbook as a collection of candidate sheets rather than assuming the first worksheet is the data source. It opens `.xlsx` files in read-only mode, scans for recognizable `Name`/`Country` headers, normalizes common header aliases, processes every valid sheet by default, and records skipped empty/reference sheets in the run summary.
+
+Source sheet and source row are part of the operator audit surface and committed row log. Row fingerprints include normalized row contents, normalized university identity, sheet name, and source row number, so rerunning the same workbook row is idempotent while repeated universities across different sheets can safely merge missing information into one university record. Conflicting values continue to go to manual review instead of overwriting existing good data.
+
+For environments where Render Shell is unavailable, `.github/workflows/university-import.yml` provides a `workflow_dispatch`-only operations path. It accepts `dry_run` or explicit `commit`, optional sheet selection and limit inputs, runs migrations first, uses `DATABASE_URL` only from GitHub Actions Secrets, and uploads audit/manual-review CSV artifacts. The workflow must never become automatic on push.
