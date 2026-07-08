@@ -25,16 +25,6 @@ const DEMO_ACCOUNTS = [
     email: "student.demo@eduverse.local",
     labelKey: "auth.demo.student",
     role: "student"
-  },
-  {
-    email: "organizer.demo@eduverse.local",
-    labelKey: "auth.demo.organizer",
-    role: "organizer"
-  },
-  {
-    email: "admin.demo@eduverse.local",
-    labelKey: "auth.demo.admin",
-    role: "admin"
   }
 ] satisfies Array<{ email: string; labelKey: TranslationKey; role: string }>;
 
