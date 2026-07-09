@@ -2117,5 +2117,10 @@ export const uzCyrl = {
   "universities.fit.profileEvidence.note.volunteering_relevant_to_program_context": "Volunteering evidence is more relevant for this program context.",
   "universities.fit.profileEvidence.note.general_conservative_weight": "General conservative weights are used.",
   "universities.fit.profileEvidence.note.no_verified_university_specific_evidence_policy": "No verified university-specific evidence policy is on file.",
-  "universities.fit.profileEvidence.note.evidence_weighting_needs_verification": "Evidence weighting needs verification."
+  "universities.fit.profileEvidence.note.evidence_weighting_needs_verification": "Evidence weighting needs verification.",
+  "universities.fit.profileEvidence.note.cached_profile_assessment_used": "Your cached profile assessment is included in this score.",
+  "universities.fit.profileEvidence.note.profile_assessment_not_run": "No profile assessment has been run yet.",
+  "universities.fit.profileEvidence.note.university_benchmark_compared": "This score is compared against the university's benchmark.",
+  "universities.fit.profileEvidence.note.university_benchmark_not_available": "No benchmark is available for this university.",
+  "universities.fit.profileEvidence.note.university_benchmark_limited_data": "Benchmark comparison data is limited."
 } satisfies TranslationDictionary;
