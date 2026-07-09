@@ -23,6 +23,9 @@ RUBRIC_VERSION = "essay_numeric_v1"
 MAX_SUGGESTIONS = 3
 MAX_SUGGESTION_WORDS = 20
 MIN_VERBATIM_MATCH_LEN = 40
+MAX_REFLECTIVE_QUESTIONS = 3
+MAX_REFLECTIVE_QUESTION_WORDS = 25
+MAX_SUMMARY_FIELD_WORDS = 30  # biggest_strength / biggest_weakness / action_plan
 
 # Matched case-insensitively against every AI-authored string field. Negation
 # disclaimers ("not an admissions decision or guarantee") are never checked
@@ -45,6 +48,7 @@ REQUIRED_DISCLAIMERS = [
     "Scores are based only on the essay text and verified UniWay context available.",
     "AI/paraphrase style signal is not proof of AI use.",
     "For important submissions, verify requirements yourself and ideally review with a qualified human reviewer.",
+    "UniWay provides feedback and revision guidance. It does not write essays for you.",
 ]
 
 ESSAY_SCORING_SYSTEM_PROMPT = (
@@ -64,7 +68,10 @@ ESSAY_SCORING_SYSTEM_PROMPT = (
     "or \"guarantee\" (or close variants) anywhere in your output, in any "
     "field, even about something other than admissions -- rephrase instead. "
     "Suggestions must describe the issue and direction in your own words; "
-    "never quote or closely echo the essay's own sentences back."
+    "never quote or closely echo the essay's own sentences back. The same "
+    "never-quote rule applies to biggest_strength, biggest_weakness, "
+    "reflective_questions, and action_plan below: describe what and where "
+    "in your own words, never copy the essay's sentences."
 )
 
 ALLOWED_TOP_LEVEL_KEYS = {
@@ -78,6 +85,10 @@ ALLOWED_TOP_LEVEL_KEYS = {
     "risk_flags",
     "approximate_suggestions",
     "source_warnings",
+    "biggest_strength",
+    "biggest_weakness",
+    "reflective_questions",
+    "action_plan",
 }
 ALLOWED_SUBSCORE_KEYS = {
     "prompt_fit",
@@ -236,7 +247,16 @@ ESSAY_SCORING_JSON_SCHEMA_INSTRUCTIONS = (
     "approximate_suggestions (array of AT MOST 3 strings, each AT MOST 20 words, "
     "high-level only, never a rewritten sentence or paragraph, never a direct "
     "quote from the essay), "
-    "source_warnings (array of short strings). "
+    "source_warnings (array of short strings), "
+    "biggest_strength (ONE string, AT MOST 30 words, the single most important "
+    "strength, in your own words), "
+    "biggest_weakness (ONE string, AT MOST 30 words, the single most important "
+    "weakness, in your own words), "
+    "reflective_questions (array of AT MOST 3 strings, each AT MOST 25 words, "
+    "open questions for the student to think about -- never a rewritten "
+    "sentence, never an answer), "
+    "action_plan (ONE string, AT MOST 30 words, an ordered summary of what to "
+    "do next, in your own words). "
     "Do not include word_count, word_limit_status, disclaimers, or any essay text -- "
     "the backend computes those itself."
 )
@@ -336,6 +356,10 @@ ESSAY_SCORE_RESPONSE_SCHEMA = {
         "risk_flags": {"type": "ARRAY", "items": {"type": "STRING"}},
         "approximate_suggestions": {"type": "ARRAY", "items": {"type": "STRING"}},
         "source_warnings": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "biggest_strength": {"type": "STRING"},
+        "biggest_weakness": {"type": "STRING"},
+        "reflective_questions": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "action_plan": {"type": "STRING"},
     },
     "required": [
         "overall_essay_readiness",
@@ -348,6 +372,10 @@ ESSAY_SCORE_RESPONSE_SCHEMA = {
         "risk_flags",
         "approximate_suggestions",
         "source_warnings",
+        "biggest_strength",
+        "biggest_weakness",
+        "reflective_questions",
+        "action_plan",
     ],
 }
 
@@ -415,40 +443,93 @@ def _validate_string_list(raw, *, field: str) -> list[str]:
     return cleaned
 
 
-def _validate_suggestions(raw, *, essay_text: str) -> list[str]:
+def _validate_short_text_list(
+    raw, *, essay_text: str, field: str, max_items: int, max_words: int
+) -> list[str]:
+    """Shared validation for any AI-authored list of short strings that must
+    never rewrite/quote the essay: approximate_suggestions and
+    reflective_questions both need the same item-count cap, per-item word
+    cap, forbidden-phrase check, and verbatim-essay-reuse check.
+    """
+
     if not isinstance(raw, list):
+        raise EssayScoringValidationError(f"{field} must be a list.", code=ValidationCode.INVALID_SHAPE)
+    if len(raw) > max_items:
         raise EssayScoringValidationError(
-            "approximate_suggestions must be a list.", code=ValidationCode.INVALID_SHAPE
-        )
-    if len(raw) > MAX_SUGGESTIONS:
-        raise EssayScoringValidationError(
-            "approximate_suggestions exceeds the max item count.", code=ValidationCode.TOO_MANY_SUGGESTIONS
+            f"{field} exceeds the max item count.", code=ValidationCode.TOO_MANY_SUGGESTIONS
         )
     normalized_essay = " ".join(essay_text.split()).lower()
     cleaned = []
     for item in raw:
         if not isinstance(item, str) or not item.strip():
             raise EssayScoringValidationError(
-                "approximate_suggestions must contain non-empty strings.", code=ValidationCode.INVALID_SHAPE
+                f"{field} must contain non-empty strings.", code=ValidationCode.INVALID_SHAPE
             )
         text = item.strip()
         words = text.split()
-        if len(words) > MAX_SUGGESTION_WORDS:
+        if len(words) > max_words:
             raise EssayScoringValidationError(
-                "A suggestion exceeds the 20-word limit.", code=ValidationCode.SUGGESTION_TOO_LONG
+                f"An item in {field} exceeds the {max_words}-word limit.",
+                code=ValidationCode.SUGGESTION_TOO_LONG,
             )
         if _contains_forbidden_phrase(text):
             raise EssayScoringValidationError(
-                "A suggestion used forbidden admissions-outcome wording.",
+                f"An item in {field} used forbidden admissions-outcome wording.",
                 code=ValidationCode.FORBIDDEN_OUTCOME_LANGUAGE,
             )
-        normalized_suggestion = " ".join(words).lower()
-        if len(normalized_suggestion) >= MIN_VERBATIM_MATCH_LEN and normalized_suggestion in normalized_essay:
+        normalized_item = " ".join(words).lower()
+        if len(normalized_item) >= MIN_VERBATIM_MATCH_LEN and normalized_item in normalized_essay:
             raise EssayScoringValidationError(
-                "A suggestion reuses essay text verbatim.", code=ValidationCode.VERBATIM_ESSAY_REUSE
+                f"An item in {field} reuses essay text verbatim.",
+                code=ValidationCode.VERBATIM_ESSAY_REUSE,
             )
         cleaned.append(text)
     return cleaned
+
+
+def _validate_suggestions(raw, *, essay_text: str) -> list[str]:
+    return _validate_short_text_list(
+        raw,
+        essay_text=essay_text,
+        field="approximate_suggestions",
+        max_items=MAX_SUGGESTIONS,
+        max_words=MAX_SUGGESTION_WORDS,
+    )
+
+
+def _validate_reflective_questions(raw, *, essay_text: str) -> list[str]:
+    return _validate_short_text_list(
+        raw,
+        essay_text=essay_text,
+        field="reflective_questions",
+        max_items=MAX_REFLECTIVE_QUESTIONS,
+        max_words=MAX_REFLECTIVE_QUESTION_WORDS,
+    )
+
+
+def _validate_summary_field(raw, *, essay_text: str, field: str) -> str:
+    """A single short AI-authored sentence (biggest_strength/biggest_weakness/
+    action_plan): same forbidden-phrase and verbatim-reuse checks as a
+    suggestion, but exactly one string rather than a list.
+    """
+
+    if not isinstance(raw, str) or not raw.strip():
+        raise EssayScoringValidationError(f"{field} must be a non-empty string.", code=ValidationCode.MISSING_REQUIRED_FIELD)
+    text = raw.strip()
+    words = text.split()
+    if len(words) > MAX_SUMMARY_FIELD_WORDS:
+        raise EssayScoringValidationError(
+            f"{field} exceeds the {MAX_SUMMARY_FIELD_WORDS}-word limit.", code=ValidationCode.SUGGESTION_TOO_LONG
+        )
+    if _contains_forbidden_phrase(text):
+        raise EssayScoringValidationError(
+            f"{field} used forbidden admissions-outcome wording.", code=ValidationCode.FORBIDDEN_OUTCOME_LANGUAGE
+        )
+    normalized_essay = " ".join(essay_text.split()).lower()
+    normalized_text = " ".join(words).lower()
+    if len(normalized_text) >= MIN_VERBATIM_MATCH_LEN and normalized_text in normalized_essay:
+        raise EssayScoringValidationError(f"{field} reuses essay text verbatim.", code=ValidationCode.VERBATIM_ESSAY_REUSE)
+    return text
 
 
 def validate_and_normalize_output(raw: dict, *, payload: dict) -> dict:
@@ -528,6 +609,18 @@ def validate_and_normalize_output(raw: dict, *, payload: dict) -> dict:
     approximate_suggestions = _validate_suggestions(
         raw.get("approximate_suggestions", []), essay_text=payload["essay_text"]
     )
+    biggest_strength = _validate_summary_field(
+        raw.get("biggest_strength"), essay_text=payload["essay_text"], field="biggest_strength"
+    )
+    biggest_weakness = _validate_summary_field(
+        raw.get("biggest_weakness"), essay_text=payload["essay_text"], field="biggest_weakness"
+    )
+    reflective_questions = _validate_reflective_questions(
+        raw.get("reflective_questions", []), essay_text=payload["essay_text"]
+    )
+    action_plan = _validate_summary_field(
+        raw.get("action_plan"), essay_text=payload["essay_text"], field="action_plan"
+    )
 
     if not payload["verified_context_used"]:
         warning = "School-specific prompt data is not verified."
@@ -557,6 +650,10 @@ def validate_and_normalize_output(raw: dict, *, payload: dict) -> dict:
         "risk_flags": risk_flags,
         "approximate_suggestions": approximate_suggestions,
         "source_warnings": source_warnings,
+        "biggest_strength": biggest_strength,
+        "biggest_weakness": biggest_weakness,
+        "reflective_questions": reflective_questions,
+        "action_plan": action_plan,
         "disclaimers": list(REQUIRED_DISCLAIMERS),
     }
 
@@ -596,6 +693,45 @@ def _log_provider_error(error: AIProviderError, *, model_name: str, essay_id: in
         getattr(error, "provider_status", None),
         str(error)[:1000],
         getattr(error, "error_body", "")[:1000],
+    )
+
+
+def _call_gemini_with_retry(
+    client: GeminiEssayScoringClient, *, system_prompt: str, user_prompt: str, model_name: str, essay_id: int
+) -> dict | None:
+    """One provider call, with exactly one retry on a transient error (see
+    `_is_retryable_provider_error`). Returns the raw JSON dict, or None if the
+    provider is unavailable after the retry (or the first error wasn't
+    retryable at all).
+    """
+
+    try:
+        return client.score_essay(
+            system_prompt=system_prompt, user_prompt=user_prompt, response_schema=ESSAY_SCORE_RESPONSE_SCHEMA
+        )
+    except AIProviderError as first_error:
+        if not _is_retryable_provider_error(first_error):
+            _log_provider_error(first_error, model_name=model_name, essay_id=essay_id, attempt="1_final")
+            return None
+        _log_provider_error(first_error, model_name=model_name, essay_id=essay_id, attempt="1_retrying")
+        try:
+            return client.score_essay(
+                system_prompt=system_prompt, user_prompt=user_prompt, response_schema=ESSAY_SCORE_RESPONSE_SCHEMA
+            )
+        except AIProviderError as retry_error:
+            _log_provider_error(retry_error, model_name=model_name, essay_id=essay_id, attempt="2_final")
+            return None
+
+
+def _build_repair_prompt(user_prompt: str, *, error: EssayScoringValidationError) -> str:
+    # Echoes the validator's own code/message back to the model so it can
+    # self-correct the exact problem -- never essay/profile text, since
+    # `error` only ever names a schema field/key or an out-of-range number.
+    return (
+        f"{user_prompt}\n\n"
+        "Your previous response was rejected by strict validation for this exact "
+        f"reason: [{error.code}] {error}. Fix this specific problem and return a "
+        "corrected JSON object that follows all the rules above."
     )
 
 
@@ -748,67 +884,73 @@ def _score_essay_impl(essay: EssayWorkspace, *, user) -> dict:
 
     client = GeminiEssayScoringClient()
     user_prompt = build_user_prompt(payload)
-    try:
-        raw_output = client.score_essay(
-            system_prompt=ESSAY_SCORING_SYSTEM_PROMPT,
-            user_prompt=user_prompt,
-            response_schema=ESSAY_SCORE_RESPONSE_SCHEMA,
-        )
-    except AIProviderError as first_error:
-        if not _is_retryable_provider_error(first_error):
-            _log_provider_error(first_error, model_name=model_name, essay_id=essay.id, attempt="1_final")
-            return {
-                "reason": "ai_unavailable",
-                "cached": False,
-                "report": None,
-                "quota_remaining": quota.remaining,
-                "next_available_at": None,
-                "validation_code": None,
-            }
-        _log_provider_error(first_error, model_name=model_name, essay_id=essay.id, attempt="1_retrying")
-        try:
-            # Exactly one retry, same sanitized system/user prompt -- covers a
-            # single flaky timeout/network blip/malformed response without
-            # multiplying provider load or quota usage.
-            raw_output = client.score_essay(
-                system_prompt=ESSAY_SCORING_SYSTEM_PROMPT,
-                user_prompt=user_prompt,
-                response_schema=ESSAY_SCORE_RESPONSE_SCHEMA,
-            )
-        except AIProviderError as retry_error:
-            _log_provider_error(retry_error, model_name=model_name, essay_id=essay.id, attempt="2_final")
-            return {
-                "reason": "ai_unavailable",
-                "cached": False,
-                "report": None,
-                "quota_remaining": quota.remaining,
-                "next_available_at": None,
-                "validation_code": None,
-            }
+    raw_output = _call_gemini_with_retry(
+        client, system_prompt=ESSAY_SCORING_SYSTEM_PROMPT, user_prompt=user_prompt, model_name=model_name,
+        essay_id=essay.id,
+    )
+    if raw_output is None:
+        return {
+            "reason": "ai_unavailable",
+            "cached": False,
+            "report": None,
+            "quota_remaining": quota.remaining,
+            "next_available_at": None,
+            "validation_code": None,
+        }
 
     try:
         normalized = validate_and_normalize_output(raw_output, payload=payload)
-    except EssayScoringValidationError as error:
+    except EssayScoringValidationError as first_validation_error:
         # `error` only ever names a schema field/key or an out-of-range number
         # (see the _validate_* helpers above) -- never raw essay/profile text.
         # Still truncated defensively since one branch echoes back whatever
         # value Gemini put in an enum field. `error.code` is a small stable
         # label safe to log and to return to the client for diagnosis.
         logger.warning(
-            "Gemini schema validation error feature=essay_scoring model=%s essay_id=%s code=%s message=\"%s\"",
+            "Gemini schema validation error feature=essay_scoring model=%s essay_id=%s code=%s message=\"%s\" attempt=1",
             model_name,
             essay.id,
-            error.code,
-            str(error)[:300],
+            first_validation_error.code,
+            str(first_validation_error)[:300],
         )
-        return {
-            "reason": "validation_failed",
-            "cached": False,
-            "report": None,
-            "quota_remaining": quota.remaining,
-            "next_available_at": None,
-            "validation_code": error.code,
-        }
+        # Exactly one repair retry: re-prompt with the specific validation
+        # failure so the model can self-correct, instead of giving up on a
+        # single JSON-shape mistake the same way a provider-error retry
+        # already covers a single flaky network blip.
+        repair_prompt = _build_repair_prompt(user_prompt, error=first_validation_error)
+        repair_output = _call_gemini_with_retry(
+            client, system_prompt=ESSAY_SCORING_SYSTEM_PROMPT, user_prompt=repair_prompt, model_name=model_name,
+            essay_id=essay.id,
+        )
+        if repair_output is None:
+            return {
+                "reason": "ai_unavailable",
+                "cached": False,
+                "report": None,
+                "quota_remaining": quota.remaining,
+                "next_available_at": None,
+                "validation_code": None,
+            }
+        try:
+            normalized = validate_and_normalize_output(repair_output, payload=payload)
+            raw_output = repair_output  # persist the attempt that actually validated
+        except EssayScoringValidationError as second_validation_error:
+            logger.warning(
+                "Gemini schema validation error feature=essay_scoring model=%s essay_id=%s code=%s "
+                "message=\"%s\" attempt=2_final",
+                model_name,
+                essay.id,
+                second_validation_error.code,
+                str(second_validation_error)[:300],
+            )
+            return {
+                "reason": "validation_failed",
+                "cached": False,
+                "report": None,
+                "quota_remaining": quota.remaining,
+                "next_available_at": None,
+                "validation_code": second_validation_error.code,
+            }
 
     # Guard against two near-simultaneous score requests for the same essay
     # (e.g. a double-click) both reaching this point: if another request

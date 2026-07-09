@@ -205,6 +205,10 @@ class AIEssayScoreReportSerializer(serializers.ModelSerializer):
             "approximate_suggestions",
             "source_warnings",
             "disclaimers",
+            "biggest_strength",
+            "biggest_weakness",
+            "reflective_questions",
+            "action_plan",
             "created_at",
         )
         read_only_fields = fields

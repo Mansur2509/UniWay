@@ -194,6 +194,10 @@ export type AIEssayScoreReport = {
   approximate_suggestions: string[];
   source_warnings: string[];
   disclaimers: string[];
+  biggest_strength: string;
+  biggest_weakness: string;
+  reflective_questions: string[];
+  action_plan: string;
   created_at: string;
 };
 

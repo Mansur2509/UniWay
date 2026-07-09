@@ -69,6 +69,10 @@ def valid_ai_score_output(**overrides):
         "risk_flags": ["needs more evidence"],
         "approximate_suggestions": ["Add one specific example of impact."],
         "source_warnings": [],
+        "biggest_strength": "A clear, consistent motivation runs through the essay.",
+        "biggest_weakness": "The middle section lacks a specific, concrete example.",
+        "reflective_questions": ["What single moment best shows this motivation in action?"],
+        "action_plan": "Add one concrete example, then tighten the closing paragraph.",
     }
     for key, value in overrides.items():
         if key == "subscores":
@@ -111,6 +115,27 @@ class FakeFlakyEssayScoringClient:
         self.calls += 1
         if self.calls <= self.fail_times:
             raise self.error
+        return self.output
+
+
+class FakeValidationFlakyEssayScoringClient:
+    """Returns `bad_output` for the first `fail_times` calls, then `output` --
+    for testing the validation-failure repair-prompt retry (distinct from
+    FakeFlakyEssayScoringClient, which fails with a provider error rather
+    than an invalid-but-parseable response)."""
+
+    def __init__(self, *, bad_output: dict, fail_times: int, output=None):
+        self.bad_output = bad_output
+        self.fail_times = fail_times
+        self.output = output or valid_ai_score_output()
+        self.calls = 0
+        self.prompts = []
+
+    def score_essay(self, *, system_prompt, user_prompt, response_schema=None):
+        self.calls += 1
+        self.prompts.append(user_prompt)
+        if self.calls <= self.fail_times:
+            return self.bad_output
         return self.output
 
 
@@ -983,6 +1008,40 @@ class AIEssayScoringTests(APITestCase):
         self.assertEqual(AIEssayScoreReport.objects.count(), 0)
         log_line = "\n".join(captured.output)
         self.assertIn("attempt=1_retrying", log_line)
+        self.assertIn("attempt=2_final", log_line)
+
+    def test_validation_failure_is_repaired_and_succeeds(self):
+        essay = self._essay()
+        client = FakeValidationFlakyEssayScoringClient(
+            bad_output={"overall_essay_readiness": 70}, fail_times=1
+        )
+
+        response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["reason"], "scored")
+        self.assertEqual(client.calls, 2)
+        self.assertEqual(AIEssayScoreReport.objects.count(), 1)
+        # The repair prompt must reference the exact reason the first
+        # response was rejected, so the model can self-correct.
+        self.assertIn("invalid_enum", client.prompts[1])
+
+    def test_validation_failure_repaired_once_then_fails_cleanly(self):
+        essay = self._essay()
+        client = FakeValidationFlakyEssayScoringClient(
+            bad_output={"overall_essay_readiness": 70}, fail_times=99
+        )
+
+        with self.assertLogs("services.essay_service.ai_scoring", level="WARNING") as captured:
+            response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.data["reason"], "validation_failed")
+        # Capped at exactly one repair attempt (two total calls), never more.
+        self.assertEqual(client.calls, 2)
+        self.assertEqual(AIEssayScoreReport.objects.count(), 0)
+        log_line = "\n".join(captured.output)
+        self.assertIn("attempt=1", log_line)
         self.assertIn("attempt=2_final", log_line)
 
     def test_non_retryable_provider_error_is_not_retried(self):

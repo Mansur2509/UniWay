@@ -258,6 +258,13 @@ class AIEssayScoreReport(models.Model):
     approximate_suggestions = models.JSONField(default=list, blank=True)
     source_warnings = models.JSONField(default=list, blank=True)
     disclaimers = models.JSONField(default=list, blank=True)
+    # PART 6: one synthesized top strength/weakness (distinct from the
+    # strength_flags/risk_flags lists above), a short list of questions for
+    # the student to reflect on, and a short ordered next-steps summary.
+    biggest_strength = models.CharField(max_length=280, blank=True)
+    biggest_weakness = models.CharField(max_length=280, blank=True)
+    reflective_questions = models.JSONField(default=list, blank=True)
+    action_plan = models.CharField(max_length=400, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

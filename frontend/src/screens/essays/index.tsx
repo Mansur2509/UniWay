@@ -1,6 +1,15 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, ExternalLink, Plus, RefreshCw, Sparkles } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ExternalLink,
+  HelpCircle,
+  ListChecks,
+  Plus,
+  RefreshCw,
+  Sparkles
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -1205,6 +1214,27 @@ export function EssaysScreen() {
                       </div>
                     </dl>
 
+                    {latestScore.biggest_strength || latestScore.biggest_weakness ? (
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        {latestScore.biggest_strength ? (
+                          <div className="rounded-md border border-success/30 bg-success/5 p-3">
+                            <h4 className="text-xs font-semibold uppercase tracking-[0.1em] text-success">
+                              {t("essays.score.biggestStrength")}
+                            </h4>
+                            <p className="mt-1.5 text-sm">{latestScore.biggest_strength}</p>
+                          </div>
+                        ) : null}
+                        {latestScore.biggest_weakness ? (
+                          <div className="rounded-md border border-warning/30 bg-warning/5 p-3">
+                            <h4 className="text-xs font-semibold uppercase tracking-[0.1em] text-warning">
+                              {t("essays.score.biggestWeakness")}
+                            </h4>
+                            <p className="mt-1.5 text-sm">{latestScore.biggest_weakness}</p>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
                     {latestScore.strength_flags.length > 0 ? (
                       <div className="mt-4">
                         <h4 className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
@@ -1260,6 +1290,32 @@ export function EssaysScreen() {
                             </li>
                           ))}
                         </ul>
+                      </div>
+                    ) : null}
+
+                    {latestScore.reflective_questions.length > 0 ? (
+                      <div className="mt-4">
+                        <h4 className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                          {t("essays.score.reflectiveQuestions")}
+                        </h4>
+                        <ul className="mt-2 space-y-1.5 text-sm">
+                          {latestScore.reflective_questions.map((question) => (
+                            <li className="flex items-start gap-2" key={question}>
+                              <HelpCircle aria-hidden className="mt-0.5 size-4 shrink-0 text-accent" />
+                              {question}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {latestScore.action_plan ? (
+                      <div className="mt-4 rounded-md border bg-surface p-3">
+                        <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                          <ListChecks aria-hidden className="size-4 shrink-0" />
+                          {t("essays.score.actionPlan")}
+                        </h4>
+                        <p className="mt-1.5 text-sm">{latestScore.action_plan}</p>
                       </div>
                     ) : null}
 
