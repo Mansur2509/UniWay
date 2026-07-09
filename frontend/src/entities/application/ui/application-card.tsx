@@ -33,7 +33,7 @@ export function ApplicationCard({
   ].filter(Boolean).length;
 
   return (
-    <Card className={`flex flex-col gap-2 p-4 ${isSelected ? "border-primary/60" : ""}`}>
+    <Card className={`flex min-w-0 flex-col gap-2 p-4 ${isSelected ? "border-primary/60" : ""}`}>
       <div className="flex flex-wrap items-center gap-2">
         <span
           className={`rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${PRIORITY_STYLES[application.priority]}`}
@@ -44,7 +44,7 @@ export function ApplicationCard({
           {t(`applications.round.${application.application_round}` as TranslationKey)}
         </span>
       </div>
-      <h3 className="flex items-center gap-2 text-base font-semibold">
+      <h3 className="flex items-center gap-2 text-base font-semibold break-words">
         <GraduationCap aria-hidden className="size-4 shrink-0 text-accent" />
         {application.university_name}
       </h3>

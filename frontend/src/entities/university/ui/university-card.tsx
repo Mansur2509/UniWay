@@ -29,7 +29,7 @@ export function UniversityCard({
   const { t } = useI18n();
 
   return (
-    <Card className="flex h-full flex-col transition hover:border-primary/45">
+    <Card className="flex h-full min-w-0 flex-col transition hover:border-primary/45">
       <div className="flex flex-wrap items-center gap-2">
         {university.institution_type ? (
           <Badge>
@@ -47,7 +47,7 @@ export function UniversityCard({
         ) : null}
         <Button
           aria-pressed={university.is_shortlisted}
-          className="ml-auto"
+          className="ml-auto shrink-0"
           disabled={isShortlistPending}
           onClick={() => onToggleShortlist(university)}
           size="sm"
@@ -65,14 +65,16 @@ export function UniversityCard({
         </Button>
       </div>
 
-      <h2 className="mt-4 text-2xl font-semibold">
+      <h2 className="mt-4 text-2xl font-semibold break-words">
         <Link className="hover:text-primary-hover" href={`/universities/${university.slug}`}>
           {university.name}
         </Link>
       </h2>
       <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
         <MapPin aria-hidden className="size-4 shrink-0" />
-        {[university.city, university.country].filter(Boolean).join(", ")}
+        <span className="truncate">
+          {[university.city, university.country].filter(Boolean).join(", ")}
+        </span>
       </p>
 
       <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">

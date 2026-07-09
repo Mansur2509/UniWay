@@ -1162,6 +1162,161 @@ class FitAnalysisTests(APITestCase):
         self.assertEqual(scores, sorted(scores, reverse=True))
 
 
+class UniversityBenchmarkComparisonTests(APITestCase):
+    """`calculate_university_fit` folding in `compare_student_vector_to_
+    university_weights` (PART 7 of HOTFIX-007): a per-university comparison
+    against `UniversitySignalWeights`, not a flat, university-agnostic score.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="benchmarkuser", email="benchmark@test.com", password="testpass123"
+        )
+        self.profile, _ = ensure_profile_records(self.user)
+
+    def _attach_assessment(self, **score_overrides):
+        from services.profile_assessment_service.models import AIProfileAssessment
+
+        scores = {
+            "profile_evidence_score": 7,
+            "activities_score": 7,
+            "honors_olympiads_score": 7,
+            "research_experience_score": 7,
+            "portfolio_score": 7,
+            "subject_passion_score": 7,
+            "curiosity_score": 7,
+            "originality_score": 7,
+            "leadership_score": 7,
+            "community_impact_score": 7,
+            "research_fit_score": 7,
+            "olympiads_score": 7,
+        }
+        scores.update(score_overrides)
+        assessment = AIProfileAssessment.objects.create(
+            user=self.user,
+            profile_snapshot_hash="test-hash",
+            overall_profile_score=7,
+            confidence="high",
+            expires_at=timezone.now() + timezone.timedelta(days=300),
+            **scores,
+        )
+        # Bypass hash/staleness matching (exercised separately by
+        # profile_assessment_service tests) to isolate the comparison logic.
+        self.profile._current_profile_assessment_cache = assessment
+        return assessment
+
+    def test_no_signal_weights_leaves_score_and_strengths_unchanged(self):
+        university = create_university("no-benchmark-university")
+        self._attach_assessment()
+        fit = calculate_university_fit(self.profile, university)
+        comparison = fit["profile_evidence"]["benchmark_comparison"]
+        self.assertFalse(comparison["available"])
+        self.assertEqual(comparison["reason"], "university_benchmark_not_published")
+        self.assertNotIn("benchmark_alignment_strong", fit["strengths"])
+        self.assertNotIn("benchmark_alignment_stretch", fit["risks"])
+
+    def test_no_assessment_leaves_comparison_unavailable(self):
+        from services.university_service.models import UniversitySignalWeights
+
+        university = create_university("assessment-missing-university")
+        UniversitySignalWeights.objects.create(
+            university=university, **{f"{name}_score": 7 for name in _ALL_SIGNAL_NAMES}
+        )
+        fit = calculate_university_fit(self.profile, university)
+        comparison = fit["profile_evidence"]["benchmark_comparison"]
+        self.assertFalse(comparison["available"])
+        self.assertEqual(comparison["reason"], "profile_assessment_not_run")
+
+    def test_strong_alignment_adds_strength_and_boosts_score(self):
+        from services.university_service.models import UniversitySignalWeights
+
+        university = create_university("strong-alignment-university")
+        UniversitySignalWeights.objects.create(
+            university=university, **{f"{name}_score": 5 for name in _ALL_SIGNAL_NAMES}
+        )
+        self._attach_assessment()  # student vector is all 7s, university wants 5s
+        fit = calculate_university_fit(self.profile, university)
+        comparison = fit["profile_evidence"]["benchmark_comparison"]
+        self.assertTrue(comparison["available"])
+        self.assertEqual(comparison["fit_band"], "strong_alignment")
+        self.assertIn("benchmark_alignment_strong", fit["strengths"])
+        self.assertNotIn("benchmark_alignment_stretch", fit["risks"])
+
+    def test_high_stretch_alignment_adds_risk_and_lowers_score(self):
+        from services.university_service.models import UniversitySignalWeights
+
+        university_a = create_university("baseline-university")
+        UniversitySignalWeights.objects.create(
+            university=university_a, **{f"{name}_score": 5 for name in _ALL_SIGNAL_NAMES}
+        )
+        university_b = create_university("high-stretch-university")
+        UniversitySignalWeights.objects.create(
+            university=university_b,
+            profile_evidence_score=10,
+            activities_score=10,
+            honors_olympiads_score=10,
+            research_experience_score=10,
+            portfolio_score=5,
+            subject_passion_score=5,
+            curiosity_score=5,
+            originality_score=5,
+            leadership_score=5,
+            community_impact_score=5,
+            research_fit_score=5,
+            olympiads_score=5,
+        )
+        self._attach_assessment()
+        baseline_fit = calculate_university_fit(self.profile, university_a)
+        stretch_fit = calculate_university_fit(self.profile, university_b)
+        comparison = stretch_fit["profile_evidence"]["benchmark_comparison"]
+        self.assertTrue(comparison["available"])
+        self.assertEqual(comparison["fit_band"], "high_stretch_alignment")
+        self.assertIn("benchmark_alignment_stretch", stretch_fit["risks"])
+        self.assertLess(
+            stretch_fit["profile_evidence"]["evidence_subscore"],
+            baseline_fit["profile_evidence"]["evidence_subscore"],
+        )
+
+    def test_benchmark_comparison_never_exposes_raw_scores_or_weights(self):
+        from services.university_service.models import UniversitySignalWeights
+
+        university = create_university("no-leak-university")
+        UniversitySignalWeights.objects.create(
+            university=university, **{f"{name}_score": 5 for name in _ALL_SIGNAL_NAMES}
+        )
+        self._attach_assessment()
+        fit = calculate_university_fit(self.profile, university)
+        comparison = fit["profile_evidence"]["benchmark_comparison"]
+        self.assertEqual(set(comparison.keys()), {"available", "fit_band", "signals_compared"})
+
+    def test_below_minimum_comparable_signals_reports_limited_data_not_a_band(self):
+        from services.university_service.models import UniversitySignalWeights
+
+        university = create_university("sparse-benchmark-university")
+        UniversitySignalWeights.objects.create(university=university, profile_evidence_score=5)
+        self._attach_assessment()
+        fit = calculate_university_fit(self.profile, university)
+        comparison = fit["profile_evidence"]["benchmark_comparison"]
+        self.assertFalse(comparison["available"])
+        self.assertEqual(comparison["reason"], "insufficient_comparable_signals")
+
+
+_ALL_SIGNAL_NAMES = (
+    "profile_evidence",
+    "activities",
+    "honors_olympiads",
+    "research_experience",
+    "portfolio",
+    "subject_passion",
+    "curiosity",
+    "originality",
+    "leadership",
+    "community_impact",
+    "research_fit",
+    "olympiads",
+)
+
+
 class ConditionalFitTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(

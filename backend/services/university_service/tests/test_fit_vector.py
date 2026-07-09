@@ -2,6 +2,8 @@ from django.test import SimpleTestCase
 
 from services.university_service.fit_vector import (
     SIGNAL_NAMES,
+    build_student_signal_vector,
+    build_university_signal_weights,
     compare_student_vector_to_university_weights,
 )
 
@@ -127,3 +129,40 @@ class CompareStudentVectorToUniversityWeightsTests(SimpleTestCase):
                 "high_stretch_alignment",
             },
         )
+
+
+class _FakeScored:
+    """Minimal stand-in for AIProfileAssessment / UniversitySignalWeights --
+    anything exposing `{signal}_score` attributes, without touching the DB."""
+
+    def __init__(self, **scores):
+        for name in SIGNAL_NAMES:
+            setattr(self, f"{name}_score", scores.get(name))
+
+
+class BuildStudentSignalVectorTests(SimpleTestCase):
+    def test_none_assessment_returns_all_none(self):
+        vector = build_student_signal_vector(None)
+        self.assertEqual(set(vector.keys()), set(SIGNAL_NAMES))
+        self.assertTrue(all(value is None for value in vector.values()))
+
+    def test_extracts_each_signal_field(self):
+        assessment = _FakeScored(curiosity=8, leadership=3)
+        vector = build_student_signal_vector(assessment)
+        self.assertEqual(vector["curiosity"], 8)
+        self.assertEqual(vector["leadership"], 3)
+        self.assertIsNone(vector["olympiads"])
+
+
+class BuildUniversitySignalWeightsTests(SimpleTestCase):
+    def test_none_weights_returns_all_none(self):
+        vector = build_university_signal_weights(None)
+        self.assertEqual(set(vector.keys()), set(SIGNAL_NAMES))
+        self.assertTrue(all(value is None for value in vector.values()))
+
+    def test_extracts_each_signal_field(self):
+        weights = _FakeScored(research_fit=9, portfolio=4)
+        vector = build_university_signal_weights(weights)
+        self.assertEqual(vector["research_fit"], 9)
+        self.assertEqual(vector["portfolio"], 4)
+        self.assertIsNone(vector["community_impact"])

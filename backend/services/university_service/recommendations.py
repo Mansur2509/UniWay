@@ -481,6 +481,7 @@ def calculate_university_recommendations(profile, preferences=None, *, limit: in
     targets = _normalized_targets(profile)
     queryset = (
         University.objects.filter(is_published=True, is_demo=False)
+        .select_related("signal_weights")
         .prefetch_related(
             "programs",
             "subject_rankings",

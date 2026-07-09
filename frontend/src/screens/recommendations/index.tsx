@@ -674,9 +674,11 @@ function RecommendationCard({
             {t("recommendations.card.deadline")}
           </p>
           <p>{item.deadline ? formatDate(item.deadline, locale) : t("applications.deadlines.notVerified")}</p>
-          <span className={badgeClass(URGENCY_BADGE_STYLES[item.urgency])}>
-            {t(`applications.urgency.${item.urgency}` as TranslationKey)}
-          </span>
+          {item.urgency !== "unknown" ? (
+            <span className={badgeClass(URGENCY_BADGE_STYLES[item.urgency])}>
+              {t(`applications.urgency.${item.urgency}` as TranslationKey)}
+            </span>
+          ) : null}
           {isDeadlineOverdue ? (
             <p className="mt-1 text-[0.68rem] font-semibold text-danger">
               {t("recommendations.card.currentCycleUnavailable")}

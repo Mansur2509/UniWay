@@ -91,6 +91,33 @@ def _determine_fit_band(counts: dict[str, int]) -> str:
     return FIT_BAND_HIGH_STRETCH
 
 
+def build_student_signal_vector(assessment) -> dict[str, int | None]:
+    """Extract the 12-signal vector from a cached `AIProfileAssessment`.
+
+    Field names on the model are `f"{signal}_score"` for every entry in
+    `SIGNAL_NAMES`; `assessment` may be `None` when the student has no
+    assessment yet, in which case every signal is reported as unavailable.
+    """
+
+    if assessment is None:
+        return dict.fromkeys(SIGNAL_NAMES)
+    return {signal: getattr(assessment, f"{signal}_score", None) for signal in SIGNAL_NAMES}
+
+
+def build_university_signal_weights(signal_weights) -> dict[str, int | None]:
+    """Extract the 12-signal vector from a university's `UniversitySignalWeights`.
+
+    `signal_weights` may be `None` when the university has no published
+    weights yet (most rows imported so far do not), in which case every
+    signal is reported as unavailable rather than assumed to be a mid-range
+    value.
+    """
+
+    if signal_weights is None:
+        return dict.fromkeys(SIGNAL_NAMES)
+    return {signal: getattr(signal_weights, f"{signal}_score", None) for signal in SIGNAL_NAMES}
+
+
 def compare_student_vector_to_university_weights(
     student_vector: dict[str, int | None],
     university_weights: dict[str, int | None],

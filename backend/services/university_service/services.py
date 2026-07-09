@@ -19,6 +19,16 @@ from services.user_profile_service.curriculum_rigor import (
 from .budget import compare_cost_to_budget
 from .currency import normalize_university_costs
 from .deadline_normalization import normalize_university_deadline
+from .fit_vector import (
+    FIT_BAND_GOOD,
+    FIT_BAND_HIGH_STRETCH,
+    FIT_BAND_MODERATE,
+    FIT_BAND_STRETCH,
+    FIT_BAND_STRONG,
+    build_student_signal_vector,
+    build_university_signal_weights,
+    compare_student_vector_to_university_weights,
+)
 from .models import University
 
 CATEGORY_ORDER = ("reach", "competitive", "target", "safety")
@@ -465,6 +475,17 @@ def calculate_optional_evidence_fit(
     else:
         notes.append("profile_assessment_not_run")
 
+    benchmark_comparison = _compare_to_university_benchmark(assessment, university)
+    if benchmark_comparison["available"]:
+        evidence_subscore = _as_int_score(
+            evidence_subscore + _FIT_BAND_SCORE_ADJUSTMENT[benchmark_comparison["fit_band"]]
+        )
+        notes.append("university_benchmark_compared")
+    elif benchmark_comparison["reason"] == "university_benchmark_not_published":
+        notes.append("university_benchmark_not_available")
+    elif benchmark_comparison["reason"] == "insufficient_comparable_signals":
+        notes.append("university_benchmark_limited_data")
+
     return {
         "evidence_subscore": evidence_subscore,
         "category_contributions": contributions,
@@ -472,10 +493,52 @@ def calculate_optional_evidence_fit(
         "missing_evidence": missing,
         "program_relevance_notes": list(dict.fromkeys(notes)),
         "assessment_context": assessment_context,
+        "benchmark_comparison": benchmark_comparison,
         "weighting_note": (
             "Optional evidence uses conservative general weights unless verified "
             "university or program evidence-weight metadata exists."
         ),
+    }
+
+
+# Below this count of comparable signals (out of 12), a fit-band verdict is
+# too thin on data to move the score -- reported as limited-data instead.
+_MIN_COMPARABLE_SIGNALS = 6
+
+_FIT_BAND_SCORE_ADJUSTMENT = {
+    FIT_BAND_STRONG: 5,
+    FIT_BAND_GOOD: 0,
+    FIT_BAND_MODERATE: -5,
+    FIT_BAND_STRETCH: -12,
+    FIT_BAND_HIGH_STRETCH: -20,
+}
+
+
+def _compare_to_university_benchmark(assessment, university: University) -> dict:
+    """Compare the student's cached profile-assessment vector against this
+    university's published signal weights (`UniversitySignalWeights`).
+
+    Never returns raw per-signal scores or weights -- those are system-only
+    (see `UniversitySignalWeights` docstring) -- only a descriptive band and
+    comparability counts safe to fold into the public fit response.
+    """
+
+    signal_weights = getattr(university, "signal_weights", None)
+    if signal_weights is None:
+        return {"available": False, "reason": "university_benchmark_not_published"}
+    if assessment is None:
+        return {"available": False, "reason": "profile_assessment_not_run"}
+
+    student_vector = build_student_signal_vector(assessment)
+    university_weights = build_university_signal_weights(signal_weights)
+    comparison = compare_student_vector_to_university_weights(student_vector, university_weights)
+    if comparison.signals_compared < _MIN_COMPARABLE_SIGNALS:
+        return {"available": False, "reason": "insufficient_comparable_signals"}
+
+    return {
+        "available": True,
+        "fit_band": comparison.fit_band,
+        "signals_compared": comparison.signals_compared,
     }
 
 
@@ -854,6 +917,12 @@ def calculate_university_fit(profile, university: University) -> dict:
         strengths.append("profile_depth")
     elif profile_score < 50:
         missing_fields.append("profile_activities")
+    benchmark_comparison = profile_evidence["benchmark_comparison"]
+    if benchmark_comparison["available"]:
+        if benchmark_comparison["fit_band"] in (FIT_BAND_STRONG, FIT_BAND_GOOD):
+            strengths.append("benchmark_alignment_strong")
+        elif benchmark_comparison["fit_band"] in (FIT_BAND_STRETCH, FIT_BAND_HIGH_STRETCH):
+            risks.append("benchmark_alignment_stretch")
     essay_score = _score_essay_fit(profile, university, missing_fields)
     deadline_score = _score_deadline_fit(university, risks, missing_fields, profile)
     cost_score = _score_cost_fit(profile, university, risks, missing_fields)
