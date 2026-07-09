@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -614,6 +615,29 @@ def latest_assessment_envelope(user) -> AssessmentRunResult:
 
 
 def run_profile_assessment(user, *, force: bool = False, client=None) -> AssessmentRunResult:
+    """Times and logs every assessment attempt -- cache hits, provider
+    calls, and rejections alike -- with sanitized, aggregate-only fields
+    (status, cache_hit, duration_ms), then delegates to
+    `_run_profile_assessment_impl` for the actual logic. Never logs profile
+    or prompt text.
+    """
+
+    started_at = time.monotonic()
+    result = _run_profile_assessment_impl(user, force=force, client=client)
+    duration_ms = int((time.monotonic() - started_at) * 1000)
+    logger.info(
+        "AI call ai_task_type=profile_assessment provider=gemini model=%s user_id=%s "
+        "status=%s cache_hit=%s duration_ms=%s",
+        settings.AI_PROFILE_ASSESSMENT_MODEL,
+        user.id,
+        result.reason,
+        result.cached,
+        duration_ms,
+    )
+    return result
+
+
+def _run_profile_assessment_impl(user, *, force: bool = False, client=None) -> AssessmentRunResult:
     latest = get_latest_assessment(user)
     current_hash = compute_profile_snapshot_hash(user)
     if (

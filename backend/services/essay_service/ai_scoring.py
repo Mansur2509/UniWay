@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -648,7 +649,38 @@ def get_quota_status(user) -> QuotaStatus:
     )
 
 
+def _estimate_tokens(text: str) -> int:
+    # Rough, provider-agnostic estimate (~4 characters per token) so cost/
+    # performance logs can flag outlier-heavy requests -- never an exact
+    # count and never sent anywhere, only used for the log line below.
+    return max(1, len(text) // 4)
+
+
 def score_essay(essay: EssayWorkspace, *, user) -> dict:
+    """Times and logs every scoring attempt -- cache hits, provider calls,
+    and rejections alike -- with sanitized, aggregate-only fields (status,
+    cache_hit, duration_ms, an estimated token count), then delegates to
+    `_score_essay_impl` for the actual scoring logic. Never logs essay,
+    prompt, or profile text.
+    """
+
+    started_at = time.monotonic()
+    result = _score_essay_impl(essay, user=user)
+    duration_ms = int((time.monotonic() - started_at) * 1000)
+    logger.info(
+        "AI call ai_task_type=essay_scoring provider=gemini model=%s essay_id=%s "
+        "status=%s cache_hit=%s duration_ms=%s estimated_prompt_tokens=%s",
+        settings.AI_ESSAY_MODEL,
+        essay.id,
+        result["reason"],
+        result["cached"],
+        duration_ms,
+        _estimate_tokens(essay.draft_text or ""),
+    )
+    return result
+
+
+def _score_essay_impl(essay: EssayWorkspace, *, user) -> dict:
     """Returns a dict with `reason`, `cached`, `report` (model instance or
     None), `quota_remaining`, and `next_available_at`. Never raises for
     expected failure paths (missing text, quota, AI unavailable, invalid

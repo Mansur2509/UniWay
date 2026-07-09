@@ -314,6 +314,34 @@ class ProfileAssessmentServiceTests(APITestCase):
         self.assertIn("feature=profile_assessment", log_line)
         self.assertNotIn("Tashkent", log_line)
 
+    def test_successful_assessment_logs_call_summary_without_profile_text(self):
+        client = FakeProfileAssessmentClient(valid_ai_output())
+
+        with self.assertLogs("services.profile_assessment_service.services", level="INFO") as captured:
+            result = run_profile_assessment(self.user, client=client)
+
+        self.assertIn(result.reason, {"no_previous_assessment", "profile_changed"})
+        log_line = "\n".join(captured.output)
+        self.assertIn("ai_task_type=profile_assessment", log_line)
+        self.assertIn("provider=gemini", log_line)
+        self.assertIn(f"status={result.reason}", log_line)
+        self.assertIn("cache_hit=False", log_line)
+        self.assertIn("duration_ms=", log_line)
+        self.assertNotIn("Tashkent", log_line)
+
+    def test_cached_assessment_logs_cache_hit_true(self):
+        client = FakeProfileAssessmentClient(valid_ai_output())
+        first = run_profile_assessment(self.user, client=client)
+        self.assertIn(first.reason, {"no_previous_assessment", "profile_changed"})
+
+        with self.assertLogs("services.profile_assessment_service.services", level="INFO") as captured:
+            second = run_profile_assessment(self.user, client=client)
+
+        self.assertEqual(second.reason, "unchanged_cached")
+        log_line = "\n".join(captured.output)
+        self.assertIn("status=unchanged_cached", log_line)
+        self.assertIn("cache_hit=True", log_line)
+
 
 @override_settings(
     AI_PROFILE_ASSESSMENT_ENABLED=True,

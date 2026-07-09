@@ -2,6 +2,7 @@ from datetime import date, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
@@ -600,6 +601,11 @@ class EssayWorkspaceApiTests(APITestCase):
 )
 class AIEssayScoringTests(APITestCase):
     def setUp(self):
+        # The ai_essay_score throttle (30/hour) is backed by a process-wide
+        # cache that otherwise accumulates across every test in this class --
+        # without resetting it here, later tests can be throttled by earlier
+        # ones' scoring calls regardless of test order.
+        cache.clear()
         self.user1 = User.objects.create_user(
             username="aiscore1", email="aiscore1@test.com", password="testpass123"
         )
@@ -1078,3 +1084,35 @@ class AIEssayScoringTests(APITestCase):
         first = compute_essay_text_hash("Same idea")
         second = compute_essay_text_hash("Same idea with more detail")
         self.assertNotEqual(first, second)
+
+    def test_successful_score_logs_call_summary_without_essay_text(self):
+        essay = self._essay(draft_text="A very private essay about my grandmother's garden.")
+        client = FakeEssayScoringClient()
+
+        with self.assertLogs("services.essay_service.ai_scoring", level="INFO") as captured:
+            response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        log_line = "\n".join(captured.output)
+        self.assertIn("ai_task_type=essay_scoring", log_line)
+        self.assertIn("provider=gemini", log_line)
+        self.assertIn("status=scored", log_line)
+        self.assertIn("cache_hit=False", log_line)
+        self.assertIn("duration_ms=", log_line)
+        self.assertIn("estimated_prompt_tokens=", log_line)
+        self.assertNotIn("grandmother's garden", log_line)
+
+    def test_cached_score_logs_cache_hit_true(self):
+        essay = self._essay()
+        client = FakeEssayScoringClient()
+        first = self._score_with_client(essay, client)
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED, first.data)
+
+        with self.assertLogs("services.essay_service.ai_scoring", level="INFO") as captured:
+            second = self._score_with_client(essay, client)
+
+        self.assertEqual(second.status_code, status.HTTP_200_OK, second.data)
+        self.assertEqual(second.data["reason"], "cached")
+        log_line = "\n".join(captured.output)
+        self.assertIn("status=cached", log_line)
+        self.assertIn("cache_hit=True", log_line)
