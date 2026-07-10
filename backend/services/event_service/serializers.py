@@ -13,6 +13,7 @@ from .models import (
     EventSource,
     EventSubmission,
     EventTicket,
+    OrganizerModeration,
     ParticipationRecord,
 )
 from .services import (
@@ -616,3 +617,32 @@ class EventSerializer(serializers.ModelSerializer):
         if source_data is not None:
             EventSource.objects.update_or_create(event=instance, defaults=source_data)
         return instance
+
+
+class OrganizerModerationSerializer(serializers.Serializer):
+    """One organizer account plus their current moderation standing."""
+
+    id = serializers.IntegerField(source="pk", read_only=True)
+    email = serializers.EmailField(read_only=True)
+    username = serializers.CharField(read_only=True)
+    event_count = serializers.IntegerField(read_only=True)
+    moderation_status = serializers.SerializerMethodField()
+    moderation_reason = serializers.SerializerMethodField()
+    reviewed_at = serializers.SerializerMethodField()
+
+    def get_moderation_status(self, user) -> str:
+        record = getattr(user, "organizer_moderation", None)
+        return record.status if record else OrganizerModeration.Status.PENDING
+
+    def get_moderation_reason(self, user) -> str:
+        record = getattr(user, "organizer_moderation", None)
+        return record.reason if record else ""
+
+    def get_reviewed_at(self, user):
+        record = getattr(user, "organizer_moderation", None)
+        return record.reviewed_at if record else None
+
+
+class OrganizerModerationActionSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=OrganizerModeration.Status.choices)
+    reason = serializers.CharField(required=False, allow_blank=True, default="")

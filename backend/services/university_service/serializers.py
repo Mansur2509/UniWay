@@ -9,6 +9,7 @@ from .models import (
     UniversityDataSource,
     UniversityFieldVerification,
     UniversityImportJob,
+    UniversityModerationRecord,
     UniversityProgram,
     UniversityRequirement,
     UniversityScholarship,
@@ -293,3 +294,42 @@ class UniversityImportJobSerializer(serializers.ModelSerializer):
             "finished_at",
         )
         read_only_fields = fields
+
+
+class UniversityModerationRecordSerializer(serializers.ModelSerializer):
+    university_name = serializers.CharField(source="university.name", read_only=True)
+    created_by_email = serializers.EmailField(source="created_by.email", read_only=True, default=None)
+    resolved_by_email = serializers.EmailField(source="resolved_by.email", read_only=True, default=None)
+
+    class Meta:
+        model = UniversityModerationRecord
+        fields = (
+            "id",
+            "university",
+            "university_name",
+            "status",
+            "field_name",
+            "issue_type",
+            "description",
+            "created_by",
+            "created_by_email",
+            "resolved_by",
+            "resolved_by_email",
+            "resolved_at",
+            "created_at",
+        )
+        read_only_fields = (
+            "id",
+            "university",
+            "created_by",
+            "resolved_by",
+            "resolved_at",
+            "created_at",
+        )
+
+
+class UniversityModerationActionSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=UniversityModerationRecord.Status.choices)
+    field_name = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+    issue_type = serializers.ChoiceField(choices=UniversityModerationRecord.IssueType.choices)
+    description = serializers.CharField(required=False, allow_blank=True, default="")

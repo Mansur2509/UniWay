@@ -610,3 +610,59 @@ class UniversitySignalWeights(models.Model):
 
     def __str__(self) -> str:
         return f"Signal weights: {self.university.name}"
+
+
+class UniversityModerationRecord(models.Model):
+    """One staff review action against a university's data. Multiple rows
+    accumulate over time as an audit trail, mirroring EventModerationLog --
+    the university's current review state is its most recent record.
+    """
+
+    class Status(models.TextChoices):
+        PENDING_REVIEW = "pending_review", "Pending review"
+        VERIFIED = "verified", "Verified"
+        NEEDS_UPDATE = "needs_update", "Needs update"
+        REJECTED = "rejected", "Rejected"
+        ARCHIVED = "archived", "Archived"
+
+    class IssueType(models.TextChoices):
+        MISSING_SOURCE = "missing_source", "Missing source"
+        OUTDATED_DATA = "outdated_data", "Outdated data"
+        CONFLICTING_DATA = "conflicting_data", "Conflicting data"
+        SHIFTED_ROW = "shifted_row", "Shifted row"
+        BOILERPLATE = "boilerplate", "Boilerplate"
+        USER_REPORT = "user_report", "User report"
+        ADMIN_NOTE = "admin_note", "Admin note"
+
+    university = models.ForeignKey(
+        University, on_delete=models.CASCADE, related_name="moderation_records"
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDING_REVIEW, db_index=True
+    )
+    field_name = models.CharField(max_length=100, blank=True)
+    issue_type = models.CharField(max_length=30, choices=IssueType.choices)
+    description = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="university_moderation_records_created",
+    )
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="university_moderation_records_resolved",
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [models.Index(fields=("university", "status"))]
+
+    def __str__(self) -> str:
+        return f"{self.university_id} moderation ({self.status})"

@@ -44,8 +44,12 @@ urlpatterns = [
     path("api/admin/events/", include("services.event_service.moderation_urls")),
     path("api/admin/users/", include("services.profile_assessment_service.admin_urls")),
     path("api/admin/university-import/", include("services.university_service.import_urls")),
+    path("api/admin/universities/", include("services.university_service.moderation_urls")),
+    path("api/admin/organizers/", include("services.event_service.organizer_moderation_urls")),
     path("api/feedback/", include("services.feedback_service.urls")),
     path("api/admin/feedback/", include("services.feedback_service.admin_urls")),
+    path("api/reports/", include("services.feedback_service.reports_urls")),
+    path("api/admin/reports/", include("services.feedback_service.admin_reports_urls")),
     path("api/v1/health/", HealthView.as_view(), name="health"),
     path("api/v1/ai/", include("services.ai_gateway_service.urls")),
     # PROTOCOL-008 PART 7: additive `/api/v1/` paths reusing the same cached-

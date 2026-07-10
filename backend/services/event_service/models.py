@@ -439,3 +439,37 @@ class EventNotification(models.Model):
             models.Index(fields=("recipient", "status")),
             models.Index(fields=("event", "notification_type")),
         ]
+
+
+class OrganizerModeration(models.Model):
+    """Current staff standing for one organizer account.
+
+    Absence of a record means "never reviewed" and is treated as allowed --
+    only an explicit suspended/rejected record blocks organizer actions, so
+    existing organizers are unaffected until staff actively reviews them.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+        SUSPENDED = "suspended", "Suspended"
+
+    organizer = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="organizer_moderation"
+    )
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    reason = models.TextField(blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="organizer_moderation_reviews",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f"{self.organizer_id} organizer moderation ({self.status})"

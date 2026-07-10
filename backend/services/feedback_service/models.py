@@ -50,3 +50,46 @@ class FeedbackReport(models.Model):
 
     def __str__(self) -> str:
         return f"{self.feedback_type} feedback #{self.pk} ({self.status})"
+
+
+class UserReport(models.Model):
+    """A user flagging a specific piece of content for staff review.
+
+    Distinct from FeedbackReport (general app feedback): this always points
+    at a specific target_type/target_id pair, and always has a reporter.
+    """
+
+    class TargetType(models.TextChoices):
+        UNIVERSITY = "university", "University"
+        EVENT = "event", "Event"
+        ORGANIZER = "organizer", "Organizer"
+        ESSAY_REVIEW = "essay_review", "Essay review"
+        OTHER = "other", "Other"
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        REVIEWING = "reviewing", "Reviewing"
+        RESOLVED = "resolved", "Resolved"
+        DISMISSED = "dismissed", "Dismissed"
+
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="submitted_reports",
+    )
+    target_type = models.CharField(max_length=20, choices=TargetType.choices)
+    target_id = models.PositiveIntegerField()
+    reason = models.CharField(max_length=200)
+    description = models.TextField(max_length=2000, blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN, db_index=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [models.Index(fields=("target_type", "status"))]
+
+    def __str__(self) -> str:
+        return f"{self.target_type}:{self.target_id} report #{self.pk} ({self.status})"

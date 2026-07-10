@@ -1,9 +1,11 @@
 import csv
 
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework import generics, status
 from rest_framework.exceptions import ValidationError
@@ -21,6 +23,7 @@ from .models import (
     EventNotification,
     EventRegistration,
     EventTicket,
+    OrganizerModeration,
     ParticipationRecord,
 )
 from .serializers import (
@@ -32,6 +35,8 @@ from .serializers import (
     EventRejectionSerializer,
     EventSerializer,
     OrganizerEventSerializer,
+    OrganizerModerationActionSerializer,
+    OrganizerModerationSerializer,
     OrganizerParticipantSerializer,
     ParticipationRecordSerializer,
     PublicEventSerializer,
@@ -675,3 +680,41 @@ class EventViewSet(ModelViewSet):
         if self.action == "create":
             return [IsOrganizerOrAdmin()]
         return [IsAdminOrReadOnly()]
+
+
+User = get_user_model()
+
+
+class AdminOrganizerListView(generics.ListAPIView):
+    serializer_class = OrganizerModerationSerializer
+    permission_classes = [IsAdminRole]
+    pagination_class = None
+
+    def get_queryset(self):
+        return (
+            User.objects.filter(role=User.Role.ORGANIZER)
+            .select_related("organizer_moderation")
+            .annotate(event_count=Count("organized_events"))
+            .order_by("email")
+        )
+
+
+class AdminOrganizerModerationActionView(generics.GenericAPIView):
+    serializer_class = OrganizerModerationActionSerializer
+    permission_classes = [IsAdminRole]
+
+    def patch(self, request, *args, **kwargs):
+        organizer = get_object_or_404(User, pk=kwargs["pk"], role=User.Role.ORGANIZER)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        record, _created = OrganizerModeration.objects.update_or_create(
+            organizer=organizer,
+            defaults={
+                "status": data["status"],
+                "reason": data.get("reason", ""),
+                "reviewed_by": request.user,
+                "reviewed_at": timezone.now(),
+            },
+        )
+        return Response(OrganizerModerationSerializer(organizer).data)

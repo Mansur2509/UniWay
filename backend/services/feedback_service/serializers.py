@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import FeedbackReport
+from .models import FeedbackReport, UserReport
 
 
 class FeedbackReportCreateSerializer(serializers.ModelSerializer):
@@ -46,4 +46,46 @@ class FeedbackReportAdminSerializer(serializers.ModelSerializer):
             "user_agent",
             "created_at",
             "updated_at",
+        )
+
+
+class UserReportCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserReport
+        fields = ("id", "target_type", "target_id", "reason", "description", "created_at")
+        read_only_fields = ("id", "created_at")
+
+    def validate_reason(self, value: str) -> str:
+        if not value.strip():
+            raise serializers.ValidationError("Reason is required.")
+        return value.strip()
+
+
+class UserReportAdminSerializer(serializers.ModelSerializer):
+    reporter_email = serializers.EmailField(source="reporter.email", read_only=True, default=None)
+
+    class Meta:
+        model = UserReport
+        fields = (
+            "id",
+            "reporter",
+            "reporter_email",
+            "target_type",
+            "target_id",
+            "reason",
+            "description",
+            "status",
+            "resolved_at",
+            "created_at",
+        )
+        read_only_fields = (
+            "id",
+            "reporter",
+            "reporter_email",
+            "target_type",
+            "target_id",
+            "reason",
+            "description",
+            "resolved_at",
+            "created_at",
         )

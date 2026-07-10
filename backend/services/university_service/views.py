@@ -1,9 +1,11 @@
 from django.core.cache import cache
 from django.db.models import F, Prefetch, Q
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
-from rest_framework.generics import RetrieveAPIView
+from rest_framework.generics import GenericAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -22,6 +24,7 @@ from .models import (
     University,
     UniversityFieldVerification,
     UniversityImportJob,
+    UniversityModerationRecord,
     UniversityProgram,
     UniversitySubjectRanking,
 )
@@ -32,6 +35,8 @@ from .serializers import (
     UniversityImportJobSerializer,
     UniversityImportUploadSerializer,
     UniversityListSerializer,
+    UniversityModerationActionSerializer,
+    UniversityModerationRecordSerializer,
     UniversitySerializer,
 )
 from .services import calculate_university_fit
@@ -534,3 +539,62 @@ class AdminUniversityImportJobDetailView(RetrieveAPIView):
         if mark_stale_university_import_job(job):
             job.refresh_from_db()
         return job
+
+
+_OPEN_MODERATION_STATUSES = (
+    UniversityModerationRecord.Status.PENDING_REVIEW,
+    UniversityModerationRecord.Status.NEEDS_UPDATE,
+)
+_TERMINAL_MODERATION_STATUSES = {
+    UniversityModerationRecord.Status.VERIFIED,
+    UniversityModerationRecord.Status.REJECTED,
+    UniversityModerationRecord.Status.ARCHIVED,
+}
+
+
+class AdminUniversityReviewQueueView(ListAPIView):
+    """The one open (pending/needs-update) moderation record per university.
+
+    Uses a plain Python reduction rather than Postgres-only `DISTINCT ON`,
+    since local dev and tests run against SQLite.
+    """
+
+    serializer_class = UniversityModerationRecordSerializer
+    permission_classes = [IsAdminRole]
+    pagination_class = None
+
+    def get_queryset(self):
+        records = (
+            UniversityModerationRecord.objects.filter(status__in=_OPEN_MODERATION_STATUSES)
+            .select_related("university", "created_by", "resolved_by")
+            .order_by("university_id", "-created_at")
+        )
+        latest_by_university: dict[int, UniversityModerationRecord] = {}
+        for record in records:
+            latest_by_university.setdefault(record.university_id, record)
+        return list(latest_by_university.values())
+
+
+class AdminUniversityModerationActionView(GenericAPIView):
+    serializer_class = UniversityModerationActionSerializer
+    permission_classes = [IsAdminRole]
+
+    def patch(self, request, *args, **kwargs):
+        university = get_object_or_404(University, pk=kwargs["pk"])
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        is_terminal = data["status"] in _TERMINAL_MODERATION_STATUSES
+        record = UniversityModerationRecord.objects.create(
+            university=university,
+            status=data["status"],
+            field_name=data.get("field_name", ""),
+            issue_type=data["issue_type"],
+            description=data.get("description", ""),
+            created_by=request.user,
+            resolved_by=request.user if is_terminal else None,
+            resolved_at=timezone.now() if is_terminal else None,
+        )
+        return Response(
+            UniversityModerationRecordSerializer(record).data, status=status.HTTP_201_CREATED
+        )

@@ -5,6 +5,7 @@ import {
   CircleUserRound,
   ClipboardList,
   Database,
+  Flag,
   FlaskConical,
   GraduationCap,
   LayoutDashboard,
@@ -12,9 +13,11 @@ import {
   Map,
   MessageSquareWarning,
   Tickets,
+  UserCog,
   UserPlus,
   Route,
   ScrollText,
+  ShieldAlert,
   ShieldCheck,
   Shapes,
   WalletCards
@@ -63,6 +66,21 @@ export const adminNavigation: NavigationItem[] = [
     href: "/admin/feedback",
     labelKey: "navigation.feedbackInbox",
     icon: MessageSquareWarning
+  },
+  {
+    href: "/admin/moderation",
+    labelKey: "navigation.universityModeration",
+    icon: ShieldAlert
+  },
+  {
+    href: "/admin/reports",
+    labelKey: "navigation.userReports",
+    icon: Flag
+  },
+  {
+    href: "/admin/organizers",
+    labelKey: "navigation.organizerModeration",
+    icon: UserCog
   }
 ];
 

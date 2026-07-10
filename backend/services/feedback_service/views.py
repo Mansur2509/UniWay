@@ -1,10 +1,16 @@
+from django.utils import timezone
 from rest_framework import generics
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 
 from common.permissions import IsAdminRole
 
-from .models import FeedbackReport
-from .serializers import FeedbackReportAdminSerializer, FeedbackReportCreateSerializer
+from .models import FeedbackReport, UserReport
+from .serializers import (
+    FeedbackReportAdminSerializer,
+    FeedbackReportCreateSerializer,
+    UserReportAdminSerializer,
+    UserReportCreateSerializer,
+)
 
 
 class FeedbackReportCreateView(generics.CreateAPIView):
@@ -41,3 +47,34 @@ class AdminFeedbackReportDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = FeedbackReportAdminSerializer
     permission_classes = [IsAdminRole]
     queryset = FeedbackReport.objects.select_related("user").all()
+
+
+class UserReportCreateView(generics.CreateAPIView):
+    serializer_class = UserReportCreateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        serializer.save(reporter=self.request.user)
+
+
+class AdminUserReportListView(generics.ListAPIView):
+    serializer_class = UserReportAdminSerializer
+    permission_classes = [IsAdminRole]
+    filterset_fields = {"status": ["exact"], "target_type": ["exact"]}
+    ordering_fields = ("created_at", "status")
+    ordering = ("-created_at",)
+    queryset = UserReport.objects.select_related("reporter").all()
+
+
+class AdminUserReportDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = UserReportAdminSerializer
+    permission_classes = [IsAdminRole]
+    queryset = UserReport.objects.select_related("reporter").all()
+
+    def perform_update(self, serializer):
+        new_status = serializer.validated_data.get("status")
+        terminal_statuses = {UserReport.Status.RESOLVED, UserReport.Status.DISMISSED}
+        if new_status in terminal_statuses and self.get_object().status not in terminal_statuses:
+            serializer.save(resolved_at=timezone.now())
+        else:
+            serializer.save()
