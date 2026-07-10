@@ -21,6 +21,10 @@ export type ApplicationStatus =
 
 export type ApplicationPriority = "low" | "medium" | "high" | "dream";
 
+export type ApplicationFitTier = "reach" | "competitive" | "target" | "safety" | "unknown";
+
+export type ApplicationSource = "user_added" | "roadmap" | "recommendation" | "imported";
+
 export type ApplicationTaskStatus =
   | "not_started"
   | "drafting"
@@ -172,6 +176,8 @@ export type ApplicationTrackerItem = {
   application_round: ApplicationRound;
   status: ApplicationStatus;
   priority: ApplicationPriority;
+  fit_tier: ApplicationFitTier;
+  source: ApplicationSource;
   deadline: string | null;
   financial_aid_deadline: string | null;
   scholarship_deadline: string | null;
@@ -182,6 +188,7 @@ export type ApplicationTrackerItem = {
   financial_aid_status: FinancialAidStatus;
   notes: string;
   milestones: ApplicationMilestone[];
+  checklist_progress: ChecklistProgress;
   created_at: string;
   updated_at: string;
 };
@@ -192,6 +199,7 @@ export type ApplicationTrackerItemInput = Partial<{
   application_round: ApplicationRound;
   status: ApplicationStatus;
   priority: ApplicationPriority;
+  source: ApplicationSource;
   deadline: string | null;
   financial_aid_deadline: string | null;
   scholarship_deadline: string | null;
@@ -211,6 +219,116 @@ export type ApplicationMilestoneInput = {
   notes?: string;
   linked_roadmap_task?: number | null;
   source_url?: string;
+};
+
+export type RequirementType =
+  | "transcript"
+  | "test_scores"
+  | "english_proof"
+  | "essay"
+  | "supplement"
+  | "recommendation"
+  | "portfolio"
+  | "financial_aid"
+  | "passport"
+  | "application_fee"
+  | "interview"
+  | "other";
+
+export type RequirementStatus = "missing" | "in_progress" | "completed" | "waived" | "not_required";
+
+export type RequirementSource = "university_data" | "user_created" | "system_generated";
+
+export type ApplicationRequirement = {
+  id: number;
+  application: number;
+  requirement_type: RequirementType;
+  title: string;
+  description: string;
+  status: RequirementStatus;
+  due_date: string | null;
+  is_required: boolean;
+  source: RequirementSource;
+  order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApplicationRequirementInput = {
+  requirement_type: RequirementType;
+  title: string;
+  description?: string;
+  status?: RequirementStatus;
+  due_date?: string | null;
+  is_required?: boolean;
+  order?: number;
+};
+
+export type RecommendationRequestStatus =
+  | "not_requested"
+  | "requested"
+  | "agreed"
+  | "submitted"
+  | "unavailable";
+
+export type ApplicationRecommendationRequest = {
+  id: number;
+  application: number;
+  recommender: number | null;
+  recommender_name: string;
+  recommender_role: string;
+  recommender_display_name: string | null;
+  status: RecommendationRequestStatus;
+  request_date: string | null;
+  due_date: string | null;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApplicationRecommendationRequestInput = {
+  recommender?: number | null;
+  recommender_name?: string;
+  recommender_role?: string;
+  status?: RecommendationRequestStatus;
+  request_date?: string | null;
+  due_date?: string | null;
+  notes?: string;
+};
+
+export type ApplicationDocumentType =
+  | "transcript"
+  | "passport"
+  | "certificate"
+  | "test_report"
+  | "portfolio"
+  | "financial_document"
+  | "other";
+
+export type ApplicationDocumentStatus = "missing" | "uploaded" | "verified" | "rejected";
+
+export type ApplicationDocument = {
+  id: number;
+  application: number;
+  document_type: ApplicationDocumentType;
+  title: string;
+  status: ApplicationDocumentStatus;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApplicationDocumentInput = {
+  document_type: ApplicationDocumentType;
+  title: string;
+  status?: ApplicationDocumentStatus;
+  notes?: string;
+};
+
+export type ChecklistProgress = {
+  completed: number;
+  total: number;
+  percent: number | null;
 };
 
 export type PaginatedResponse<Item> = {

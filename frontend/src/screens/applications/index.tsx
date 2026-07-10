@@ -26,7 +26,10 @@ import {
   updateApplicationMilestoneRequest,
   updateApplicationRequest
 } from "@/features/applications";
+import { ApplicationDocumentsPanel } from "@/features/applications/ui/application-documents";
 import { ApplicationForm, type ApplicationFormValues } from "@/features/applications/ui/application-form";
+import { ApplicationRecommendationsPanel } from "@/features/applications/ui/application-recommendations";
+import { ApplicationRequirementsPanel } from "@/features/applications/ui/application-requirements";
 import { ApplicationTimelinePanel } from "@/features/applications/ui/application-timeline";
 import { MilestoneForm, type MilestoneFormValues } from "@/features/applications/ui/milestone-form";
 import { getRoadmapTasksRequest } from "@/features/roadmap";
@@ -917,6 +920,30 @@ export function ApplicationsScreen() {
               <MilestoneForm onSubmit={handleAddMilestone} />
             </div>
           </div>
+
+          <section className="rounded-sm border bg-elevated p-4">
+            <div className="flex items-center gap-1.5">
+              <h3 className="text-sm font-semibold">{t("applications.requirements.title")}</h3>
+              <HelpTooltip label={t("applications.requirements.help")} />
+            </div>
+            <div className="mt-2">
+              <ApplicationRequirementsPanel applicationId={selected.id} />
+            </div>
+          </section>
+
+          <section className="rounded-sm border bg-elevated p-4">
+            <h3 className="text-sm font-semibold">{t("applications.recommendationRequests.title")}</h3>
+            <div className="mt-2">
+              <ApplicationRecommendationsPanel applicationId={selected.id} />
+            </div>
+          </section>
+
+          <section className="rounded-sm border bg-elevated p-4">
+            <h3 className="text-sm font-semibold">{t("applications.documents.title")}</h3>
+            <div className="mt-2">
+              <ApplicationDocumentsPanel applicationId={selected.id} />
+            </div>
+          </section>
 
           {linkedTasks.length > 0 ? (
             <div>

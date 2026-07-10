@@ -32,6 +32,19 @@ class ApplicationTrackerItem(models.Model):
         HIGH = "high", "High"
         DREAM = "dream", "Dream"
 
+    class FitTier(models.TextChoices):
+        REACH = "reach", "Reach"
+        COMPETITIVE = "competitive", "Competitive"
+        TARGET = "target", "Target"
+        SAFETY = "safety", "Safer"
+        UNKNOWN = "unknown", "Not yet estimated"
+
+    class Source(models.TextChoices):
+        USER_ADDED = "user_added", "Added by student"
+        ROADMAP = "roadmap", "Roadmap"
+        RECOMMENDATION = "recommendation", "Recommendation"
+        IMPORTED = "imported", "Imported"
+
     class TaskStatus(models.TextChoices):
         NOT_STARTED = "not_started", "Not started"
         DRAFTING = "drafting", "Drafting"
@@ -81,6 +94,8 @@ class ApplicationTrackerItem(models.Model):
     )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.RESEARCHING, db_index=True)
     priority = models.CharField(max_length=10, choices=Priority.choices, default=Priority.MEDIUM)
+    fit_tier = models.CharField(max_length=15, choices=FitTier.choices, default=FitTier.UNKNOWN)
+    source = models.CharField(max_length=20, choices=Source.choices, default=Source.USER_ADDED)
     deadline = models.DateField(null=True, blank=True)
     financial_aid_deadline = models.DateField(null=True, blank=True)
     scholarship_deadline = models.DateField(null=True, blank=True)
@@ -160,6 +175,124 @@ class ApplicationMilestone(models.Model):
 
     class Meta:
         ordering = ("due_date", "-created_at")
+        indexes = [models.Index(fields=("application", "status"))]
+
+    def __str__(self) -> str:
+        return self.title
+
+
+class ApplicationRequirement(models.Model):
+    class RequirementType(models.TextChoices):
+        TRANSCRIPT = "transcript", "Transcript"
+        TEST_SCORES = "test_scores", "Test scores"
+        ENGLISH_PROOF = "english_proof", "English proficiency proof"
+        ESSAY = "essay", "Essay"
+        SUPPLEMENT = "supplement", "Supplement"
+        RECOMMENDATION = "recommendation", "Recommendation"
+        PORTFOLIO = "portfolio", "Portfolio"
+        FINANCIAL_AID = "financial_aid", "Financial aid"
+        PASSPORT = "passport", "Passport"
+        APPLICATION_FEE = "application_fee", "Application fee"
+        INTERVIEW = "interview", "Interview"
+        OTHER = "other", "Other"
+
+    class Status(models.TextChoices):
+        MISSING = "missing", "Missing"
+        IN_PROGRESS = "in_progress", "In progress"
+        COMPLETED = "completed", "Completed"
+        WAIVED = "waived", "Waived"
+        NOT_REQUIRED = "not_required", "Not required"
+
+    class Source(models.TextChoices):
+        UNIVERSITY_DATA = "university_data", "University data"
+        USER_CREATED = "user_created", "Added by student"
+        SYSTEM_GENERATED = "system_generated", "Generated checklist"
+
+    application = models.ForeignKey(
+        ApplicationTrackerItem, on_delete=models.CASCADE, related_name="requirements"
+    )
+    requirement_type = models.CharField(max_length=20, choices=RequirementType.choices)
+    title = models.CharField(max_length=240)
+    description = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.MISSING)
+    due_date = models.DateField(null=True, blank=True)
+    is_required = models.BooleanField(default=True)
+    source = models.CharField(max_length=20, choices=Source.choices, default=Source.USER_CREATED)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("order", "due_date", "-created_at")
+        indexes = [models.Index(fields=("application", "status"))]
+
+    def __str__(self) -> str:
+        return self.title
+
+
+class ApplicationRecommendation(models.Model):
+    class Status(models.TextChoices):
+        NOT_REQUESTED = "not_requested", "Not requested"
+        REQUESTED = "requested", "Requested"
+        AGREED = "agreed", "Agreed"
+        SUBMITTED = "submitted", "Submitted"
+        UNAVAILABLE = "unavailable", "Unavailable"
+
+    application = models.ForeignKey(
+        ApplicationTrackerItem, on_delete=models.CASCADE, related_name="recommendation_requests"
+    )
+    recommender = models.ForeignKey(
+        "user_profile_service.Recommender",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="application_requests",
+    )
+    recommender_name = models.CharField(max_length=150, blank=True)
+    recommender_role = models.CharField(max_length=150, blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.NOT_REQUESTED)
+    request_date = models.DateField(null=True, blank=True)
+    due_date = models.DateField(null=True, blank=True)
+    notes = models.TextField(max_length=1000, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("due_date", "-created_at")
+        indexes = [models.Index(fields=("application", "status"))]
+
+    def __str__(self) -> str:
+        return self.recommender_name or (self.recommender.name if self.recommender_id else "Recommender")
+
+
+class ApplicationDocument(models.Model):
+    class DocumentType(models.TextChoices):
+        TRANSCRIPT = "transcript", "Transcript"
+        PASSPORT = "passport", "Passport"
+        CERTIFICATE = "certificate", "Certificate"
+        TEST_REPORT = "test_report", "Test report"
+        PORTFOLIO = "portfolio", "Portfolio"
+        FINANCIAL_DOCUMENT = "financial_document", "Financial document"
+        OTHER = "other", "Other"
+
+    class Status(models.TextChoices):
+        MISSING = "missing", "Missing"
+        UPLOADED = "uploaded", "Uploaded"
+        VERIFIED = "verified", "Verified"
+        REJECTED = "rejected", "Rejected"
+
+    application = models.ForeignKey(
+        ApplicationTrackerItem, on_delete=models.CASCADE, related_name="documents"
+    )
+    document_type = models.CharField(max_length=20, choices=DocumentType.choices)
+    title = models.CharField(max_length=240)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.MISSING)
+    notes = models.TextField(max_length=1000, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
         indexes = [models.Index(fields=("application", "status"))]
 
     def __str__(self) -> str:

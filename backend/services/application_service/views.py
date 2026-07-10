@@ -7,12 +7,26 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from services.essay_service.models import EssayWorkspace
+from services.essay_service.serializers import EssayWorkspaceSerializer
+from services.university_service.services import calculate_university_fit
 from services.user_profile_service.services import ensure_profile_records
 
-from .models import ApplicationMilestone, ApplicationTrackerItem
+from .models import (
+    ApplicationDocument,
+    ApplicationMilestone,
+    ApplicationRecommendation,
+    ApplicationRequirement,
+    ApplicationTrackerItem,
+)
+from .requirements import generate_default_requirements
 from .serializers import (
+    ApplicationDocumentSerializer,
     ApplicationMilestoneCreateSerializer,
     ApplicationMilestoneSerializer,
+    ApplicationRecommendationSerializer,
+    ApplicationRequirementCreateSerializer,
+    ApplicationRequirementSerializer,
     ApplicationTrackerItemSerializer,
 )
 from .timeline import build_application_timeline
@@ -28,7 +42,7 @@ class ApplicationTrackerViewSet(viewsets.ModelViewSet):
         return (
             ApplicationTrackerItem.objects.filter(user=self.request.user)
             .select_related("university", "target_program")
-            .prefetch_related("milestones")
+            .prefetch_related("milestones", "requirements")
         )
 
     @action(detail=True, methods=["get"], url_path="timeline")
@@ -49,8 +63,12 @@ class ApplicationTrackerViewSet(viewsets.ModelViewSet):
         return Response(payload)
 
     def perform_create(self, serializer):
+        university = serializer.validated_data["university"]
+        profile, _ = ensure_profile_records(self.request.user)
+        fit = calculate_university_fit(profile, university)
+        fit_tier = fit.get("category") or ApplicationTrackerItem.FitTier.UNKNOWN
         try:
-            serializer.save(user=self.request.user)
+            serializer.save(user=self.request.user, fit_tier=fit_tier)
         except IntegrityError as exc:
             raise ValidationError(
                 {"university": "You already have an application tracker item for this university."}
@@ -73,6 +91,79 @@ class ApplicationTrackerViewSet(viewsets.ModelViewSet):
             ApplicationMilestoneSerializer(milestone).data, status=status.HTTP_201_CREATED
         )
 
+    @action(detail=True, methods=["get", "post"], url_path="requirements")
+    def requirements(self, request, pk=None):
+        application = self.get_object()
+
+        if request.method == "GET":
+            items = application.requirements.all()
+            return Response(ApplicationRequirementSerializer(items, many=True).data)
+
+        serializer = ApplicationRequirementCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        order = serializer.validated_data.get("order") or application.requirements.count()
+        requirement = serializer.save(
+            application=application,
+            source=ApplicationRequirement.Source.USER_CREATED,
+            order=order,
+        )
+        return Response(
+            ApplicationRequirementSerializer(requirement).data, status=status.HTTP_201_CREATED
+        )
+
+    @action(detail=True, methods=["post"], url_path="generate-requirements")
+    def generate_requirements_action(self, request, pk=None):
+        application = self.get_object()
+        requirements = generate_default_requirements(application)
+        return Response(ApplicationRequirementSerializer(requirements, many=True).data)
+
+    @action(detail=True, methods=["get", "post"], url_path="recommendations")
+    def recommendation_requests(self, request, pk=None):
+        application = self.get_object()
+
+        if request.method == "GET":
+            items = application.recommendation_requests.select_related("recommender").all()
+            return Response(ApplicationRecommendationSerializer(items, many=True).data)
+
+        serializer = ApplicationRecommendationSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        recommendation = serializer.save(application=application)
+        return Response(
+            ApplicationRecommendationSerializer(recommendation).data, status=status.HTTP_201_CREATED
+        )
+
+    @action(detail=True, methods=["get", "post"], url_path="documents")
+    def documents(self, request, pk=None):
+        application = self.get_object()
+
+        if request.method == "GET":
+            items = application.documents.all()
+            return Response(ApplicationDocumentSerializer(items, many=True).data)
+
+        serializer = ApplicationDocumentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        document = serializer.save(application=application)
+        return Response(
+            ApplicationDocumentSerializer(document).data, status=status.HTTP_201_CREATED
+        )
+
+    @action(detail=True, methods=["get", "post"], url_path="essays")
+    def essays(self, request, pk=None):
+        application = self.get_object()
+
+        if request.method == "GET":
+            items = EssayWorkspace.objects.filter(user=request.user, application=application)
+            return Response(EssayWorkspaceSerializer(items, many=True).data)
+
+        data = request.data.copy()
+        data["application"] = application.pk
+        serializer = EssayWorkspaceSerializer(data=data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        essay = serializer.save(user=request.user)
+        return Response(EssayWorkspaceSerializer(essay).data, status=status.HTTP_201_CREATED)
+
 
 class ApplicationMilestoneViewSet(
     mixins.RetrieveModelMixin,
@@ -84,3 +175,39 @@ class ApplicationMilestoneViewSet(
 
     def get_queryset(self):
         return ApplicationMilestone.objects.filter(application__user=self.request.user)
+
+
+class ApplicationRequirementViewSet(
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
+    serializer_class = ApplicationRequirementSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return ApplicationRequirement.objects.filter(application__user=self.request.user)
+
+
+class ApplicationRecommendationViewSet(
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
+    serializer_class = ApplicationRecommendationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return ApplicationRecommendation.objects.filter(application__user=self.request.user)
+
+
+class ApplicationDocumentViewSet(
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
+    serializer_class = ApplicationDocumentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return ApplicationDocument.objects.filter(application__user=self.request.user)

@@ -211,7 +211,10 @@ export function RecommendationsScreen() {
     setActionError(false);
     setPending(item.university.slug, true);
     try {
-      const created = await createApplicationRequest({ university: item.university.id });
+      const created = await createApplicationRequest({
+        university: item.university.id,
+        source: "recommendation"
+      });
       updateItem(item.university.slug, { application_id: created.id });
     } catch {
       setActionError(true);

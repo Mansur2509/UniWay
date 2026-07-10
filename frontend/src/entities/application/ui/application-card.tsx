@@ -15,6 +15,14 @@ const PRIORITY_STYLES: Record<string, string> = {
   dream: "border-danger/35 bg-danger/10 text-danger"
 };
 
+const FIT_TIER_STYLES: Record<string, string> = {
+  reach: "border-danger/35 bg-danger/10 text-danger",
+  competitive: "border-warning/35 bg-warning/10 text-warning",
+  target: "border-accent/35 bg-accent/10 text-accent",
+  safety: "border-success/35 bg-success/10 text-success",
+  unknown: "border-muted-foreground/30 bg-surface text-muted-foreground"
+};
+
 export function ApplicationCard({
   application,
   isSelected,
@@ -31,6 +39,7 @@ export function ApplicationCard({
       application.recommendations_status !== "received",
     application.documents_status !== "submitted" && application.documents_status !== "ready"
   ].filter(Boolean).length;
+  const progress = application.checklist_progress;
 
   return (
     <Card className={`flex min-w-0 flex-col gap-2 p-4 ${isSelected ? "border-primary/60" : ""}`}>
@@ -39,6 +48,12 @@ export function ApplicationCard({
           className={`rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${PRIORITY_STYLES[application.priority]}`}
         >
           {t(`applications.priority.${application.priority}` as TranslationKey)}
+        </span>
+        <span
+          className={`rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${FIT_TIER_STYLES[application.fit_tier]}`}
+          title={t("applications.card.fitTierHelp")}
+        >
+          {t(`applications.fitTier.${application.fit_tier}` as TranslationKey)}
         </span>
         <span className="rounded-sm border bg-surface px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
           {t(`applications.round.${application.application_round}` as TranslationKey)}
@@ -60,6 +75,22 @@ export function ApplicationCard({
       <p className="text-xs text-muted-foreground">
         {t("applications.card.incompleteRequirements", { count: incompleteCount })}
       </p>
+      {progress.total > 0 ? (
+        <div className="flex items-center gap-2">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted-foreground/15">
+            <div
+              className="h-full rounded-full bg-accent"
+              style={{ width: `${progress.percent ?? 0}%` }}
+            />
+          </div>
+          <span className="shrink-0 text-[0.65rem] text-muted-foreground">
+            {t("applications.card.checklistProgress", {
+              completed: progress.completed,
+              total: progress.total
+            })}
+          </span>
+        </div>
+      ) : null}
       <Button
         className="mt-2"
         onClick={() => onSelect(application)}

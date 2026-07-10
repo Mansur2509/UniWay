@@ -1,10 +1,22 @@
 export {
+  createApplicationDocumentRequest,
+  createApplicationEssayRequest,
   createApplicationMilestoneRequest,
+  createApplicationRecommendationRequest,
   createApplicationRequest,
+  createApplicationRequirementRequest,
   deleteApplicationRequest,
+  generateApplicationRequirementsRequest,
+  getApplicationDocumentsRequest,
+  getApplicationEssaysRequest,
+  getApplicationRecommendationsRequest,
   getApplicationRequest,
+  getApplicationRequirementsRequest,
   getApplicationsRequest,
   getApplicationTimelineRequest,
+  updateApplicationDocumentRequest,
   updateApplicationMilestoneRequest,
-  updateApplicationRequest
+  updateApplicationRecommendationRequest,
+  updateApplicationRequest,
+  updateApplicationRequirementRequest
 } from "./api/applications-api";
