@@ -16,6 +16,8 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
 from common.permissions import IsAdminOrReadOnly, IsAdminRole, IsOrganizerOrAdmin
+from services.activity_service.models import AnalyticsEvent
+from services.activity_service.services import track_event
 
 from .models import (
     Event,
@@ -126,6 +128,13 @@ class EventRegistrationView(APIView):
             user=request.user,
             answers=answers,
         )
+        if created:
+            track_event(
+                user=request.user,
+                event_type=AnalyticsEvent.EventType.EVENT_REGISTERED,
+                entity_type="event",
+                entity_id=event.id,
+            )
         serializer = EventRegistrationSerializer(
             registration,
             context={
@@ -247,6 +256,15 @@ class OrganizerEventListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         return organizer_event_queryset(self.request.user).order_by("-updated_at")
+
+    def perform_create(self, serializer):
+        event = serializer.save()
+        track_event(
+            user=self.request.user,
+            event_type=AnalyticsEvent.EventType.ORGANIZER_EVENT_CREATED,
+            entity_type="event",
+            entity_id=event.id,
+        )
 
 
 class OrganizerEventDetailView(generics.GenericAPIView):

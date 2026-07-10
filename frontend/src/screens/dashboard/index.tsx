@@ -34,6 +34,7 @@ import {
 import type { RecommendationItem } from "@/entities/recommendation";
 import type { RoadmapPlan } from "@/entities/roadmap";
 import type { SuggestedItem } from "@/entities/suggestion";
+import { AnalyticsWidget } from "@/features/analytics";
 import { getApplicationsRequest } from "@/features/applications";
 import { useAuth } from "@/features/auth";
 import { getEssaysRequest } from "@/features/essays";
@@ -1171,6 +1172,8 @@ export function DashboardScreen() {
           </p>
         </Card>
       </section>
+
+      <AnalyticsWidget />
 
       <p className="text-xs leading-4 text-muted-foreground">
         {t("dashboard.disclaimer")}

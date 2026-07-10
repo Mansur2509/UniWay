@@ -7,6 +7,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from services.activity_service.models import AnalyticsEvent
+from services.activity_service.services import track_event
+
 from .models import RoadmapPlan, RoadmapTask
 from .roadmap_generator import generate_roadmap
 from .serializers import RoadmapPlanSerializer, RoadmapTaskCreateSerializer, RoadmapTaskSerializer
@@ -33,6 +36,7 @@ class GenerateRoadmapView(APIView):
     def post(self, request):
         plan, warnings = generate_roadmap(request.user)
         serializer = RoadmapPlanSerializer(plan, context={"request": request})
+        track_event(user=request.user, event_type=AnalyticsEvent.EventType.ROADMAP_GENERATED)
         return Response({"plan": serializer.data, "missing_data_warnings": warnings})
 
 
@@ -114,6 +118,21 @@ class RoadmapTaskViewSet(
             plan=plan,
             source_type=RoadmapTask.SourceType.MANUAL,
         )
+
+    def perform_update(self, serializer):
+        previous_status = serializer.instance.status
+        task = serializer.save()
+        if (
+            task.status == RoadmapTask.Status.COMPLETED
+            and previous_status != RoadmapTask.Status.COMPLETED
+        ):
+            track_event(
+                user=self.request.user,
+                event_type=AnalyticsEvent.EventType.ROADMAP_TASK_COMPLETED,
+                entity_type="roadmap_task",
+                entity_id=task.id,
+                metadata={"category": task.category},
+            )
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

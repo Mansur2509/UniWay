@@ -15,6 +15,8 @@ from rest_framework.viewsets import ModelViewSet
 
 from common.pagination import CompactListPagination
 from common.permissions import IsAdminOrReadOnly, IsAdminRole
+from services.activity_service.models import AnalyticsEvent
+from services.activity_service.services import track_event
 from services.user_profile_service.services import ensure_profile_records
 
 from .currency import normalize_amount_to_usd
@@ -424,6 +426,13 @@ class UniversityViewSet(ModelViewSet):
             saved, created = SavedUniversity.objects.get_or_create(
                 user=request.user, university=university
             )
+            if created:
+                track_event(
+                    user=request.user,
+                    event_type=AnalyticsEvent.EventType.UNIVERSITY_SHORTLISTED,
+                    entity_type="university",
+                    entity_id=university.id,
+                )
             serializer = SavedUniversitySerializer(
                 saved, context=self.get_serializer_context()
             )

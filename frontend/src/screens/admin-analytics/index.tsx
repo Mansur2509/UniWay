@@ -1,0 +1,182 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+
+import type {
+  AdminAnalyticsActivity,
+  AdminAnalyticsSummary,
+  AdminFeatureUsage
+} from "@/entities/analytics";
+import {
+  getAdminAnalyticsActivityRequest,
+  getAdminAnalyticsFeatureUsageRequest,
+  getAdminAnalyticsSummaryRequest
+} from "@/features/analytics";
+import { useI18n, type TranslationKey } from "@/shared/i18n";
+import { formatDate } from "@/shared/lib/date-time";
+import { Button } from "@/shared/ui/button";
+import { Card } from "@/shared/ui/card";
+
+export function AdminAnalyticsScreen() {
+  const { locale, t } = useI18n();
+  const [summary, setSummary] = useState<AdminAnalyticsSummary | null>(null);
+  const [featureUsage, setFeatureUsage] = useState<AdminFeatureUsage>({});
+  const [activity, setActivity] = useState<AdminAnalyticsActivity | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setHasError(false);
+    try {
+      const [summaryResponse, featureUsageResponse, activityResponse] = await Promise.all([
+        getAdminAnalyticsSummaryRequest(),
+        getAdminAnalyticsFeatureUsageRequest(),
+        getAdminAnalyticsActivityRequest()
+      ]);
+      setSummary(summaryResponse);
+      setFeatureUsage(featureUsageResponse);
+      setActivity(activityResponse);
+    } catch {
+      setHasError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const summaryTiles: Array<[TranslationKey, number]> = summary
+    ? [
+        ["adminAnalytics.metric.totalUsers", summary.total_users],
+        ["adminAnalytics.metric.newUsers7d", summary.new_users_7d],
+        ["adminAnalytics.metric.newUsers30d", summary.new_users_30d],
+        ["adminAnalytics.metric.activeUsers7d", summary.active_users_7d],
+        ["adminAnalytics.metric.activeUsers30d", summary.active_users_30d],
+        ["adminAnalytics.metric.retainedUsers", summary.retained_users_2plus_actions],
+        ["adminAnalytics.metric.applicationsCreated", summary.applications_created_total],
+        ["adminAnalytics.metric.universitiesShortlisted", summary.universities_shortlisted_total],
+        ["adminAnalytics.metric.essayReviewsRequested", summary.essay_reviews_requested_total],
+        ["adminAnalytics.metric.roadmapGenerations", summary.roadmap_generations_total],
+        ["adminAnalytics.metric.eventRegistrations", summary.event_registrations_total],
+        ["adminAnalytics.metric.organizerEventsCreated", summary.organizer_events_created_total]
+      ]
+    : [];
+
+  const featureUsageEntries = Object.entries(featureUsage).sort(([, a], [, b]) => b - a);
+  const maxFeatureUsage = Math.max(1, ...featureUsageEntries.map(([, count]) => count));
+
+  const dailyEntries = Object.entries(activity?.daily_event_counts ?? {}).sort(([a], [b]) =>
+    a.localeCompare(b)
+  );
+  const maxDailyCount = Math.max(1, ...dailyEntries.map(([, count]) => count));
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-sm border bg-card p-6 shadow-card sm:p-9">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
+          {t("adminAnalytics.eyebrow")}
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{t("adminAnalytics.title")}</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+          {t("adminAnalytics.description")}
+        </p>
+      </section>
+
+      {isLoading ? (
+        <Card>
+          <p className="text-sm text-muted-foreground">{t("adminAnalytics.states.loading")}</p>
+        </Card>
+      ) : hasError ? (
+        <Card>
+          <p className="text-sm text-danger" role="alert">
+            {t("adminAnalytics.states.loadError")}
+          </p>
+          <Button className="mt-4" onClick={() => void load()} type="button">
+            {t("essays.actions.retry")}
+          </Button>
+        </Card>
+      ) : (
+        <>
+          <section aria-labelledby="admin-analytics-summary">
+            <h2 className="mb-3 text-lg font-semibold" id="admin-analytics-summary">
+              {t("adminAnalytics.summary.title")}
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {summaryTiles.map(([labelKey, value]) => (
+                <Card className="p-4" key={labelKey}>
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                    {t(labelKey)}
+                  </p>
+                  <p className="mt-2 font-serif text-3xl font-semibold text-accent">{value}</p>
+                </Card>
+              ))}
+            </div>
+          </section>
+
+          <section className="grid gap-4 lg:grid-cols-2">
+            <Card className="p-4">
+              <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                {t("adminAnalytics.featureUsage.title")}
+              </h2>
+              {featureUsageEntries.length === 0 ? (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {t("adminAnalytics.featureUsage.empty")}
+                </p>
+              ) : (
+                <ul className="mt-3 space-y-2">
+                  {featureUsageEntries.map(([eventType, count]) => (
+                    <li key={eventType}>
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="truncate text-muted-foreground">
+                          {t(`analytics.eventType.${eventType}` as TranslationKey)}
+                        </span>
+                        <span className="shrink-0 font-semibold">{count}</span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full rounded-full bg-elevated">
+                        <div
+                          className="h-1.5 rounded-full bg-accent"
+                          style={{ width: `${(count / maxFeatureUsage) * 100}%` }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+
+            <Card className="p-4">
+              <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                {t("adminAnalytics.activity.title")}
+              </h2>
+              {dailyEntries.length === 0 ? (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {t("adminAnalytics.activity.empty")}
+                </p>
+              ) : (
+                <ul className="mt-3 space-y-2">
+                  {dailyEntries.map(([day, count]) => (
+                    <li key={day}>
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-muted-foreground">{formatDate(day, locale)}</span>
+                        <span className="shrink-0 font-semibold">{count}</span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full rounded-full bg-elevated">
+                        <div
+                          className="h-1.5 rounded-full bg-accent"
+                          style={{ width: `${(count / maxDailyCount) * 100}%` }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </section>
+        </>
+      )}
+    </div>
+  );
+}

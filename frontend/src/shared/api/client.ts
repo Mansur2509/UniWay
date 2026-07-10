@@ -48,7 +48,9 @@ type ApiOptions = Omit<RequestInit, "body"> & {
     | "universityModeration"
     | "reports"
     | "adminReports"
-    | "adminOrganizers";
+    | "adminOrganizers"
+    | "analytics"
+    | "adminAnalytics";
   retryOnUnauthorized?: boolean;
   timeoutMs?: number;
   responseType?: "json" | "blob";
@@ -298,6 +300,10 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
                                   ? env.adminReportsApiBaseUrl
                                   : base === "adminOrganizers"
                                     ? env.adminOrganizersApiBaseUrl
+                                    : base === "analytics"
+                                      ? env.analyticsApiBaseUrl
+                                      : base === "adminAnalytics"
+                                        ? env.adminAnalyticsApiBaseUrl
                       : env.apiBaseUrl;
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const init: RequestInit = {

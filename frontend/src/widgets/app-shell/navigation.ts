@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   BookOpenCheck,
   CalendarDays,
   CalendarPlus,
@@ -81,6 +82,11 @@ export const adminNavigation: NavigationItem[] = [
     href: "/admin/organizers",
     labelKey: "navigation.organizerModeration",
     icon: UserCog
+  },
+  {
+    href: "/admin/analytics",
+    labelKey: "navigation.adminAnalytics",
+    icon: BarChart3
   }
 ];
 

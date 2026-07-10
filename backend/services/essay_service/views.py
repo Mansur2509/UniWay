@@ -5,6 +5,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
+from services.activity_service.models import AnalyticsEvent
+from services.activity_service.services import track_event
+
 from .ai_scoring import score_essay as run_essay_scoring
 from .feedback_engine import generate_feedback
 from .models import EssayFeedback, EssayRevisionTask, EssayWorkspace
@@ -137,6 +140,13 @@ class EssayWorkspaceViewSet(viewsets.ModelViewSet):
         essay = self.get_object()
         result = run_essay_scoring(essay, user=request.user)
         report = result["report"]
+        track_event(
+            user=request.user,
+            event_type=AnalyticsEvent.EventType.ESSAY_REVIEW_REQUESTED,
+            entity_type="essay",
+            entity_id=essay.id,
+            metadata={"reason": result["reason"]},
+        )
         return Response(
             {
                 "reason": result["reason"],

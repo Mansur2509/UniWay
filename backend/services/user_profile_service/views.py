@@ -5,6 +5,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from services.activity_service.models import AnalyticsEvent
+from services.activity_service.services import track_event
+
 from .models import (
     Activity,
     EssayDraft,
@@ -49,6 +52,7 @@ class CurrentProfileView(APIView):
         serializer = ProfileSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         profile = serializer.save()
+        track_event(user=request.user, event_type=AnalyticsEvent.EventType.PROFILE_UPDATED)
         return Response(ProfileSerializer(profile).data)
 
 
@@ -105,6 +109,7 @@ class ProfileViewSet(
             serializer = self.get_serializer(profile, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             profile = serializer.save()
+            track_event(user=request.user, event_type=AnalyticsEvent.EventType.PROFILE_UPDATED)
         return Response(self.get_serializer(profile).data)
 
 

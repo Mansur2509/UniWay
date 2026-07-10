@@ -7,6 +7,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from services.activity_service.models import AnalyticsEvent
+from services.activity_service.services import track_event
 from services.essay_service.models import EssayWorkspace
 from services.essay_service.serializers import EssayWorkspaceSerializer
 from services.university_service.services import calculate_university_fit
@@ -68,11 +70,30 @@ class ApplicationTrackerViewSet(viewsets.ModelViewSet):
         fit = calculate_university_fit(profile, university)
         fit_tier = fit.get("category") or ApplicationTrackerItem.FitTier.UNKNOWN
         try:
-            serializer.save(user=self.request.user, fit_tier=fit_tier)
+            application = serializer.save(user=self.request.user, fit_tier=fit_tier)
         except IntegrityError as exc:
             raise ValidationError(
                 {"university": "You already have an application tracker item for this university."}
             ) from exc
+        track_event(
+            user=self.request.user,
+            event_type=AnalyticsEvent.EventType.APPLICATION_CREATED,
+            entity_type="application",
+            entity_id=application.id,
+            metadata={"source": application.source, "fit_tier": application.fit_tier},
+        )
+
+    def perform_update(self, serializer):
+        previous_status = serializer.instance.status
+        application = serializer.save()
+        if application.status != previous_status:
+            track_event(
+                user=self.request.user,
+                event_type=AnalyticsEvent.EventType.APPLICATION_STATUS_CHANGED,
+                entity_type="application",
+                entity_id=application.id,
+                metadata={"from": previous_status, "to": application.status},
+            )
 
     @action(detail=True, methods=["get", "post"], url_path="milestones")
     def milestones(self, request, pk=None):

@@ -75,5 +75,9 @@ export const env = {
     `${new URL(apiBaseUrl).origin}/api/admin/reports`,
   adminOrganizersApiBaseUrl:
     process.env.NEXT_PUBLIC_ADMIN_ORGANIZERS_API_BASE_URL ??
-    `${new URL(apiBaseUrl).origin}/api/admin/organizers`
+    `${new URL(apiBaseUrl).origin}/api/admin/organizers`,
+  analyticsApiBaseUrl:
+    process.env.NEXT_PUBLIC_ANALYTICS_API_BASE_URL ?? `${apiBaseUrl}/analytics`,
+  adminAnalyticsApiBaseUrl:
+    process.env.NEXT_PUBLIC_ADMIN_ANALYTICS_API_BASE_URL ?? `${apiBaseUrl}/admin/analytics`
 } as const;

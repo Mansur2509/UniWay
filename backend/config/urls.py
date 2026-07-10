@@ -71,6 +71,8 @@ urlpatterns = [
     # existing `/api/roadmap/` routes above -- the old paths are untouched.
     path("api/v1/roadmaps/me/", RoadmapPlanView.as_view(), name="roadmaps-me"),
     path("api/v1/roadmaps/generate/", GenerateRoadmapView.as_view(), name="roadmaps-generate"),
+    path("api/v1/analytics/", include("services.activity_service.urls")),
+    path("api/v1/admin/analytics/", include("services.activity_service.admin_urls")),
     path("api/v1/", include(router.urls)),
     path("api-auth/", include("rest_framework.urls")),
 ]
