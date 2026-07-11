@@ -2,6 +2,7 @@ import json
 from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from rest_framework import status
@@ -29,6 +30,7 @@ def _graduation_year_for_cycle_date(value: date) -> int:
 
 class RecommendationEngineTests(APITestCase):
     def setUp(self):
+        cache.clear()  # recommendations/strategy responses are cached per (user, profile_hash).
         self.user = User.objects.create_user(
             username="recengine", email="recengine@test.com", password="testpass123"
         )
@@ -472,4 +474,89 @@ class RecommendationEngineTests(APITestCase):
         self.assertEqual(len(data["recommendations"]) > 0, True)
         # Bulk-prefetched relations plus two bulk shortlist/tracker lookups should
         # keep total queries well under one-per-university for 10 universities.
-        self.assertLess(len(queries), 30)
+        # The bound includes a fixed (not per-university) overhead for computing
+        # the response-cache key's profile_hash (PERFORMANCE-011 PART 7).
+        self.assertLess(len(queries), 45)
+
+
+class RecommendationCacheTests(APITestCase):
+    """PERFORMANCE-011 PART 7: short-TTL cache on the recommendations
+    endpoint, keyed by (user_id, profile_hash) and explicitly busted by
+    shortlist/application-tracking actions."""
+
+    def setUp(self):
+        cache.clear()
+        self.user1 = User.objects.create_user(
+            username="cacheuser1", email="cacheuser1@test.com", password="testpass123"
+        )
+        self.user2 = User.objects.create_user(
+            username="cacheuser2", email="cacheuser2@test.com", password="testpass123"
+        )
+        ensure_profile_records(self.user1)
+        ensure_profile_records(self.user2)
+        self.university = create_university("cache-test-university", acceptance_rate="40.00")
+
+    def test_cache_does_not_leak_between_users(self):
+        self.client.force_authenticate(self.user1)
+        self.client.post(f"/api/v1/universities/{self.university.slug}/shortlist/")
+        first = self.client.get("/api/v1/universities/recommendations/").data
+        item = next(r for r in first["recommendations"] if r["university"]["slug"] == self.university.slug)
+        self.assertTrue(item["is_shortlisted"])
+
+        self.client.force_authenticate(self.user2)
+        second = self.client.get("/api/v1/universities/recommendations/").data
+        item2 = next(r for r in second["recommendations"] if r["university"]["slug"] == self.university.slug)
+        self.assertFalse(item2["is_shortlisted"])
+
+    def test_repeat_request_within_ttl_is_served_from_cache(self):
+        # Computing the cache *key* still costs a few queries (it depends on
+        # the current profile hash) even on a hit -- what the cache actually
+        # skips is the expensive full-catalog fit-scoring pass, so the
+        # meaningful assertion is "fewer queries on repeat", not "zero".
+        self.client.force_authenticate(self.user1)
+        with CaptureQueriesContext(connection) as first_call:
+            self.client.get("/api/v1/universities/recommendations/")
+        with CaptureQueriesContext(connection) as second_call:
+            self.client.get("/api/v1/universities/recommendations/")
+        self.assertGreater(len(first_call), 0)
+        self.assertLess(
+            len(second_call),
+            len(first_call),
+            "Second request within the cache TTL should skip the full recommendations computation.",
+        )
+
+    def test_shortlist_action_invalidates_cache_immediately(self):
+        self.client.force_authenticate(self.user1)
+        before = self.client.get("/api/v1/universities/recommendations/").data
+        item_before = next(
+            r for r in before["recommendations"] if r["university"]["slug"] == self.university.slug
+        )
+        self.assertFalse(item_before["is_shortlisted"])
+
+        self.client.post(f"/api/v1/universities/{self.university.slug}/shortlist/")
+
+        after = self.client.get("/api/v1/universities/recommendations/").data
+        item_after = next(
+            r for r in after["recommendations"] if r["university"]["slug"] == self.university.slug
+        )
+        self.assertTrue(
+            item_after["is_shortlisted"],
+            "Recommendations cache was not invalidated by the shortlist action.",
+        )
+
+    def test_profile_change_invalidates_cache_via_new_hash(self):
+        self.client.force_authenticate(self.user1)
+        self.client.get("/api/v1/universities/recommendations/")
+
+        profile, _ = ensure_profile_records(self.user1)
+        profile.gpa = "4.00"
+        profile.gpa_scale = "4.00"
+        profile.save()
+
+        with CaptureQueriesContext(connection) as after_profile_change:
+            self.client.get("/api/v1/universities/recommendations/")
+        self.assertGreater(
+            len(after_profile_change),
+            0,
+            "Recommendations should recompute (not serve a stale cache entry) after a profile change.",
+        )

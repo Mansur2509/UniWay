@@ -30,7 +30,15 @@ from .models import (
     UniversityProgram,
     UniversitySubjectRanking,
 )
+from .recommendation_cache import (
+    RECOMMENDATIONS_CACHE_SECONDS,
+    STRATEGY_CACHE_SECONDS,
+    invalidate_recommendation_caches,
+    recommendations_cache_key,
+    strategy_cache_key,
+)
 from .recommendations import calculate_university_recommendations
+from .semantic_fit import build_fit_response, refresh_semantic_fit, semantic_fit_status
 from .serializers import (
     SavedUniversityLiteSerializer,
     SavedUniversitySerializer,
@@ -48,6 +56,7 @@ SELF_SERVICE_ACTIONS = {
     "list",
     "retrieve",
     "fit",
+    "refresh_fit",
     "filter_options",
     "shortlist",
     "shortlisted",
@@ -415,9 +424,28 @@ class UniversityViewSet(ModelViewSet):
 
     @action(detail=True, methods=["get"], url_path="fit")
     def fit(self, request, slug=None):
+        # Deterministic-first (PERFORMANCE-011 PART 5): always fast, never
+        # calls AI. `semantic_fit_status` is a pure cache read -- the only
+        # code path that can call AI is the explicit POST below.
         university = self.get_object()
         profile, _ = ensure_profile_records(request.user)
-        return Response(calculate_university_fit(profile, university))
+        deterministic_fit = calculate_university_fit(profile, university)
+        status_value, semantic_record = semantic_fit_status(request.user, university)
+        return Response(build_fit_response(deterministic_fit, status_value, semantic_record))
+
+    @action(detail=True, methods=["post"], url_path="fit/refresh")
+    def refresh_fit(self, request, slug=None):
+        # Explicit user action only. Returns the same shape as GET .../fit/
+        # plus `refresh_reason` so the caller can tell a fresh AI result apart
+        # from a rate-limit/unavailable/no-op-because-already-cached response.
+        university = self.get_object()
+        result = refresh_semantic_fit(request.user, university)
+        profile, _ = ensure_profile_records(request.user)
+        deterministic_fit = calculate_university_fit(profile, university)
+        status_value, semantic_record = semantic_fit_status(request.user, university)
+        payload = build_fit_response(deterministic_fit, status_value, semantic_record)
+        payload["refresh_reason"] = result["reason"]
+        return Response(payload)
 
     @action(detail=True, methods=["post", "delete"], url_path="shortlist")
     def shortlist(self, request, slug=None):
@@ -433,6 +461,7 @@ class UniversityViewSet(ModelViewSet):
                     entity_type="university",
                     entity_id=university.id,
                 )
+                invalidate_recommendation_caches(request.user)
             serializer = SavedUniversitySerializer(
                 saved, context=self.get_serializer_context()
             )
@@ -440,7 +469,9 @@ class UniversityViewSet(ModelViewSet):
                 serializer.data,
                 status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
             )
-        SavedUniversity.objects.filter(user=request.user, university=university).delete()
+        deleted, _ = SavedUniversity.objects.filter(user=request.user, university=university).delete()
+        if deleted:
+            invalidate_recommendation_caches(request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["get"], url_path="shortlist")
@@ -500,13 +531,25 @@ class UniversityViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="recommendations")
     def recommendations(self, request):
-        profile, preferences = ensure_profile_records(request.user)
-        return Response(calculate_university_recommendations(profile, preferences))
+        # Short-TTL cache (PERFORMANCE-011 PART 7): this scans the whole
+        # published catalogue, so it's the heaviest of the self-service
+        # actions. See recommendation_cache.py for why the TTL is short and
+        # why shortlist/tracking actions explicitly invalidate it.
+        payload = cache.get_or_set(
+            recommendations_cache_key(request.user),
+            lambda: calculate_university_recommendations(*ensure_profile_records(request.user)),
+            RECOMMENDATIONS_CACHE_SECONDS,
+        )
+        return Response(payload)
 
     @action(detail=False, methods=["get"], url_path="strategy")
     def strategy(self, request):
-        profile, preferences = ensure_profile_records(request.user)
-        return Response(build_application_strategy(profile, preferences))
+        payload = cache.get_or_set(
+            strategy_cache_key(request.user),
+            lambda: build_application_strategy(*ensure_profile_records(request.user)),
+            STRATEGY_CACHE_SECONDS,
+        )
+        return Response(payload)
 
 
 class AdminUniversityImportBaseView(APIView):

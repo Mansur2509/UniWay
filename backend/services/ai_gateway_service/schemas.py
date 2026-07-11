@@ -48,3 +48,31 @@ PROFILE_ASSESSMENT_RESPONSE_SCHEMA = {
     },
     "warnings": ["string"],
 }
+
+# Semantic university fit (PERFORMANCE-011 PART 5-6): a short, explicit
+# user-action-only AI call that explains an *already-computed* deterministic
+# fit result in plain language. It never receives the student's raw profile
+# or the university's raw catalogue row -- only the compact deterministic fit
+# dict (`services.university_service.services.calculate_university_fit`'s
+# strengths/risks/subscores/category) plus the university's name -- so it
+# cannot invent facts not already in that structured data, and it is
+# explicitly instructed never to output a probability or guarantee.
+SEMANTIC_FIT_SYSTEM_PROMPT = (
+    "You are UniWay's semantic fit explainer. You will receive an already-computed "
+    "deterministic fit result (category, subscores, strengths, risks) for one "
+    "student/university pair. Restate it in plain, encouraging but honest language. "
+    "Do not invent facts not present in the supplied data. Do not provide an admission "
+    "probability, chance, odds, or guarantee. Do not name a specific numeric percentage. "
+    "Return JSON only."
+)
+
+SEMANTIC_FIT_RESPONSE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "main_strength": {"type": "STRING"},
+        "main_risk": {"type": "STRING"},
+        "summary": {"type": "STRING"},
+        "next_actions": {"type": "ARRAY", "items": {"type": "STRING"}},
+    },
+    "required": ["main_strength", "main_risk", "summary", "next_actions"],
+}

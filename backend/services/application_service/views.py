@@ -11,6 +11,7 @@ from services.activity_service.models import AnalyticsEvent
 from services.activity_service.services import track_event
 from services.essay_service.models import EssayWorkspace
 from services.essay_service.serializers import EssayWorkspaceSerializer
+from services.university_service.recommendation_cache import invalidate_recommendation_caches
 from services.university_service.services import calculate_university_fit
 from services.user_profile_service.services import ensure_profile_records
 
@@ -82,6 +83,7 @@ class ApplicationTrackerViewSet(viewsets.ModelViewSet):
             entity_id=application.id,
             metadata={"source": application.source, "fit_tier": application.fit_tier},
         )
+        invalidate_recommendation_caches(self.request.user)
 
     def perform_update(self, serializer):
         previous_status = serializer.instance.status

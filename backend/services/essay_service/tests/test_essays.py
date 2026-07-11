@@ -287,6 +287,24 @@ class EssayWorkspaceApiTests(APITestCase):
         self.assertEqual(len(list_response.data["results"]), 1)
         self.assertEqual(list_response.data["results"][0]["id"], essay_id)
 
+    def test_list_omits_draft_text_but_retrieve_includes_it(self):
+        # PERFORMANCE-011 PART 4: the list view doesn't need full draft text
+        # to render essay cards -- only the detail/retrieve view does.
+        self.client.force_authenticate(self.user1)
+        essay = EssayWorkspace.objects.create(
+            user=self.user1, title="Long essay", draft_text="A private personal statement. " * 50
+        )
+
+        list_response = self.client.get("/api/essays/")
+        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("draft_text", list_response.data["results"][0])
+        self.assertIn("word_count", list_response.data["results"][0])
+        self.assertGreater(list_response.data["results"][0]["word_count"], 0)
+
+        detail_response = self.client.get(f"/api/essays/{essay.id}/")
+        self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
+        self.assertIn("draft_text", detail_response.data)
+
     def test_list_query_count_does_not_grow_with_ai_score_report_count(self):
         self.client.force_authenticate(self.user1)
         essay = EssayWorkspace.objects.create(

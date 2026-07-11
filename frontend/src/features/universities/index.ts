@@ -3,6 +3,7 @@ export {
   getUniversityFilterOptionsRequest,
   getUniversityRequest,
   getUniversityFitRequest,
+  refreshUniversityFitRequest,
   compareUniversitiesRequest,
   addToShortlistRequest,
   removeFromShortlistRequest,

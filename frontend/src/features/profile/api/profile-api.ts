@@ -8,32 +8,49 @@ import type {
   UpdateStudentProfileInput
 } from "@/entities/profile";
 import { apiRequest, normalizePaginatedResponse } from "@/shared/api/client";
+import { getOrFetch, invalidateCacheByPrefix } from "@/shared/lib/request-cache";
+
+// Dashboard and Profile both independently fetch these three on mount
+// (PERFORMANCE-011 PART 2) -- a short client cache with in-flight dedup
+// means the second page to mount within the TTL shares the first page's
+// result instead of firing its own request. Mutations below invalidate
+// explicitly rather than waiting out the TTL.
+const PROFILE_CACHE_TTL_MS = 15_000;
+const PROFILE_CACHE_PREFIX = "profile:";
 
 export function getProfileRequest() {
-  return apiRequest<StudentProfileDetails>("/me/", {
-    base: "profile"
-  });
+  return getOrFetch(
+    `${PROFILE_CACHE_PREFIX}me`,
+    () => apiRequest<StudentProfileDetails>("/me/", { base: "profile" }),
+    PROFILE_CACHE_TTL_MS
+  );
 }
 
-export function updateProfileRequest(input: UpdateStudentProfileInput) {
-  return apiRequest<StudentProfileDetails>("/me/", {
+export async function updateProfileRequest(input: UpdateStudentProfileInput) {
+  const result = await apiRequest<StudentProfileDetails>("/me/", {
     base: "profile",
     method: "PATCH",
     body: input
   });
+  invalidateCacheByPrefix(PROFILE_CACHE_PREFIX);
+  return result;
 }
 
 export function getProfileCompletionRequest() {
-  return apiRequest<ProfileCompletion>("/completion/", {
-    base: "profile"
-  });
+  return getOrFetch(
+    `${PROFILE_CACHE_PREFIX}completion`,
+    () => apiRequest<ProfileCompletion>("/completion/", { base: "profile" }),
+    PROFILE_CACHE_TTL_MS
+  );
 }
 
-export function completeOnboardingRequest() {
-  return apiRequest<ProfileCompletion>("/complete-onboarding/", {
+export async function completeOnboardingRequest() {
+  const result = await apiRequest<ProfileCompletion>("/complete-onboarding/", {
     base: "profile",
     method: "POST"
   });
+  invalidateCacheByPrefix(PROFILE_CACHE_PREFIX);
+  return result;
 }
 
 export function getApplicationReadinessRequest() {
@@ -43,16 +60,20 @@ export function getApplicationReadinessRequest() {
 }
 
 export function getProfileAssessmentLatestRequest() {
-  return apiRequest<ProfileAssessmentEnvelope>("/assessment/latest/", {
-    base: "profile"
-  });
+  return getOrFetch(
+    `${PROFILE_CACHE_PREFIX}assessment-latest`,
+    () => apiRequest<ProfileAssessmentEnvelope>("/assessment/latest/", { base: "profile" }),
+    PROFILE_CACHE_TTL_MS
+  );
 }
 
-export function runProfileAssessmentRequest() {
-  return apiRequest<ProfileAssessmentEnvelope>("/assessment/run/", {
+export async function runProfileAssessmentRequest() {
+  const result = await apiRequest<ProfileAssessmentEnvelope>("/assessment/run/", {
     base: "profile",
     method: "POST"
   });
+  invalidateCacheByPrefix(PROFILE_CACHE_PREFIX);
+  return result;
 }
 
 // PROTOCOL-008 PART 7: gap-based recommendations and the time-bucketed
@@ -95,25 +116,35 @@ export async function getProfileItemsRequest<T extends ProfileItem>(itemType: It
   return normalizePaginatedResponse<T>(response, `profile ${itemType}`);
 }
 
-export function createProfileItemRequest<T extends Partial<ProfileItem>>(itemType: ItemType, data: T) {
-  return apiRequest<T & ProfileItem>(`/${itemType}/`, {
+export async function createProfileItemRequest<T extends Partial<ProfileItem>>(itemType: ItemType, data: T) {
+  const result = await apiRequest<T & ProfileItem>(`/${itemType}/`, {
     base: "profile",
     method: "POST",
     body: data
   });
+  invalidateCacheByPrefix(PROFILE_CACHE_PREFIX);
+  return result;
 }
 
-export function updateProfileItemRequest<T extends Partial<ProfileItem>>(itemType: ItemType, id: number, data: T) {
-  return apiRequest<T & ProfileItem>(`/${itemType}/${id}/`, {
+export async function updateProfileItemRequest<T extends Partial<ProfileItem>>(
+  itemType: ItemType,
+  id: number,
+  data: T
+) {
+  const result = await apiRequest<T & ProfileItem>(`/${itemType}/${id}/`, {
     base: "profile",
     method: "PATCH",
     body: data
   });
+  invalidateCacheByPrefix(PROFILE_CACHE_PREFIX);
+  return result;
 }
 
-export function deleteProfileItemRequest(itemType: ItemType, id: number) {
-  return apiRequest<void>(`/${itemType}/${id}/`, {
+export async function deleteProfileItemRequest(itemType: ItemType, id: number) {
+  const result = await apiRequest<void>(`/${itemType}/${id}/`, {
     base: "profile",
     method: "DELETE"
   });
+  invalidateCacheByPrefix(PROFILE_CACHE_PREFIX);
+  return result;
 }

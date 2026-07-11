@@ -12,6 +12,10 @@ export async function getNotificationsRequest(params: { status?: NotificationSta
   return normalizePaginatedResponse<Notification>(response, "notifications");
 }
 
+export function getNotificationUnreadCountRequest() {
+  return apiRequest<{ count: number }>("/unread-count/", { base: "notifications" });
+}
+
 export function updateNotificationStatusRequest(id: number, notificationStatus: NotificationStatus) {
   return apiRequest<Notification>(`/${id}/`, {
     base: "notifications",

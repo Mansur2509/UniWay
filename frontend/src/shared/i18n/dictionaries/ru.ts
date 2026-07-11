@@ -2343,5 +2343,28 @@ export const ru = {
 
   "analytics.eventType.notification_read": "Уведомление прочитано",
   "analytics.eventType.notification_archived": "Уведомление отправлено в архив",
-  "analytics.eventType.admin_moderation_action": "Действие модерации администратора"
+  "analytics.eventType.admin_moderation_action": "Действие модерации администратора",
+
+  "common.updating": "Обновление…",
+  "common.somethingWentWrong": "Что-то пошло не так. Попробуйте ещё раз.",
+  "common.retry": "Повторить",
+  "common.retrying": "Повтор…",
+  "common.timeoutMessage": "Это занимает больше времени, чем обычно. Вы можете повторить попытку или продолжить с кэшированными результатами.",
+  "common.continueWithCached": "Продолжить с кэшированными результатами",
+  "common.aiStatus.queued": "В очереди",
+  "common.aiStatus.running": "Анализ…",
+  "common.aiStatus.cached": "Готово",
+  "common.aiStatus.missing": "Ещё не проанализировано",
+  "common.aiStatus.failed": "Ошибка анализа",
+
+  "universityFit.semanticSection.title": "Объяснение соответствия от ИИ",
+  "universityFit.semanticSection.refreshAction": "Проанализировать моё соответствие",
+  "universityFit.semanticSection.refreshingAction": "Анализ…",
+  "universityFit.semanticSection.mainStrength": "Главная сильная сторона",
+  "universityFit.semanticSection.mainRisk": "Главный риск",
+  "universityFit.semanticSection.nextActions": "Рекомендуемые следующие шаги",
+  "universityFit.semanticSection.lastUpdated": "Обновлено {date}",
+  "universityFit.semanticSection.disabledNotice": "Более глубокое объяснение от ИИ пока недоступно в этой версии — приведённая выше детерминированная оценка уже учитывает весь ваш профиль.",
+  "universityFit.semanticSection.rateLimited": "Вы достигли сегодняшнего лимита анализа ИИ. Пожалуйста, попробуйте завтра.",
+  "universityFit.semanticSection.failedNotice": "Не удалось сформировать объяснение от ИИ. Это не влияет на детерминированную оценку выше."
 } satisfies TranslationDictionary;

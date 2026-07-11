@@ -17,6 +17,7 @@ from django.utils import timezone
 
 from services.ai_gateway_service.exceptions import AIProviderError, AIProviderUnavailable
 from services.ai_gateway_service.gemini_client import GeminiProfileAssessmentClient
+from services.ai_gateway_service.logging import log_ai_call
 from services.application_service.models import ApplicationTrackerItem
 from services.essay_service.models import EssayFeedback, EssayWorkspace
 from services.university_service.benchmark import resolve_benchmark
@@ -725,14 +726,15 @@ def run_profile_assessment(user, *, force: bool = False, client=None) -> Assessm
     started_at = time.monotonic()
     result = _run_profile_assessment_impl(user, force=force, client=client)
     duration_ms = int((time.monotonic() - started_at) * 1000)
-    logger.info(
-        "AI call ai_task_type=profile_assessment provider=gemini model=%s user_id=%s "
-        "status=%s cache_hit=%s duration_ms=%s",
-        settings.AI_PROFILE_ASSESSMENT_MODEL,
-        user.id,
-        result.reason,
-        result.cached,
-        duration_ms,
+    log_ai_call(
+        logger,
+        task_type="profile_assessment",
+        provider="gemini",
+        model=settings.AI_PROFILE_ASSESSMENT_MODEL,
+        status=result.reason,
+        cache_hit=result.cached,
+        duration_ms=duration_ms,
+        user_id=user.id,
     )
     return result
 

@@ -2343,5 +2343,28 @@ export const uzLatn = {
 
   "analytics.eventType.notification_read": "Bildirishnoma o’qildi",
   "analytics.eventType.notification_archived": "Bildirishnoma arxivlandi",
-  "analytics.eventType.admin_moderation_action": "Administrator moderatsiya amali"
+  "analytics.eventType.admin_moderation_action": "Administrator moderatsiya amali",
+
+  "common.updating": "Yangilanmoqda…",
+  "common.somethingWentWrong": "Nimadir xato ketdi. Qaytadan urinib ko’ring.",
+  "common.retry": "Qayta urinish",
+  "common.retrying": "Qayta urinilmoqda…",
+  "common.timeoutMessage": "Bu kutilganidan ko’proq vaqt olmoqda. Qayta urinib ko’rishingiz yoki keshlangan natijalardan foydalanishni davom ettirishingiz mumkin.",
+  "common.continueWithCached": "Keshlangan natijalar bilan davom etish",
+  "common.aiStatus.queued": "Navbatda",
+  "common.aiStatus.running": "Tahlil qilinmoqda…",
+  "common.aiStatus.cached": "Tayyor",
+  "common.aiStatus.missing": "Hali tahlil qilinmagan",
+  "common.aiStatus.failed": "Tahlil amalga oshmadi",
+
+  "universityFit.semanticSection.title": "AI mos kelish tushuntirishi",
+  "universityFit.semanticSection.refreshAction": "Mosligimni tahlil qilish",
+  "universityFit.semanticSection.refreshingAction": "Tahlil qilinmoqda…",
+  "universityFit.semanticSection.mainStrength": "Asosiy kuchli tomon",
+  "universityFit.semanticSection.mainRisk": "Asosiy xavf",
+  "universityFit.semanticSection.nextActions": "Tavsiya etilgan keyingi qadamlar",
+  "universityFit.semanticSection.lastUpdated": "Oxirgi yangilanish: {date}",
+  "universityFit.semanticSection.disabledNotice": "Bu chuqurroq AI tushuntirishi ushbu joylashtirishda hali mavjud emas — yuqoridagi deterministik moslik allaqachon to’liq profilingizni aks ettiradi.",
+  "universityFit.semanticSection.rateLimited": "Bugungi AI tahlil chegarasiga yetdingiz. Iltimos, ertaga qayta urinib ko’ring.",
+  "universityFit.semanticSection.failedNotice": "AI tushuntirishini yaratib bo’lmadi. Bu yuqoridagi deterministik moslikka ta’sir qilmaydi."
 } satisfies TranslationDictionary;

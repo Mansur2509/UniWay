@@ -1,4 +1,7 @@
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -6,6 +9,7 @@ from services.activity_service.models import AnalyticsEvent
 from services.activity_service.services import track_event
 from services.roadmap_service.models import RoadmapPlan, RoadmapTask
 from services.university_service.models import University
+from services.user_profile_service.services import ensure_profile_records
 
 User = get_user_model()
 
@@ -183,9 +187,35 @@ class MyAnalyticsApiTests(APITestCase):
         self.assertIn("applications_by_status", response.data)
         self.assertIn("essay_reviews_count", response.data)
 
+    def test_query_count_does_not_grow_with_activity_event_count(self):
+        # PERFORMANCE-011 PART 4: MyAnalyticsView aggregates with Count(), so
+        # more AnalyticsEvent rows must not mean more queries. Profile/
+        # preference rows are created lazily on first access (see
+        # ensure_profile_records), so warm those up first -- otherwise the
+        # first measured request looks artificially heavier for an unrelated
+        # reason and masks the thing this test actually checks.
+        ensure_profile_records(self.user1)
+        self.client.force_authenticate(self.user1)
+        for _ in range(3):
+            track_event(user=self.user1, event_type=AnalyticsEvent.EventType.UNIVERSITY_SHORTLISTED)
+        with CaptureQueriesContext(connection) as few:
+            self.client.get(MY_ANALYTICS_URL)
+
+        for _ in range(30):
+            track_event(user=self.user1, event_type=AnalyticsEvent.EventType.UNIVERSITY_SHORTLISTED)
+        with CaptureQueriesContext(connection) as many:
+            self.client.get(MY_ANALYTICS_URL)
+
+        self.assertEqual(
+            len(few),
+            len(many),
+            f"{MY_ANALYTICS_URL} query count grew with activity event count -- check for a new N+1.",
+        )
+
 
 class AdminAnalyticsPermissionTests(APITestCase):
     def setUp(self):
+        cache.clear()  # admin analytics summary/feature-usage/activity are cached.
         self.student = User.objects.create_user(
             username="student@example.com",
             email="student@example.com",

@@ -18,6 +18,7 @@ from .serializers import (
     EssayFeedbackSerializer,
     EssayRevisionTaskCreateSerializer,
     EssayRevisionTaskSerializer,
+    EssayWorkspaceListSerializer,
     EssayWorkspaceSerializer,
 )
 from .suggestion_engine import generate_essay_suggestions
@@ -43,6 +44,11 @@ AI_SCORE_REASON_STATUS = {
 class EssayWorkspaceViewSet(viewsets.ModelViewSet):
     serializer_class = EssayWorkspaceSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return EssayWorkspaceListSerializer
+        return super().get_serializer_class()
 
     def get_queryset(self):
         queryset = (

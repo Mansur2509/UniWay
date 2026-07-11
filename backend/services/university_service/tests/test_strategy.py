@@ -1,6 +1,7 @@
 import json
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -16,6 +17,7 @@ FORBIDDEN_PHRASES = ("probability", "chance", "odds", "guarantee", "you will get
 
 class ApplicationStrategyTests(APITestCase):
     def setUp(self):
+        cache.clear()  # recommendations/strategy responses are cached per (user, profile_hash).
         self.user = User.objects.create_user(
             username="strategystudent", email="strategystudent@test.com", password="testpass123"
         )

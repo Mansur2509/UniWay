@@ -3,7 +3,9 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.db import connection
 from django.test import override_settings
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -434,6 +436,34 @@ class NotificationApiTests(APITestCase):
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["title"], "Mine")
 
+    def test_list_query_count_does_not_grow_with_notification_count(self):
+        self.client.force_authenticate(self.user1)
+        for index in range(3):
+            create_notification(
+                user=self.user1,
+                notification_type=Notification.NotificationType.DEADLINE_UPCOMING,
+                title=f"Notification {index}",
+                dedup_key=f"count-a-{index}",
+            )
+        with CaptureQueriesContext(connection) as few:
+            self.client.get("/api/v1/notifications/")
+
+        for index in range(3, 15):
+            create_notification(
+                user=self.user1,
+                notification_type=Notification.NotificationType.DEADLINE_UPCOMING,
+                title=f"Notification {index}",
+                dedup_key=f"count-b-{index}",
+            )
+        with CaptureQueriesContext(connection) as many:
+            self.client.get("/api/v1/notifications/")
+
+        self.assertEqual(
+            len(few),
+            len(many),
+            "GET /api/v1/notifications/ query count grew with notification count -- check for a new N+1.",
+        )
+
     def test_mark_notification_read(self):
         notification = create_notification(
             user=self.user1,
@@ -484,6 +514,51 @@ class NotificationApiTests(APITestCase):
         self.assertEqual(
             Notification.objects.get(user=self.user2).status, Notification.Status.UNREAD
         )
+
+    def test_anonymous_cannot_read_unread_count(self):
+        response = self.client.get("/api/v1/notifications/unread-count/")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_unread_count_only_counts_own_unread_notifications(self):
+        create_notification(
+            user=self.user1,
+            notification_type=Notification.NotificationType.DEADLINE_UPCOMING,
+            title="Unread mine",
+            dedup_key="a",
+        )
+        read = create_notification(
+            user=self.user1,
+            notification_type=Notification.NotificationType.DEADLINE_UPCOMING,
+            title="Read mine",
+            dedup_key="b",
+        )
+        read.status = Notification.Status.READ
+        read.save(update_fields=["status"])
+        create_notification(
+            user=self.user2,
+            notification_type=Notification.NotificationType.DEADLINE_UPCOMING,
+            title="Unread, not mine",
+            dedup_key="c",
+        )
+
+        self.client.force_authenticate(self.user1)
+        response = self.client.get("/api/v1/notifications/unread-count/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+
+    def test_unread_count_reflects_more_than_the_dropdown_display_limit(self):
+        # Regression guard for the bell's old bug: deriving the badge from a
+        # sliced array (len<=8) instead of this endpoint's real count.
+        for index in range(12):
+            create_notification(
+                user=self.user1,
+                notification_type=Notification.NotificationType.DEADLINE_UPCOMING,
+                title=f"Unread {index}",
+                dedup_key=f"unread-{index}",
+            )
+        self.client.force_authenticate(self.user1)
+        response = self.client.get("/api/v1/notifications/unread-count/")
+        self.assertEqual(response.data["count"], 12)
 
 
 class NotificationPreferenceApiTests(APITestCase):

@@ -6,7 +6,8 @@ import type {
   UniversityDetails,
   UniversityFilterOptions,
   UniversityFilters,
-  UniversityFitAnalysis
+  UniversityFitAnalysis,
+  UniversityFitRefreshResponse
 } from "@/entities/university";
 import { ApiError, apiRequest, normalizePaginatedResponse } from "@/shared/api/client";
 import { env } from "@/shared/config/env";
@@ -80,6 +81,17 @@ export function getUniversityFitRequest(slug: string) {
   return apiRequest<UniversityFitAnalysis>(
     `/universities/${encodeURIComponent(slug)}/fit/`,
     { base: "api" }
+  );
+}
+
+// Explicit user action only (PERFORMANCE-011 PART 5/6) -- never called on
+// page render. Deterministic fit is always fast; this is the one call that
+// may invoke AI, so it gets its own longer timeout rather than sharing the
+// default REQUEST_TIMEOUT_MS.
+export function refreshUniversityFitRequest(slug: string) {
+  return apiRequest<UniversityFitRefreshResponse>(
+    `/universities/${encodeURIComponent(slug)}/fit/refresh/`,
+    { base: "api", method: "POST", timeoutMs: 30_000 }
   );
 }
 

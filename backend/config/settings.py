@@ -218,3 +218,13 @@ AI_ESSAY_DAILY_FREE_LIMIT = int(os.getenv("AI_ESSAY_DAILY_FREE_LIMIT", "1"))
 AI_ESSAY_BASIC_MONTHLY_LIMIT = int(os.getenv("AI_ESSAY_BASIC_MONTHLY_LIMIT", "10"))
 AI_ESSAY_PREMIUM_MONTHLY_LIMIT = int(os.getenv("AI_ESSAY_PREMIUM_MONTHLY_LIMIT", "30"))
 AI_ESSAY_PRO_MONTHLY_LIMIT = int(os.getenv("AI_ESSAY_PRO_MONTHLY_LIMIT", "100"))
+
+# Semantic university fit (PERFORMANCE-011 PART 5-6) reuses GEMINI_API_KEY;
+# scoped to its own env vars for the same reason essay scoring is. Never
+# called on GET .../fit/ -- only from the explicit POST .../fit/refresh/
+# action, and disabled by default like the other two AI features.
+AI_SEMANTIC_FIT_ENABLED = os.getenv("AI_SEMANTIC_FIT_ENABLED", "false").lower() == "true"
+AI_SEMANTIC_FIT_MODEL = os.getenv("AI_SEMANTIC_FIT_MODEL", "gemini-flash-latest")
+AI_SEMANTIC_FIT_TIMEOUT_SECONDS = int(os.getenv("AI_SEMANTIC_FIT_TIMEOUT_SECONDS", "20"))
+AI_SEMANTIC_FIT_MAX_OUTPUT_TOKENS = int(os.getenv("AI_SEMANTIC_FIT_MAX_OUTPUT_TOKENS", "600"))
+AI_SEMANTIC_FIT_DAILY_LIMIT = int(os.getenv("AI_SEMANTIC_FIT_DAILY_LIMIT", "20"))

@@ -666,3 +666,48 @@ class UniversityModerationRecord(models.Model):
 
     def __str__(self) -> str:
         return f"{self.university_id} moderation ({self.status})"
+
+
+class UniversitySemanticFit(models.Model):
+    """Cached AI-generated qualitative fit summary for one (user, university)
+    pair (PERFORMANCE-011 PART 5). One row per pair, overwritten on refresh --
+    mirrors AIProfileAssessment's "latest row + snapshot hash" cache protocol
+    rather than keeping a full history, since only the current read matters.
+
+    Validity is not a stored boolean: `services.university_service.semantic_fit`
+    treats a row as stale (and reports it as "missing" to callers) whenever
+    `profile_snapshot_hash`, `university_updated_at`, or `prompt_version` no
+    longer match the current values -- so a stale row is never served, only
+    ever overwritten by the next explicit refresh.
+    """
+
+    class Status(models.TextChoices):
+        OK = "ok", "OK"
+        FAILED = "failed", "Failed"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="semantic_fits"
+    )
+    university = models.ForeignKey(
+        University, on_delete=models.CASCADE, related_name="semantic_fits"
+    )
+    profile_snapshot_hash = models.CharField(max_length=64)
+    university_updated_at = models.DateTimeField()
+    prompt_version = models.CharField(max_length=20)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OK)
+    main_strength = models.CharField(max_length=300, blank=True)
+    main_risk = models.CharField(max_length=300, blank=True)
+    summary = models.CharField(max_length=600, blank=True)
+    next_actions = models.JSONField(default=list, blank=True)
+    model_provider = models.CharField(max_length=40, blank=True)
+    model_name = models.CharField(max_length=80, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("user", "university"), name="unique_semantic_fit_per_user_university")
+        ]
+
+    def __str__(self) -> str:
+        return f"Semantic fit: user={self.user_id} university={self.university_id} ({self.status})"

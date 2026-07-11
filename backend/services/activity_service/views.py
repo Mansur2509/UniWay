@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.db.models import Count
 from django.db.models.functions import TruncDate
 from django.utils import timezone
@@ -21,6 +22,16 @@ from .models import AnalyticsEvent
 from .serializers import AdminAnalyticsSummarySerializer, UserAnalyticsSerializer
 
 User = get_user_model()
+
+# Admin analytics are platform-wide aggregates, not tied to any one user's
+# recent actions -- a short staleness window here is invisible to admins and
+# meaningfully cuts down on ~10 COUNT queries recomputed from scratch on
+# every dashboard load (PERFORMANCE-011 PART 7). No user_id in the key: this
+# is intentionally global, shared-across-admins data.
+ADMIN_ANALYTICS_CACHE_SECONDS = 90
+ADMIN_ANALYTICS_SUMMARY_CACHE_KEY = "admin-analytics:summary"
+ADMIN_ANALYTICS_FEATURE_USAGE_CACHE_KEY = "admin-analytics:feature-usage"
+ADMIN_ANALYTICS_ACTIVITY_CACHE_KEY = "admin-analytics:activity"
 
 
 class MyAnalyticsView(APIView):
@@ -70,6 +81,12 @@ class AdminAnalyticsSummaryView(APIView):
     permission_classes = [IsAdminRole]
 
     def get(self, request):
+        payload = cache.get_or_set(
+            ADMIN_ANALYTICS_SUMMARY_CACHE_KEY, self._compute, ADMIN_ANALYTICS_CACHE_SECONDS
+        )
+        return Response(payload)
+
+    def _compute(self):
         now = timezone.now()
         since_7d = now - timedelta(days=7)
         since_30d = now - timedelta(days=30)
@@ -120,25 +137,37 @@ class AdminAnalyticsSummaryView(APIView):
             ).count(),
             "retained_users_2plus_actions": retained,
         }
-        return Response(AdminAnalyticsSummarySerializer(data).data)
+        return AdminAnalyticsSummarySerializer(data).data
 
 
 class AdminAnalyticsFeatureUsageView(APIView):
     permission_classes = [IsAdminRole]
 
     def get(self, request):
+        payload = cache.get_or_set(
+            ADMIN_ANALYTICS_FEATURE_USAGE_CACHE_KEY, self._compute, ADMIN_ANALYTICS_CACHE_SECONDS
+        )
+        return Response(payload)
+
+    def _compute(self):
         counts = (
             AnalyticsEvent.objects.values("event_type")
             .annotate(count=Count("id"))
             .order_by("-count")
         )
-        return Response({row["event_type"]: row["count"] for row in counts})
+        return {row["event_type"]: row["count"] for row in counts}
 
 
 class AdminAnalyticsActivityView(APIView):
     permission_classes = [IsAdminRole]
 
     def get(self, request):
+        payload = cache.get_or_set(
+            ADMIN_ANALYTICS_ACTIVITY_CACHE_KEY, self._compute, ADMIN_ANALYTICS_CACHE_SECONDS
+        )
+        return Response(payload)
+
+    def _compute(self):
         since = timezone.now() - timedelta(days=30)
         rows = (
             AnalyticsEvent.objects.filter(created_at__gte=since)
@@ -148,4 +177,4 @@ class AdminAnalyticsActivityView(APIView):
             .order_by("day")
         )
         daily_counts = {row["day"].isoformat(): row["count"] for row in rows}
-        return Response({"daily_event_counts": daily_counts})
+        return {"daily_event_counts": daily_counts}

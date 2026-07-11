@@ -2345,5 +2345,28 @@ export const en = {
 
   "analytics.eventType.notification_read": "Notification read",
   "analytics.eventType.notification_archived": "Notification archived",
-  "analytics.eventType.admin_moderation_action": "Admin moderation action"
+  "analytics.eventType.admin_moderation_action": "Admin moderation action",
+
+  "common.updating": "Updating…",
+  "common.somethingWentWrong": "Something went wrong. Please try again.",
+  "common.retry": "Retry",
+  "common.retrying": "Retrying…",
+  "common.timeoutMessage": "This is taking longer than expected. You can retry or continue using cached results.",
+  "common.continueWithCached": "Continue with cached results",
+  "common.aiStatus.queued": "Queued",
+  "common.aiStatus.running": "Analyzing…",
+  "common.aiStatus.cached": "Ready",
+  "common.aiStatus.missing": "Not yet analyzed",
+  "common.aiStatus.failed": "Analysis failed",
+
+  "universityFit.semanticSection.title": "AI fit explanation",
+  "universityFit.semanticSection.refreshAction": "Analyze my fit",
+  "universityFit.semanticSection.refreshingAction": "Analyzing…",
+  "universityFit.semanticSection.mainStrength": "Main strength",
+  "universityFit.semanticSection.mainRisk": "Main risk",
+  "universityFit.semanticSection.nextActions": "Suggested next steps",
+  "universityFit.semanticSection.lastUpdated": "Last updated {date}",
+  "universityFit.semanticSection.disabledNotice": "This deeper AI explanation isn't available on this deployment yet -- the deterministic fit above already reflects your full profile.",
+  "universityFit.semanticSection.rateLimited": "You've reached today's AI analysis limit. Please try again tomorrow.",
+  "universityFit.semanticSection.failedNotice": "The AI explanation couldn't be generated. The deterministic fit above is unaffected."
 } as const;

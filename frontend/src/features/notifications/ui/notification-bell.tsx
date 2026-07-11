@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Notification } from "@/entities/notification";
 import {
   getNotificationsRequest,
+  getNotificationUnreadCountRequest,
   markAllNotificationsReadRequest,
   updateNotificationStatusRequest
 } from "@/features/notifications";
@@ -18,26 +19,42 @@ const DROPDOWN_ITEM_LIMIT = 8;
 export function NotificationBell() {
   const { locale, t } = useI18n();
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  // Tracked separately from `notifications.length`: the dropdown list is
+  // capped at DROPDOWN_ITEM_LIMIT for display, but the badge must reflect
+  // the real total (the paginated envelope's `count`), not the slice size.
+  const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const loadCount = useCallback(async () => {
+    try {
+      const response = await getNotificationUnreadCountRequest();
+      setUnreadCount(response.count);
+    } catch {
+      // A failed background fetch shouldn't break the shell chrome -- the
+      // bell just keeps showing its last-known count until the next attempt.
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await getNotificationsRequest({ status: "unread" });
       setNotifications(response.results.slice(0, DROPDOWN_ITEM_LIMIT));
+      setUnreadCount(response.count);
     } catch {
-      // A failed background fetch shouldn't break the shell chrome -- the
-      // bell just keeps showing its last-known count until the next open.
+      // Same as loadCount: keep showing the last-known state.
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    // Mount only needs the cheap count for the badge -- the full item list
+    // is fetched lazily when the dropdown is actually opened.
+    void loadCount();
+  }, [loadCount]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -60,24 +77,24 @@ export function NotificationBell() {
 
   const handleItemClick = async (notification: Notification) => {
     setNotifications((current) => current.filter((item) => item.id !== notification.id));
+    setUnreadCount((current) => Math.max(0, current - 1));
     setIsOpen(false);
     try {
       await updateNotificationStatusRequest(notification.id, "read");
     } catch {
-      void load();
+      void loadCount();
     }
   };
 
   const handleMarkAllRead = async () => {
     setNotifications([]);
+    setUnreadCount(0);
     try {
       await markAllNotificationsReadRequest();
     } catch {
-      void load();
+      void loadCount();
     }
   };
-
-  const unreadCount = notifications.length;
 
   return (
     <div className="relative" ref={containerRef}>

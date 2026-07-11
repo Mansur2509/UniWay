@@ -180,6 +180,19 @@ class EssayWorkspaceSerializer(serializers.ModelSerializer):
         return len((obj.draft_text or "").split())
 
 
+class EssayWorkspaceListSerializer(EssayWorkspaceSerializer):
+    """List-view variant (PERFORMANCE-011 PART 4): drops `draft_text` from
+    the payload. Essay cards on the list screen only need title/status/word
+    count, not the full draft -- for essays with long drafts this meaningfully
+    shrinks a response that returns every essay at once. `word_count` is
+    unaffected since it's computed from the model instance already fetched by
+    the queryset, not from this field list.
+    """
+
+    class Meta(EssayWorkspaceSerializer.Meta):
+        fields = tuple(field for field in EssayWorkspaceSerializer.Meta.fields if field != "draft_text")
+
+
 class AIEssayScoreReportSerializer(serializers.ModelSerializer):
     subscores = serializers.SerializerMethodField()
     nullable_scores = serializers.SerializerMethodField()

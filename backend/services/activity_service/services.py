@@ -25,7 +25,7 @@ def _sanitize_metadata(metadata: dict | None) -> dict:
     for key, value in metadata.items():
         if isinstance(value, str) and len(value) > MAX_METADATA_STRING_LENGTH:
             sanitized[key] = value[:MAX_METADATA_STRING_LENGTH]
-        elif isinstance(value, (str, int, float, bool)) or value is None:
+        elif isinstance(value, str | int | float | bool) or value is None:
             sanitized[key] = value
         # Nested dicts/lists/objects are dropped: analytics metadata must
         # stay flat and small, never a vehicle for a full profile/essay dump.

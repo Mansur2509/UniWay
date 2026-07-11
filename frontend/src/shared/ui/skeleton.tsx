@@ -52,3 +52,41 @@ export function SkeletonRows({ count = 6, className = "" }: { count?: number; cl
     </>
   );
 }
+
+export function SkeletonText({ lines = 1, className = "" }: { lines?: number; className?: string }) {
+  return (
+    <div className={`space-y-2 ${className}`}>
+      {Array.from({ length: lines }, (_item, index) => (
+        <Skeleton className={index === lines - 1 && lines > 1 ? "h-3 w-2/3" : "h-3 w-full"} key={index} />
+      ))}
+    </div>
+  );
+}
+
+export function SkeletonTable({
+  rows = 5,
+  columns = 4,
+  className = ""
+}: {
+  rows?: number;
+  columns?: number;
+  className?: string;
+}) {
+  return (
+    <div className={`overflow-hidden rounded-sm border ${className}`}>
+      {Array.from({ length: rows }, (_row, rowIndex) => (
+        <div
+          className="flex items-center gap-4 border-b bg-card p-3 last:border-b-0"
+          key={rowIndex}
+        >
+          {Array.from({ length: columns }, (_column, columnIndex) => (
+            <Skeleton
+              className={columnIndex === 0 ? "h-3 flex-[2]" : "h-3 flex-1"}
+              key={columnIndex}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}

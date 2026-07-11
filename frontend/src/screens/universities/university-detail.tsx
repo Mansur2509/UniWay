@@ -25,7 +25,8 @@ import {
   type ProgramFitItem,
   type ProgramMatchingSummary,
   type UniversityDetails,
-  type UniversityFitAnalysis
+  type UniversityFitAnalysis,
+  type UniversityFitRefreshResponse
 } from "@/entities/university";
 import { StatValue } from "@/entities/university/ui/stat-value";
 import { VerifiedStat } from "@/entities/university/ui/verified-stat";
@@ -44,14 +45,17 @@ import {
   addToShortlistRequest,
   getUniversityFitRequest,
   getUniversityRequest,
+  refreshUniversityFitRequest,
   removeFromShortlistRequest
 } from "@/features/universities";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { formatDate } from "@/shared/lib/date-time";
+import { AIStatusBadge } from "@/shared/ui/ai-status-badge";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { HelpTooltip } from "@/shared/ui/help-tooltip";
+import { TimeoutNotice } from "@/shared/ui/timeout-notice";
 
 const CATEGORY_STYLES: Record<string, string> = {
   dream: "border-danger/45 bg-danger/15 text-danger",
@@ -173,6 +177,11 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
   );
   const [isStartingApplication, setIsStartingApplication] = useState(false);
   const [isRefreshingSuggestions, setIsRefreshingSuggestions] = useState(false);
+  const [isRefreshingFit, setIsRefreshingFit] = useState(false);
+  const [fitRefreshTimedOut, setFitRefreshTimedOut] = useState(false);
+  const [fitRefreshReason, setFitRefreshReason] = useState<
+    UniversityFitRefreshResponse["refresh_reason"] | null
+  >(null);
 
   useEffect(() => {
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
@@ -204,6 +213,27 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
       setIsFitLoading(false);
     }
   }, [slug]);
+
+  // Explicit user action only (PERFORMANCE-011 PART 5/6): the AI semantic
+  // fit explanation is never fetched or refreshed on render -- only from
+  // this handler, wired to the "Analyze my fit" button below.
+  async function handleRefreshFit() {
+    setIsRefreshingFit(true);
+    setFitRefreshTimedOut(false);
+    setFitRefreshReason(null);
+    const timeoutTimer = setTimeout(() => setFitRefreshTimedOut(true), 8000);
+    try {
+      const response = await refreshUniversityFitRequest(slug);
+      setFit(response);
+      setFitRefreshReason(response.refresh_reason);
+    } catch {
+      setFitRefreshReason("ai_unavailable"); // Deterministic fit above is unaffected by a refresh failure.
+    } finally {
+      clearTimeout(timeoutTimer);
+      setIsRefreshingFit(false);
+      setFitRefreshTimedOut(false);
+    }
+  }
 
   useEffect(() => {
     void loadUniversity();
@@ -247,7 +277,12 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
     getSuggestionsRequest({ linked_university: String(university.id) })
       .then((response) => setSuggestions(response.results))
       .catch(() => setSuggestions([]));
-  }, [university]);
+    // Deliberately keyed on the id, not the whole `university` object: toggling
+    // the shortlist star replaces `university` with a new object reference
+    // (see toggleShortlist below) without changing which university this is,
+    // and that used to re-fire all 3 requests above for no reason.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [university?.id]);
 
   async function toggleShortlist() {
     if (!university) return;
@@ -1354,6 +1389,95 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
                 <p className="text-xs leading-5 text-muted-foreground">
                   {fit.disclaimer || t("universities.fit.disclaimer")}
                 </p>
+
+                <div className="rounded-sm border bg-card p-3 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                      {t("universityFit.semanticSection.title")}
+                    </h3>
+                    <AIStatusBadge
+                      status={
+                        isRefreshingFit
+                          ? "running"
+                          : fit.semantic_fit_status === "pending"
+                            ? "queued"
+                            : fit.semantic_fit_status
+                      }
+                    />
+                  </div>
+
+                  {fit.semantic_fit ? (
+                    <div className="mt-3 space-y-2 text-sm leading-5">
+                      <p>{fit.semantic_fit.summary}</p>
+                      <p>
+                        <span className="font-semibold">
+                          {t("universityFit.semanticSection.mainStrength")}:
+                        </span>{" "}
+                        {fit.semantic_fit.main_strength}
+                      </p>
+                      <p>
+                        <span className="font-semibold">
+                          {t("universityFit.semanticSection.mainRisk")}:
+                        </span>{" "}
+                        {fit.semantic_fit.main_risk}
+                      </p>
+                      {fit.semantic_fit.next_actions.length ? (
+                        <div>
+                          <p className="font-semibold">
+                            {t("universityFit.semanticSection.nextActions")}
+                          </p>
+                          <ul className="mt-1 list-inside list-disc space-y-1">
+                            {fit.semantic_fit.next_actions.map((action, index) => (
+                              <li key={index}>{action}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                      {fit.last_updated ? (
+                        <p className="text-muted-foreground">
+                          {t("universityFit.semanticSection.lastUpdated", {
+                            date: formatDate(fit.last_updated, locale)
+                          })}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {fit.semantic_fit_status === "failed" ? (
+                    <p className="mt-3 text-muted-foreground">
+                      {t("universityFit.semanticSection.failedNotice")}
+                    </p>
+                  ) : null}
+
+                  {fitRefreshReason === "ai_unavailable" ? (
+                    <p className="mt-3 text-muted-foreground">
+                      {t("universityFit.semanticSection.disabledNotice")}
+                    </p>
+                  ) : fitRefreshReason === "daily_limit_reached" ? (
+                    <p className="mt-3 text-muted-foreground">
+                      {t("universityFit.semanticSection.rateLimited")}
+                    </p>
+                  ) : null}
+
+                  {fitRefreshTimedOut ? (
+                    <div className="mt-3">
+                      <TimeoutNotice onRetry={() => void handleRefreshFit()} />
+                    </div>
+                  ) : (
+                    <Button
+                      className="mt-3"
+                      disabled={isRefreshingFit}
+                      onClick={() => void handleRefreshFit()}
+                      size="sm"
+                      type="button"
+                      variant="secondary"
+                    >
+                      {isRefreshingFit
+                        ? t("universityFit.semanticSection.refreshingAction")
+                        : t("universityFit.semanticSection.refreshAction")}
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
           </Card>

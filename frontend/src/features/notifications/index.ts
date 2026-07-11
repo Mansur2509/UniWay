@@ -1,6 +1,7 @@
 export {
   getNotificationPreferencesRequest,
   getNotificationsRequest,
+  getNotificationUnreadCountRequest,
   markAllNotificationsReadRequest,
   updateNotificationPreferencesRequest,
   updateNotificationStatusRequest

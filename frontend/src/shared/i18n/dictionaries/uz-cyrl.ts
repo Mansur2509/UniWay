@@ -2343,5 +2343,28 @@ export const uzCyrl = {
 
   "analytics.eventType.notification_read": "Билдиришнома ўқилди",
   "analytics.eventType.notification_archived": "Билдиришнома архивланди",
-  "analytics.eventType.admin_moderation_action": "Администратор модерация амали"
+  "analytics.eventType.admin_moderation_action": "Администратор модерация амали",
+
+  "common.updating": "Янгиланмоқда…",
+  "common.somethingWentWrong": "Нимадир хато кетди. Қайтадан уриниб кўринг.",
+  "common.retry": "Қайта уриниш",
+  "common.retrying": "Қайта уринилмоқда…",
+  "common.timeoutMessage": "Бу кутилганидан кўпроқ вақт олмоқда. Қайта уриниб кўришингиз ёки кешланган натижалардан фойдаланишни давом эттиришингиз мумкин.",
+  "common.continueWithCached": "Кешланган натижалар билан давом этиш",
+  "common.aiStatus.queued": "Навбатда",
+  "common.aiStatus.running": "Таҳлил қилинмоқда…",
+  "common.aiStatus.cached": "Тайёр",
+  "common.aiStatus.missing": "Ҳали таҳлил қилинмаган",
+  "common.aiStatus.failed": "Таҳлил амалга ошмади",
+
+  "universityFit.semanticSection.title": "AI мос келиш тушунтириши",
+  "universityFit.semanticSection.refreshAction": "Мослигимни таҳлил қилиш",
+  "universityFit.semanticSection.refreshingAction": "Таҳлил қилинмоқда…",
+  "universityFit.semanticSection.mainStrength": "Асосий кучли томон",
+  "universityFit.semanticSection.mainRisk": "Асосий хавф",
+  "universityFit.semanticSection.nextActions": "Тавсия этилган кейинги қадамлар",
+  "universityFit.semanticSection.lastUpdated": "Охирги янгиланиш: {date}",
+  "universityFit.semanticSection.disabledNotice": "Бу чуқурроқ AI тушунтириши ушбу жойлаштиришда ҳали мавжуд эмас — юқоридаги детерминистик мослик аллақачон тўлиқ профилингизни акс эттиради.",
+  "universityFit.semanticSection.rateLimited": "Бугунги AI таҳлил чегарасига етдингиз. Илтимос, эртага қайта уриниб кўринг.",
+  "universityFit.semanticSection.failedNotice": "AI тушунтиришини яратиб бўлмади. Бу юқоридаги детерминистик мосликка таъсир қилмайди."
 } satisfies TranslationDictionary;

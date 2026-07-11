@@ -369,7 +369,7 @@ export type UniversityProfileEvidence = {
   weighting_note: string;
 };
 
-export type UniversityFitAnalysis = {
+export type UniversityDeterministicFit = {
   fit_score: number;
   category: FitCategory | null;
   confidence: "low" | "medium" | "high";
@@ -416,6 +416,42 @@ export type UniversityFitAnalysis = {
   };
   source_notes: UniversityFitSourceNote[];
   disclaimer: string;
+};
+
+export type UniversityFitTier = "reach" | "competitive" | "target" | "safer" | "unknown";
+
+export type SemanticFitStatus = "cached" | "missing" | "pending" | "failed";
+
+export type UniversitySemanticFit = {
+  summary: string;
+  main_strength: string;
+  main_risk: string;
+  next_actions: string[];
+};
+
+// PERFORMANCE-011 PART 5: deterministic fit stays fast and blocking-free;
+// semantic_fit is populated only once an explicit refresh has produced a
+// cached AI explanation (see semantic_fit_status). Backward-compatible: all
+// of UniversityDeterministicFit's own fields are still present flat on this
+// type (the backend spreads them at the top level too), so existing readers
+// of e.g. `fit.fit_score` keep working unchanged.
+export type UniversityFitAnalysis = UniversityDeterministicFit & {
+  tier: UniversityFitTier;
+  deterministic_fit: UniversityDeterministicFit;
+  semantic_fit: UniversitySemanticFit | null;
+  semantic_fit_status: SemanticFitStatus;
+  main_strength: string | null;
+  main_risk: string | null;
+  last_updated: string | null;
+};
+
+export type UniversityFitRefreshResponse = UniversityFitAnalysis & {
+  refresh_reason:
+    | "cached"
+    | "ai_unavailable"
+    | "daily_limit_reached"
+    | "validation_failed"
+    | "refreshed";
 };
 
 export type SavedUniversity = {

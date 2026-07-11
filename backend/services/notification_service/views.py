@@ -27,6 +27,21 @@ class NotificationListView(generics.ListAPIView):
         return queryset
 
 
+class NotificationUnreadCountView(APIView):
+    """Cheap, indexed count for the header bell badge (PERFORMANCE-011 PART
+    2/4) -- avoids the bell fetching (and slicing) the full notification list
+    just to display a number.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        count = Notification.objects.filter(
+            user=request.user, status=Notification.Status.UNREAD
+        ).count()
+        return Response({"count": count})
+
+
 class NotificationStatusUpdateView(generics.GenericAPIView):
     serializer_class = NotificationStatusUpdateSerializer
     permission_classes = [IsAuthenticated]

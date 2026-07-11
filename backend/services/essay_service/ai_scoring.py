@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from services.ai_gateway_service.essay_scoring_client import GeminiEssayScoringClient
 from services.ai_gateway_service.exceptions import AIProviderError, AIProviderUnavailable
+from services.ai_gateway_service.logging import log_ai_call
 from services.subscription_service.models import Plan, Subscription, UsageLog
 
 from .models import AIEssayScoreReport, EssayWorkspace
@@ -803,15 +804,16 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
     started_at = time.monotonic()
     result = _score_essay_impl(essay, user=user)
     duration_ms = int((time.monotonic() - started_at) * 1000)
-    logger.info(
-        "AI call ai_task_type=essay_scoring provider=gemini model=%s essay_id=%s "
-        "status=%s cache_hit=%s duration_ms=%s estimated_prompt_tokens=%s",
-        settings.AI_ESSAY_MODEL,
-        essay.id,
-        result["reason"],
-        result["cached"],
-        duration_ms,
-        _estimate_tokens(essay.draft_text or ""),
+    log_ai_call(
+        logger,
+        task_type="essay_scoring",
+        provider="gemini",
+        model=settings.AI_ESSAY_MODEL,
+        status=result["reason"],
+        cache_hit=result["cached"],
+        duration_ms=duration_ms,
+        essay_id=essay.id,
+        estimated_prompt_tokens=_estimate_tokens(essay.draft_text or ""),
     )
     return result
 

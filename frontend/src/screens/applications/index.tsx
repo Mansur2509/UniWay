@@ -230,7 +230,12 @@ export function ApplicationsScreen() {
     getRoadmapTasksRequest({ linked_university: String(selected.university) })
       .then((response) => setLinkedTasks(response.results))
       .catch(() => setLinkedTasks([]));
-  }, [selected]);
+    // Keyed on id/university, not the whole `selected` object: patching the
+    // open application (notes, milestones, status) creates a new object
+    // reference via updateInList, which used to re-fire this fetch even
+    // though neither id nor university actually changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id, selected?.university]);
 
   function updateInList(updated: ApplicationTrackerItem) {
     setApplications((current) => current.map((item) => (item.id === updated.id ? updated : item)));

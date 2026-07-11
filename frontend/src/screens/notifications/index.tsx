@@ -85,7 +85,14 @@ export function NotificationsScreen() {
 
   const handleMarkAllRead = async () => {
     await markAllNotificationsReadRequest();
-    void loadNotifications();
+    // Patch local state instead of refetching the whole list -- the mutation
+    // is fully predictable (every unread item becomes read), so there's
+    // nothing a fresh GET would tell us that we don't already know.
+    setNotifications((current) =>
+      statusFilter === "unread"
+        ? []
+        : current.map((item) => (item.status === "unread" ? { ...item, status: "read" } : item))
+    );
   };
 
   const togglePreference = async (key: keyof Omit<NotificationPreference, "updated_at">) => {

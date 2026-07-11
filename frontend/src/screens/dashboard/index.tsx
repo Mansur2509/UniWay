@@ -52,6 +52,7 @@ import {
   addSuggestionToRoadmapRequest,
   dismissSuggestionRequest,
   generateSuggestionsRequest,
+  getSuggestionsRequest,
   SuggestionPanel
 } from "@/features/suggestions";
 import { getRecommendationsRequest } from "@/features/universities";
@@ -158,7 +159,7 @@ export function DashboardScreen() {
       getMyEventRegistrationsRequest(),
       getApplicationReadinessRequest(),
       getRoadmapRequest(),
-      generateSuggestionsRequest(),
+      getSuggestionsRequest(),
       getApplicationsRequest(),
       getEssaysRequest(),
       getRecommendationsRequest(),
@@ -193,7 +194,7 @@ export function DashboardScreen() {
       setHasPartialError(true);
     }
     if (suggestionsResult.status === "fulfilled") {
-      setSuggestions(suggestionsResult.value.suggestions);
+      setSuggestions(suggestionsResult.value.results);
     } else {
       setHasPartialError(true);
     }

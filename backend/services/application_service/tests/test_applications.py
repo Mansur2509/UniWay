@@ -1,6 +1,8 @@
 from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -63,6 +65,43 @@ class ApplicationTrackerApiTests(APITestCase):
         self.client.force_authenticate(self.user2)
         response = self.client.get("/api/applications/")
         self.assertEqual(response.data["results"], [])
+
+    def test_list_query_count_does_not_grow_per_application(self):
+        # PERFORMANCE-011 PART 4: guards the select_related/prefetch_related
+        # on ApplicationTrackerViewSet.get_queryset -- without it, milestones
+        # and requirements would be an extra query per application (N+1).
+        self.client.force_authenticate(self.user1)
+        for index in range(3):
+            university = create_university(slug=f"query-count-university-{index}")
+            application = ApplicationTrackerItem.objects.create(
+                user=self.user1, university=university
+            )
+            application.milestones.create(title="Submit essay", due_date=date.today())
+            ApplicationRequirement.objects.create(
+                application=application, requirement_type=ApplicationRequirement.RequirementType.ESSAY
+            )
+
+        with CaptureQueriesContext(connection) as few:
+            self.client.get("/api/applications/")
+
+        for index in range(3, 6):
+            university = create_university(slug=f"query-count-university-{index}")
+            application = ApplicationTrackerItem.objects.create(
+                user=self.user1, university=university
+            )
+            application.milestones.create(title="Submit essay", due_date=date.today())
+            ApplicationRequirement.objects.create(
+                application=application, requirement_type=ApplicationRequirement.RequirementType.ESSAY
+            )
+
+        with CaptureQueriesContext(connection) as many:
+            self.client.get("/api/applications/")
+
+        self.assertEqual(
+            len(few),
+            len(many),
+            "GET /api/applications/ query count grew with application count -- check for a new N+1.",
+        )
 
     def test_cannot_access_another_users_application(self):
         self.client.force_authenticate(self.user1)

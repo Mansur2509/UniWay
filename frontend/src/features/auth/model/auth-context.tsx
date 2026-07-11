@@ -21,6 +21,7 @@ import {
   AUTH_INVALID_EVENT,
   authStorage
 } from "@/shared/lib/auth-storage";
+import { invalidateCacheByPrefix } from "@/shared/lib/request-cache";
 
 import {
   getCurrentUserRequest,
@@ -102,6 +103,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       access: response.access,
       refresh: response.refresh
     });
+    // A stale cached entry from a previous session in this same tab must
+    // never be served to the newly-logged-in user.
+    invalidateCacheByPrefix("profile:");
     setUser(response.user);
     setStatus("authenticated");
     return response.user;
@@ -113,6 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       access: response.access,
       refresh: response.refresh
     });
+    invalidateCacheByPrefix("profile:");
     setUser(response.user);
     setStatus("authenticated");
     return response.user;
@@ -131,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Local logout still completes if the API is unavailable.
     } finally {
       authStorage.clear();
+      invalidateCacheByPrefix("profile:");
       setUser(null);
       setStatus("unauthenticated");
     }
