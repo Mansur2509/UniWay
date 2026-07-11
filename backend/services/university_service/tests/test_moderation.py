@@ -99,7 +99,7 @@ class UniversityModerationApiTests(APITestCase):
         )
         response = self.client.get(QUEUE_URL)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        university_ids = {row["university"] for row in response.data}
+        university_ids = {row["university"] for row in response.data["results"]}
         self.assertIn(self.university.id, university_ids)
         self.assertNotIn(other_university.id, university_ids)
 
@@ -115,6 +115,10 @@ class UniversityModerationApiTests(APITestCase):
         )
         response = self.client.get(QUEUE_URL)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        matching = [row for row in response.data if row["university"] == self.university.id]
+        matching = [
+            row
+            for row in response.data["results"]
+            if row["university"] == self.university.id
+        ]
         self.assertEqual(len(matching), 1)
         self.assertEqual(matching[0]["issue_type"], "conflicting_data")

@@ -47,14 +47,18 @@ class OrganizerModerationApiTests(APITestCase):
         self.client.force_authenticate(self.admin)
         response = self.client.get(LIST_URL)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        emails = [row["email"] for row in response.data]
+        emails = [row["email"] for row in response.data["results"]]
         self.assertIn(self.organizer.email, emails)
         self.assertNotIn(self.student.email, emails)
 
     def test_unreviewed_organizer_shows_pending_status(self):
         self.client.force_authenticate(self.admin)
         response = self.client.get(LIST_URL)
-        row = next(row for row in response.data if row["email"] == self.organizer.email)
+        row = next(
+            row
+            for row in response.data["results"]
+            if row["email"] == self.organizer.email
+        )
         self.assertEqual(row["moderation_status"], "pending")
 
     def test_student_cannot_moderate_organizer(self):

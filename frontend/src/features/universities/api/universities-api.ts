@@ -11,8 +11,17 @@ import type {
 } from "@/entities/university";
 import { ApiError, apiRequest, normalizePaginatedResponse } from "@/shared/api/client";
 import { env } from "@/shared/config/env";
+import { getOrFetch } from "@/shared/lib/request-cache";
 
 export const UNIVERSITY_CATALOG_TIMEOUT_MS = 60_000;
+
+// Filter options are reference data already cached server-side for 600s
+// (PERFORMANCE-011 audit item), yet every mount of the Universities list
+// still fetched them fresh. A client-side TTL well under the server's window
+// avoids the redundant round trip without ever risking stale filter choices
+// past what the server itself considers fresh (PERFORMANCE-012 PART 1).
+const FILTER_OPTIONS_CACHE_TTL_MS = 300_000;
+const FILTER_OPTIONS_CACHE_KEY = "universities:filter-options";
 
 type PaginationParams = {
   page?: number;
@@ -64,10 +73,15 @@ export async function getUniversitiesRequest(
 }
 
 export function getUniversityFilterOptionsRequest() {
-  return apiRequest<UniversityFilterOptions>("/universities/filter-options/", {
-    base: "api",
-    timeoutMs: UNIVERSITY_CATALOG_TIMEOUT_MS
-  });
+  return getOrFetch(
+    FILTER_OPTIONS_CACHE_KEY,
+    () =>
+      apiRequest<UniversityFilterOptions>("/universities/filter-options/", {
+        base: "api",
+        timeoutMs: UNIVERSITY_CATALOG_TIMEOUT_MS
+      }),
+    FILTER_OPTIONS_CACHE_TTL_MS
+  );
 }
 
 export function getUniversityRequest(slug: string) {

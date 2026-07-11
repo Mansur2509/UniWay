@@ -206,8 +206,9 @@ class OrganizerWorkflowTests(APITestCase):
         self.assertEqual(reject_response.status_code, 200, reject_response.data)
         event.refresh_from_db()
         self.assertEqual(event.moderation_status, Event.Status.REJECTED)
+        rejection_log = event.moderation_logs.get(new_status=Event.Status.REJECTED)
         self.assertEqual(
-            event.moderation_logs.latest("created_at").note,
+            rejection_log.note,
             "Please clarify the official source and venue.",
         )
         self.assertEqual(

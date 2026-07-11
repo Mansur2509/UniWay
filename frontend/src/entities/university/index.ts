@@ -381,12 +381,49 @@ export type UniversityDeterministicFit = {
   cost_subscore: number;
   profile_evidence: UniversityProfileEvidence;
   subscores: UniversityFitSubscores;
+  // PERFORMANCE-012 PART 5: named subscore breakdown, personal/qualitative
+  // fit (cached-AI-vs-major-weights, never a new AI call from this GET).
+  fit_breakdown: {
+    academic_score: number;
+    testing_score: number;
+    curriculum_score: number;
+    program_alignment_score: number;
+    extracurricular_profile_score: number;
+    personal_fit_score: number | null;
+    timeline_score: number;
+    cost_score: number;
+  };
+  personal_fit_score: number | null;
+  personal_fit_context: { major_cluster: string; selectivity_tier: string; dimensions_used: number } | null;
+  qualitative_fit_status: "fresh" | "stale" | "missing" | "pending_daily_refresh" | "failed";
+  curriculum_score: number;
   strengths: FitStrengthCode[];
   risks: FitRiskCode[];
+  main_strength: string | null;
+  main_risk: string | null;
   missing_fields: FitMissingFieldCode[];
   missing_data: FitMissingFieldCode[];
   next_actions: FitNextActionCode[];
   conditional_notes: string[];
+  // Percentage-normalized GPA comparison (PERFORMANCE-012 PART 2/3) -- never
+  // a raw scale-mismatched diff. A null percent or "unknown" status means
+  // not enough data, never "behind".
+  academic_fit: {
+    normalized_student_gpa_percent: number | null;
+    normalized_benchmark_percent: number | null;
+    status:
+      | "meets_benchmark"
+      | "above_benchmark"
+      | "slightly_below_benchmark"
+      | "below_benchmark"
+      | "unknown";
+    confidence: "low" | "medium" | "high";
+    curriculum_type: string;
+    curriculum_note:
+      | "curriculum_type_unknown"
+      | "curriculum_context_partial"
+      | "curriculum_context_available";
+  };
   student_academic_context: {
     original_gpa_value: string | number | null;
     original_gpa_scale: string | number | null;

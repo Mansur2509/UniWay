@@ -150,14 +150,6 @@ function statusFromSatGap(gap: number): RequirementStatus {
   return "significant_improvement_needed";
 }
 
-function statusFromGpaGap(gap: number): RequirementStatus {
-  if (gap <= -0.3) return "strong";
-  if (gap <= 0) return "on_track";
-  if (gap <= 0.15) return "slightly_below_target";
-  if (gap <= 0.3) return "below_target";
-  return "needs_improvement";
-}
-
 export function UniversityDetailScreen({ slug }: { slug: string }) {
   const { locale, t } = useI18n();
   const [university, setUniversity] = useState<UniversityDetails | null>(null);
@@ -400,29 +392,42 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
       ? university.program_display_names
       : university.programs.map((program) => program.display_name ?? program.name);
 
+  // Reads the backend's percentage-normalized comparison (PERFORMANCE-012
+  // PART 2) instead of diffing normalizedGpa (always 0-4.0) against the raw
+  // currentUniversity.gpa_average, which could be recorded on a different
+  // scale (e.g. 88 meaning 88/100) -- that mismatch previously read a
+  // clearly-strong GPA as "below" a benchmark it was actually well above.
   function gpaAssessment(): { status: RequirementStatus; help: string } {
-    const student = numericValue(normalizedGpa);
-    const benchmark = numericValue(currentUniversity.gpa_average);
     if (studentGpa === null) {
       return {
         status: "missing",
         help: t("universities.requirements.help.addGpa")
       };
     }
-    if (benchmark === null) {
+    if (currentUniversity.gpa_average === null) {
       return {
         status: "not_verified",
         help: t("universities.requirements.help.notVerified")
       };
     }
-    if (student === null) {
+    const academicFit = fit?.academic_fit;
+    if (!academicFit || academicFit.status === "unknown") {
       return {
         status: "not_enough_data",
         help: t("universities.requirements.help.gpaNotEnoughData")
       };
     }
+    const statusMap: Record<
+      "above_benchmark" | "meets_benchmark" | "slightly_below_benchmark" | "below_benchmark",
+      RequirementStatus
+    > = {
+      above_benchmark: "strong",
+      meets_benchmark: "on_track",
+      slightly_below_benchmark: "slightly_below_target",
+      below_benchmark: "below_target"
+    };
     return {
-      status: statusFromGpaGap(benchmark - student),
+      status: statusMap[academicFit.status],
       help: t("universities.requirements.help.gpaConverted")
     };
   }

@@ -613,7 +613,6 @@ class AdminUniversityReviewQueueView(ListAPIView):
 
     serializer_class = UniversityModerationRecordSerializer
     permission_classes = [IsAdminRole]
-    pagination_class = None
 
     def get_queryset(self):
         records = (

@@ -73,6 +73,14 @@ class AIProfileAssessment(models.Model):
     benchmark_academic = models.JSONField(default=dict, blank=True)
     deterministic_scores = models.JSONField(default=dict, blank=True)
     readiness_scores = models.JSONField(default=dict, blank=True)
+    # PERFORMANCE-012 PART 4: the same AI call that produces the category
+    # scores above also scores 10 major/university-level-aware "personal fit"
+    # rubric dimensions ({"academic_readiness": {"score": 1-10, "evidence":
+    # str, "confidence": low/medium/high}, ...}). Reuses this model's existing
+    # hash/daily-limit/staleness protocol rather than a second AI call or a
+    # separate cache table -- university fit compares these cached scores
+    # against per-major weight profiles without ever calling AI itself.
+    qualitative_fit_scores = models.JSONField(default=dict, blank=True)
     overall_readiness_score = models.PositiveSmallIntegerField(null=True, blank=True)
     next_allowed_refresh_at = models.DateTimeField(null=True, blank=True)
 

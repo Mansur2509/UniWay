@@ -15,15 +15,20 @@ import { Card } from "./card";
 export function RetryNotice({
   message,
   onRetry,
-  isRetrying = false
+  isRetrying = false,
+  bare = false
 }: {
   message?: string;
   onRetry: () => void;
   isRetrying?: boolean;
+  /** Skip the outer Card -- for a section that's already inside its own
+   * Card (e.g. one panel of a multi-panel screen where only that panel's
+   * fetch failed), so a retry notice never nests Card-in-Card. */
+  bare?: boolean;
 }) {
   const { t } = useI18n();
-  return (
-    <Card>
+  const content = (
+    <>
       <p className="text-sm text-muted-foreground" role="alert">
         {message ?? t("common.somethingWentWrong")}
       </p>
@@ -37,6 +42,7 @@ export function RetryNotice({
       >
         {isRetrying ? t("common.retrying") : t("common.retry")}
       </Button>
-    </Card>
+    </>
   );
+  return bare ? content : <Card>{content}</Card>;
 }

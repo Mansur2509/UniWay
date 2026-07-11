@@ -175,11 +175,11 @@ SCHOLARSHIP_COLUMNS = {
     "Other Scholarships",
     "Scholarship Links",
 }
+GPA_AVERAGE_COLUMN = "Average GPA"
 
 NUMERIC_FIELD_CONFIG = {
     "IELTS Minimum": ("ielts_minimum", Decimal("0"), Decimal("9"), 1),
     "IELTS Competitive": ("ielts_competitive", Decimal("0"), Decimal("9"), 1),
-    "Average GPA": ("gpa_average", Decimal("0"), Decimal("4.50"), 2),
     "QS Overall Score": ("qs_overall_score", Decimal("0"), Decimal("100"), 1),
     "Acceptance Rate": ("acceptance_rate", Decimal("0"), Decimal("100"), 2),
 }
@@ -648,6 +648,8 @@ def clean_raw_cell(value, field_name: str, university_context: dict | None = Non
         cell = _clean_deadline(raw)
     elif field_name in SCHOLARSHIP_COLUMNS:
         cell = _clean_scholarship_text(raw)
+    elif field_name == GPA_AVERAGE_COLUMN:
+        cell = _clean_gpa_average(raw)
     elif field_name in NUMERIC_FIELD_CONFIG:
         attr, minimum, maximum, places = NUMERIC_FIELD_CONFIG[field_name]
         cell = _clean_decimal(raw, attr, minimum=minimum, maximum=maximum, places=places)
@@ -724,6 +726,80 @@ def _clean_decimal(
     if value < minimum or value > maximum:
         return CleanedCell(text, None, "skipped_wrong_field_type", "number out of valid range", "high")
     return CleanedCell(text, value, CELL_STATUS_NORMALIZED, "validated numeric value", "high")
+
+
+def _clean_gpa_average(text: str) -> CleanedCell:
+    numbers = NUMBER_RE.findall(text.replace(",", ""))
+    if not numbers:
+        return CleanedCell(text, None, "skipped_wrong_field_type", "no numeric value", "high")
+
+    lowered = text.lower()
+    stripped = re.sub(r"[\d\s,./%<>~в‰€+-]", "", lowered)
+    for word in (
+        "gpa",
+        "average",
+        "mean",
+        "grade",
+        "grades",
+        "scale",
+        "out",
+        "of",
+        "percent",
+        "percentage",
+        "point",
+        "points",
+    ):
+        stripped = stripped.replace(word, "")
+    if stripped.strip():
+        return CleanedCell(text, None, "skipped_wrong_field_type", "prose in GPA field", "high")
+
+    try:
+        value = Decimal(numbers[0]).quantize(Decimal("0.01"))
+    except InvalidOperation:
+        return CleanedCell(text, None, "skipped_wrong_field_type", "invalid GPA value", "high")
+
+    scale: Decimal | None = None
+    if len(numbers) >= 2:
+        try:
+            candidate_scale = Decimal(numbers[1]).quantize(Decimal("0.01"))
+        except InvalidOperation:
+            candidate_scale = None
+        if candidate_scale in {
+            Decimal("4.00"),
+            Decimal("5.00"),
+            Decimal("10.00"),
+            Decimal("20.00"),
+            Decimal("45.00"),
+            Decimal("100.00"),
+        }:
+            scale = candidate_scale
+        else:
+            return CleanedCell(text, None, "skipped_wrong_field_type", "unsupported GPA scale", "high")
+    elif "%" in lowered or "percent" in lowered or "percentage" in lowered:
+        scale = Decimal("100.00")
+    elif value <= Decimal("4.50"):
+        # Preserve the existing 4.0-ish catalogue convention for unlabeled
+        # imported GPAs. Runtime comparison still marks confidence as medium
+        # because the scale was inferred from range, not source text.
+        scale = None
+    else:
+        return CleanedCell(text, None, "skipped_uncertain", "GPA scale is not explicit", "medium")
+
+    if value < 0:
+        return CleanedCell(text, None, "skipped_wrong_field_type", "GPA value below zero", "high")
+    if scale is not None and value > scale:
+        return CleanedCell(text, None, "skipped_wrong_field_type", "GPA value exceeds scale", "high")
+
+    return CleanedCell(
+        text,
+        {
+            "gpa_average": value,
+            "gpa_average_scale": scale,
+        },
+        CELL_STATUS_NORMALIZED,
+        "validated GPA value and scale",
+        "high" if scale is not None else "medium",
+    )
 
 
 def _clean_int(text: str, field_name: str, *, minimum: int, maximum: int) -> CleanedCell:
@@ -1350,6 +1426,15 @@ def _build_fields(row: dict, row_number: int, context: dict, summary: ImportSumm
         add_audit("Majors", majors_cell)
     if majors_cell.importable:
         public_fields["majors_list"] = majors_cell.cleaned_value
+
+    gpa_cell = clean_raw_cell(row.get(GPA_AVERAGE_COLUMN), GPA_AVERAGE_COLUMN, context)
+    if gpa_cell.status != "skipped_empty":
+        add_audit(GPA_AVERAGE_COLUMN, gpa_cell)
+    if gpa_cell.importable:
+        payload = gpa_cell.cleaned_value or {}
+        public_fields["gpa_average"] = payload.get("gpa_average")
+        if payload.get("gpa_average_scale") is not None:
+            public_fields["gpa_average_scale"] = payload.get("gpa_average_scale")
 
     for column, (attr, _minimum, _maximum, _places) in NUMERIC_FIELD_CONFIG.items():
         cell = clean_raw_cell(row.get(column), column, context)

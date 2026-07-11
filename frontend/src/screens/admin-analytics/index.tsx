@@ -14,8 +14,9 @@ import {
 } from "@/features/analytics";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { formatDate } from "@/shared/lib/date-time";
-import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
+import { RetryNotice } from "@/shared/ui/retry-notice";
+import { SkeletonCards, SkeletonText } from "@/shared/ui/skeleton";
 
 export function AdminAnalyticsScreen() {
   const { locale, t } = useI18n();
@@ -23,25 +24,40 @@ export function AdminAnalyticsScreen() {
   const [featureUsage, setFeatureUsage] = useState<AdminFeatureUsage>({});
   const [activity, setActivity] = useState<AdminAnalyticsActivity | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
+  const [summaryError, setSummaryError] = useState(false);
+  const [featureUsageError, setFeatureUsageError] = useState(false);
+  const [activityError, setActivityError] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
-    setHasError(false);
-    try {
-      const [summaryResponse, featureUsageResponse, activityResponse] = await Promise.all([
-        getAdminAnalyticsSummaryRequest(),
-        getAdminAnalyticsFeatureUsageRequest(),
-        getAdminAnalyticsActivityRequest()
-      ]);
-      setSummary(summaryResponse);
-      setFeatureUsage(featureUsageResponse);
-      setActivity(activityResponse);
-    } catch {
-      setHasError(true);
-    } finally {
-      setIsLoading(false);
+    // One section failing (PERFORMANCE-012 PART 1) must not blank the other
+    // two -- each of the 3 admin analytics calls is independent, so
+    // Promise.allSettled lets each section render (or offer its own retry)
+    // based only on its own outcome instead of Promise.all's all-or-nothing.
+    const [summaryResult, featureUsageResult, activityResult] = await Promise.allSettled([
+      getAdminAnalyticsSummaryRequest(),
+      getAdminAnalyticsFeatureUsageRequest(),
+      getAdminAnalyticsActivityRequest()
+    ]);
+    if (summaryResult.status === "fulfilled") {
+      setSummary(summaryResult.value);
+      setSummaryError(false);
+    } else {
+      setSummaryError(true);
     }
+    if (featureUsageResult.status === "fulfilled") {
+      setFeatureUsage(featureUsageResult.value);
+      setFeatureUsageError(false);
+    } else {
+      setFeatureUsageError(true);
+    }
+    if (activityResult.status === "fulfilled") {
+      setActivity(activityResult.value);
+      setActivityError(false);
+    } else {
+      setActivityError(true);
+    }
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -86,34 +102,39 @@ export function AdminAnalyticsScreen() {
       </section>
 
       {isLoading ? (
-        <Card>
-          <p className="text-sm text-muted-foreground">{t("adminAnalytics.states.loading")}</p>
-        </Card>
-      ) : hasError ? (
-        <Card>
-          <p className="text-sm text-danger" role="alert">
-            {t("adminAnalytics.states.loadError")}
-          </p>
-          <Button className="mt-4" onClick={() => void load()} type="button">
-            {t("essays.actions.retry")}
-          </Button>
-        </Card>
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <SkeletonCards count={8} />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="p-4">
+              <SkeletonText lines={5} />
+            </Card>
+            <Card className="p-4">
+              <SkeletonText lines={5} />
+            </Card>
+          </div>
+        </>
       ) : (
         <>
           <section aria-labelledby="admin-analytics-summary">
             <h2 className="mb-3 text-lg font-semibold" id="admin-analytics-summary">
               {t("adminAnalytics.summary.title")}
             </h2>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {summaryTiles.map(([labelKey, value]) => (
-                <Card className="p-4" key={labelKey}>
-                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                    {t(labelKey)}
-                  </p>
-                  <p className="mt-2 font-serif text-3xl font-semibold text-accent">{value}</p>
-                </Card>
-              ))}
-            </div>
+            {summaryError ? (
+              <RetryNotice message={t("adminAnalytics.states.loadError")} onRetry={() => void load()} />
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {summaryTiles.map(([labelKey, value]) => (
+                  <Card className="p-4" key={labelKey}>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                      {t(labelKey)}
+                    </p>
+                    <p className="mt-2 font-serif text-3xl font-semibold text-accent">{value}</p>
+                  </Card>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="grid gap-4 lg:grid-cols-2">
@@ -121,7 +142,9 @@ export function AdminAnalyticsScreen() {
               <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted-foreground">
                 {t("adminAnalytics.featureUsage.title")}
               </h2>
-              {featureUsageEntries.length === 0 ? (
+              {featureUsageError ? (
+                <RetryNotice bare message={t("adminAnalytics.states.loadError")} onRetry={() => void load()} />
+              ) : featureUsageEntries.length === 0 ? (
                 <p className="mt-3 text-sm text-muted-foreground">
                   {t("adminAnalytics.featureUsage.empty")}
                 </p>
@@ -151,7 +174,9 @@ export function AdminAnalyticsScreen() {
               <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-muted-foreground">
                 {t("adminAnalytics.activity.title")}
               </h2>
-              {dailyEntries.length === 0 ? (
+              {activityError ? (
+                <RetryNotice bare message={t("adminAnalytics.states.loadError")} onRetry={() => void load()} />
+              ) : dailyEntries.length === 0 ? (
                 <p className="mt-3 text-sm text-muted-foreground">
                   {t("adminAnalytics.activity.empty")}
                 </p>

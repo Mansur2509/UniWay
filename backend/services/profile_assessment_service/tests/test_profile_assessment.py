@@ -10,8 +10,10 @@ from services.essay_service.models import EssayWorkspace
 from services.profile_assessment_service.models import AIProfileAssessment
 from services.profile_assessment_service.services import (
     PROFILE_ASSESSMENT_CATEGORIES,
+    QUALITATIVE_FIT_DIMENSIONS,
     build_profile_assessment_input,
     compute_profile_snapshot_hash,
+    qualitative_fit_status,
     run_profile_assessment,
     validate_ai_profile_assessment_json,
 )
@@ -54,9 +56,25 @@ class FakeFailingProfileAssessmentClient:
         raise self.error
 
 
+def valid_qualitative_fit_scores(**overrides):
+    scores = {
+        dimension: {
+            "score": 6,
+            "evidence": "Assessed from saved UniWay profile data.",
+            "confidence": "medium",
+        }
+        for dimension in QUALITATIVE_FIT_DIMENSIONS
+    }
+    scores.update(overrides)
+    return scores
+
+
 def valid_ai_output(**overrides):
     category_scores = {category: 6 for category in PROFILE_ASSESSMENT_CATEGORIES}
     category_scores.update(overrides.pop("category_scores", {}))
+    qualitative_fit_scores = valid_qualitative_fit_scores(
+        **overrides.pop("qualitative_fit_scores", {})
+    )
     output = {
         "overall_profile_score": 62,
         "category_scores": category_scores,
@@ -72,6 +90,7 @@ def valid_ai_output(**overrides):
             for category in PROFILE_ASSESSMENT_CATEGORIES
         },
         "warnings": [],
+        "qualitative_fit_scores": qualitative_fit_scores,
     }
     output.update(overrides)
     return output
@@ -190,6 +209,17 @@ class ProfileAssessmentServiceTests(APITestCase):
         self.assertEqual(result.reason, "daily_limit_reached")
         self.assertEqual(client.calls, 1)
         self.assertIsNotNone(result.next_available_at)
+
+    def test_qualitative_fit_status_marks_changed_profile_pending_daily_refresh(self):
+        client = FakeProfileAssessmentClient(valid_ai_output())
+        run_profile_assessment(self.user, client=client)
+        Activity.objects.create(user=self.user, title="New activity")
+
+        status, assessment = qualitative_fit_status(self.user)
+
+        self.assertEqual(status, "pending_daily_refresh")
+        self.assertIsNotNone(assessment)
+        self.assertEqual(client.calls, 1)
 
     def test_changed_profile_after_twenty_four_hours_can_run(self):
         client = FakeProfileAssessmentClient(valid_ai_output())

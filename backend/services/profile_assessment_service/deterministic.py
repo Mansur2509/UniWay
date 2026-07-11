@@ -33,9 +33,13 @@ def _gap_status(student_value: float | None, benchmark_value: float | None) -> s
 
 
 def _compare_gpa(profile, benchmark: BenchmarkResult) -> dict:
+    # Both sides compared as internal percentages, never a raw 0-4.0 student
+    # GPA against a benchmark that might average in a different scale
+    # (PERFORMANCE-012 PART 2) -- `benchmark.academic["gpa_average_percent"]`
+    # is itself already an average of normalized percentages, not raw values.
     normalization = normalize_profile_academics(profile)
-    student = float(normalization.normalized_gpa_4) if normalization.normalized_gpa_4 is not None else None
-    benchmark_gpa = benchmark.academic.get("gpa_average")
+    student = float(normalization.normalized_percentage) if normalization.normalized_percentage is not None else None
+    benchmark_gpa = benchmark.academic.get("gpa_average_percent")
     return {
         "student": student,
         "benchmark": benchmark_gpa,

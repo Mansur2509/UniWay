@@ -6,7 +6,18 @@ PROFILE_ASSESSMENT_SYSTEM_PROMPT = (
     "return JSON only. If data is missing, lower confidence instead of guessing. "
     "Consider the user's target universities and majors only when they are "
     "provided. Different universities/programs may value categories differently. "
-    "Do not write essays or advice paragraphs."
+    "Do not write essays or advice paragraphs. "
+    "Additionally score qualitative_fit_scores: 10 fixed personal-readiness "
+    "dimensions (academic_readiness, quantitative_readiness, writing_communication, "
+    "research_orientation, leadership_initiative, service_impact, "
+    "extracurricular_depth, major_alignment, intellectual_curiosity, "
+    "resilience_independence), each 1 to 10 with a short evidence note and a "
+    "confidence level. Interpret major_alignment and academic_readiness in light "
+    "of the student's stated intended major/direction where provided. Calibrate "
+    "what a given score means using general university-selectivity context "
+    "(ultra_selective/elite/strong/standard/accessible), not any single named "
+    "university. These are personal-fit dimension scores only -- never an "
+    "admission probability or guaranteed outcome."
 )
 
 PROFILE_ASSESSMENT_RESPONSE_SCHEMA = {
@@ -47,6 +58,21 @@ PROFILE_ASSESSMENT_RESPONSE_SCHEMA = {
         "olympiads_score": "short internal rationale",
     },
     "warnings": ["string"],
+    # PERFORMANCE-012 PART 4: cached once per AI call, compared against
+    # per-major/per-selectivity weight profiles entirely on the deterministic
+    # side (university_service) -- never a second AI call per university.
+    "qualitative_fit_scores": {
+        "academic_readiness": {"score": 0, "evidence": "short evidence note", "confidence": "low|medium|high"},
+        "quantitative_readiness": {"score": 0, "evidence": "short evidence note", "confidence": "low|medium|high"},
+        "writing_communication": {"score": 0, "evidence": "short evidence note", "confidence": "low|medium|high"},
+        "research_orientation": {"score": 0, "evidence": "short evidence note", "confidence": "low|medium|high"},
+        "leadership_initiative": {"score": 0, "evidence": "short evidence note", "confidence": "low|medium|high"},
+        "service_impact": {"score": 0, "evidence": "short evidence note", "confidence": "low|medium|high"},
+        "extracurricular_depth": {"score": 0, "evidence": "short evidence note", "confidence": "low|medium|high"},
+        "major_alignment": {"score": 0, "evidence": "short evidence note", "confidence": "low|medium|high"},
+        "intellectual_curiosity": {"score": 0, "evidence": "short evidence note", "confidence": "low|medium|high"},
+        "resilience_independence": {"score": 0, "evidence": "short evidence note", "confidence": "low|medium|high"},
+    },
 }
 
 # Semantic university fit (PERFORMANCE-011 PART 5-6): a short, explicit

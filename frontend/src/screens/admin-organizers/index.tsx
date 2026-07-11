@@ -13,7 +13,10 @@ import { formatDateTime } from "@/shared/lib/date-time";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { fieldClassName } from "@/shared/ui/field";
+import { DEFAULT_PAGE_SIZE, PaginationControls } from "@/shared/ui/pagination";
+import { RetryNotice } from "@/shared/ui/retry-notice";
 import { SectionTabs } from "@/shared/ui/section-tabs";
+import { SkeletonRows } from "@/shared/ui/skeleton";
 
 const STATUS_STYLES: Record<OrganizerModerationStatus, string> = {
   pending: "border-muted-foreground/30 bg-surface text-muted-foreground",
@@ -29,6 +32,8 @@ function badgeClass(base: string) {
 export function AdminOrganizersScreen() {
   const { locale, t } = useI18n();
   const [organizers, setOrganizers] = useState<OrganizerModerationRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
@@ -39,17 +44,24 @@ export function AdminOrganizersScreen() {
     setIsLoading(true);
     setHasError(false);
     try {
-      setOrganizers(await getAdminOrganizersRequest());
+      const response = await getAdminOrganizersRequest({
+        page: currentPage,
+        page_size: DEFAULT_PAGE_SIZE
+      });
+      setOrganizers(response.results);
+      setTotalCount(response.count);
     } catch {
       setHasError(true);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [currentPage]);
 
   useEffect(() => {
     void loadOrganizers();
   }, [loadOrganizers]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / DEFAULT_PAGE_SIZE));
 
   function toggleExpanded(row: OrganizerModerationRow) {
     if (expandedId === row.id) {
@@ -95,18 +107,11 @@ export function AdminOrganizersScreen() {
       />
 
       {isLoading ? (
-        <Card>
-          <p className="text-sm text-muted-foreground">{t("adminOrganizers.states.loading")}</p>
-        </Card>
+        <div className="space-y-3">
+          <SkeletonRows count={5} />
+        </div>
       ) : hasError ? (
-        <Card>
-          <p className="text-sm text-danger" role="alert">
-            {t("adminOrganizers.states.loadError")}
-          </p>
-          <Button className="mt-4" onClick={() => void loadOrganizers()} type="button">
-            {t("essays.actions.retry")}
-          </Button>
-        </Card>
+        <RetryNotice message={t("adminOrganizers.states.loadError")} onRetry={() => void loadOrganizers()} />
       ) : organizers.length === 0 ? (
         <Card>
           <p className="text-sm text-muted-foreground">{t("adminOrganizers.states.empty")}</p>
@@ -172,6 +177,16 @@ export function AdminOrganizersScreen() {
               ) : null}
             </Card>
           ))}
+          {totalPages > 1 ? (
+            <PaginationControls
+              currentPage={currentPage}
+              itemsOnPage={organizers.length}
+              onPageChange={setCurrentPage}
+              pageSize={DEFAULT_PAGE_SIZE}
+              totalCount={totalCount}
+              totalPages={totalPages}
+            />
+          ) : null}
         </div>
       )}
     </div>

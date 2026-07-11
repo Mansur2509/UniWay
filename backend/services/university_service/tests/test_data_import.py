@@ -1,5 +1,6 @@
 import csv
 import tempfile
+from decimal import Decimal
 from io import StringIO
 from pathlib import Path
 
@@ -325,6 +326,18 @@ class ImportUniversitiesDataTests(TestCase):
         university = University.objects.get(name="Sample University")
         self.assertIsNone(university.gpa_average)
         self.assertGreaterEqual(summary.generic_country_average_cells, 1)
+
+    def test_scaled_gpa_average_is_imported_with_declared_scale(self):
+        cell = clean_raw_cell("88/100", "Average GPA")
+        self.assertTrue(cell.importable)
+        self.assertEqual(cell.cleaned_value["gpa_average"], Decimal("88.00"))
+        self.assertEqual(cell.cleaned_value["gpa_average_scale"], Decimal("100.00"))
+
+        path = self._write([sample_row(**{"Average GPA": "88/100"})])
+        import_universities_data(path, commit=True)
+        university = University.objects.get(name="Sample University")
+        self.assertEqual(university.gpa_average, Decimal("88.00"))
+        self.assertEqual(university.gpa_average_scale, Decimal("100.00"))
 
     def test_placeholder_deadline_is_not_imported(self):
         deadline = "2026-2027 cycle: program/intake-specific deadlines; verify on official page"

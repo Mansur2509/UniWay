@@ -706,7 +706,6 @@ User = get_user_model()
 class AdminOrganizerListView(generics.ListAPIView):
     serializer_class = OrganizerModerationSerializer
     permission_classes = [IsAdminRole]
-    pagination_class = None
 
     def get_queryset(self):
         return (

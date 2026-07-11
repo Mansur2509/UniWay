@@ -10,10 +10,24 @@ import type {
 } from "@/entities/admin-moderation";
 import { apiRequest, normalizePaginatedResponse } from "@/shared/api/client";
 
-export function getUniversityReviewQueueRequest() {
-  return apiRequest<UniversityModerationRecord[]>("/review-queue/", {
+type PageParams = { page?: number; page_size?: number };
+
+function buildPageQuery(params: PageParams) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) {
+      query.set(key, String(value));
+    }
+  }
+  const queryString = query.toString();
+  return queryString ? `?${queryString}` : "";
+}
+
+export async function getUniversityReviewQueueRequest(params: PageParams = {}) {
+  const response = await apiRequest<unknown>(`/review-queue/${buildPageQuery(params)}`, {
     base: "universityModeration"
   });
+  return normalizePaginatedResponse<UniversityModerationRecord>(response, "university review queue");
 }
 
 export function updateUniversityModerationRequest(
@@ -62,8 +76,9 @@ export function updateAdminReportRequest(id: number, input: { status: ReportStat
   });
 }
 
-export function getAdminOrganizersRequest() {
-  return apiRequest<OrganizerModerationRow[]>("/", { base: "adminOrganizers" });
+export async function getAdminOrganizersRequest(params: PageParams = {}) {
+  const response = await apiRequest<unknown>(`/${buildPageQuery(params)}`, { base: "adminOrganizers" });
+  return normalizePaginatedResponse<OrganizerModerationRow>(response, "admin organizers");
 }
 
 export function updateOrganizerModerationRequest(

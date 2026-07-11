@@ -59,6 +59,23 @@ PROFILE_ASSESSMENT_CATEGORIES = (
     "research_fit_score",
     "olympiads_score",
 )
+# PERFORMANCE-012 PART 4: personal/qualitative-fit rubric, scored by the same
+# AI call as the categories above and cached on the same model row. University
+# fit (services.university_service) compares these against per-major weight
+# profiles entirely deterministically -- this list is the single source of
+# truth other modules import rather than re-declaring.
+QUALITATIVE_FIT_DIMENSIONS = (
+    "academic_readiness",
+    "quantitative_readiness",
+    "writing_communication",
+    "research_orientation",
+    "leadership_initiative",
+    "service_impact",
+    "extracurricular_depth",
+    "major_alignment",
+    "intellectual_curiosity",
+    "resilience_independence",
+)
 FORBIDDEN_OUTCOME_LANGUAGE_RE = re.compile(
     r"\b(admission\s+chance|admissions\s+chance|chance|probability|odds|"
     r"guarantee(?:d|s)?|acceptance\s+likelihood|admission\s+likelihood)\b",
@@ -473,6 +490,36 @@ def _daily_limit_reached(user) -> bool:
     return AIProfileAssessment.objects.filter(user=user, created_at__gte=start).count() >= limit
 
 
+QUALITATIVE_FIT_STATUS_FRESH = "fresh"
+QUALITATIVE_FIT_STATUS_STALE = "stale"
+QUALITATIVE_FIT_STATUS_MISSING = "missing"
+QUALITATIVE_FIT_STATUS_PENDING_DAILY_REFRESH = "pending_daily_refresh"
+QUALITATIVE_FIT_STATUS_FAILED = "failed"
+
+
+def qualitative_fit_status(user) -> tuple[str, AIProfileAssessment | None]:
+    """Pure read of the cached qualitative-fit dimension scores -- never calls
+    AI (PERFORMANCE-012 PART 4/5). University fit reads this to decide whether
+    the cached personal-fit scores are usable, stale-but-usable, or missing,
+    without a GET ever being able to trigger a fresh AI call. Explicit refresh
+    stays exactly `RunProfileAssessmentView`'s existing POST /assessment/run/
+    action -- already rate-limited to once per day, already never called on
+    render.
+    """
+    latest = get_latest_assessment(user)
+    if latest is None:
+        return QUALITATIVE_FIT_STATUS_MISSING, None
+    if latest.status == AIProfileAssessment.Status.FALLBACK_USED:
+        return QUALITATIVE_FIT_STATUS_FAILED, latest
+
+    current_hash = compute_profile_snapshot_hash(user)
+    if latest.profile_snapshot_hash == current_hash and not latest.is_expired:
+        return QUALITATIVE_FIT_STATUS_FRESH, latest
+    if _daily_limit_reached(user):
+        return QUALITATIVE_FIT_STATUS_PENDING_DAILY_REFRESH, latest
+    return QUALITATIVE_FIT_STATUS_STALE, latest
+
+
 def _list_of_strings(value: Any, field_name: str, *, max_items: int = 20) -> list[str]:
     if not isinstance(value, list):
         raise AssessmentValidationError(f"{field_name} must be a list.")
@@ -505,6 +552,31 @@ def _validate_keywords(value: Any) -> list[str]:
             raise AssessmentValidationError("internal_keywords must be compact lowercase signals.")
         if safe not in normalized:
             normalized.append(safe)
+    return normalized
+
+
+def _validate_qualitative_fit_scores(value: Any) -> dict:
+    if not isinstance(value, dict):
+        raise AssessmentValidationError("qualitative_fit_scores must be an object.")
+    normalized = {}
+    for dimension in QUALITATIVE_FIT_DIMENSIONS:
+        entry = value.get(dimension)
+        if not isinstance(entry, dict):
+            raise AssessmentValidationError(f"qualitative_fit_scores.{dimension} must be an object.")
+        score = _validate_score(entry.get("score"), f"qualitative_fit_scores.{dimension}.score")
+        confidence = entry.get("confidence")
+        if confidence not in AIProfileAssessment.Confidence.values:
+            raise AssessmentValidationError(
+                f"qualitative_fit_scores.{dimension}.confidence must be low, medium, or high."
+            )
+        evidence = entry.get("evidence")
+        if not isinstance(evidence, str):
+            raise AssessmentValidationError(f"qualitative_fit_scores.{dimension}.evidence must be text.")
+        normalized[dimension] = {
+            "score": score,
+            "evidence": evidence.strip()[:300],
+            "confidence": confidence,
+        }
     return normalized
 
 
@@ -559,6 +631,9 @@ def validate_ai_profile_assessment_json(output: dict) -> dict:
         "internal_keywords": _validate_keywords(output.get("internal_keywords", [])),
         "category_rationales": normalized_rationales,
         "warnings": _list_of_strings(output.get("warnings", []), "warnings"),
+        "qualitative_fit_scores": _validate_qualitative_fit_scores(
+            output.get("qualitative_fit_scores", {})
+        ),
     }
 
 
@@ -620,6 +695,7 @@ def store_profile_assessment(
         benchmark_scores=benchmark.scores,
         benchmark_academic=benchmark.academic,
         deterministic_scores=deterministic_comparisons,
+        qualitative_fit_scores=normalized["qualitative_fit_scores"],
         readiness_scores={
             "status": readiness.level,
             "cap_reason": readiness.cap_reason,
@@ -645,6 +721,11 @@ def _build_deterministic_fallback_output(profile) -> dict:
     deterministic_scores = compute_deterministic_student_scores(profile)
     category_scores = {f"{signal}_score": deterministic_scores[signal] for signal in SIGNAL_NAMES}
     rationale = "Deterministic fallback score based on profile evidence counts; AI scoring was unavailable."
+    fallback_qualitative_entry = {
+        "score": 5,
+        "evidence": "AI scoring was unavailable; no personal-fit evidence assessed.",
+        "confidence": AIProfileAssessment.Confidence.LOW,
+    }
     return {
         "overall_profile_score": round(mean(category_scores.values()) * 10),
         "category_scores": category_scores,
@@ -660,6 +741,10 @@ def _build_deterministic_fallback_output(profile) -> dict:
         "internal_keywords": [],
         "category_rationales": dict.fromkeys(category_scores, rationale),
         "warnings": ["deterministic_fallback_used"],
+        "qualitative_fit_scores": {
+            dimension: dict(fallback_qualitative_entry)
+            for dimension in QUALITATIVE_FIT_DIMENSIONS
+        },
     }
 
 

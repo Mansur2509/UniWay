@@ -17,7 +17,10 @@ import { formatDateTime } from "@/shared/lib/date-time";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { fieldClassName } from "@/shared/ui/field";
+import { DEFAULT_PAGE_SIZE, PaginationControls } from "@/shared/ui/pagination";
+import { RetryNotice } from "@/shared/ui/retry-notice";
 import { SectionTabs } from "@/shared/ui/section-tabs";
+import { SkeletonRows } from "@/shared/ui/skeleton";
 
 const STATUS_STYLES: Record<ModerationStatus, string> = {
   pending_review: "border-warning/35 bg-warning/10 text-warning",
@@ -34,6 +37,8 @@ function badgeClass(base: string) {
 export function AdminModerationScreen() {
   const { locale, t } = useI18n();
   const [records, setRecords] = useState<UniversityModerationRecord[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -46,17 +51,24 @@ export function AdminModerationScreen() {
     setIsLoading(true);
     setHasError(false);
     try {
-      setRecords(await getUniversityReviewQueueRequest());
+      const response = await getUniversityReviewQueueRequest({
+        page: currentPage,
+        page_size: DEFAULT_PAGE_SIZE
+      });
+      setRecords(response.results);
+      setTotalCount(response.count);
     } catch {
       setHasError(true);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [currentPage]);
 
   useEffect(() => {
     void loadQueue();
   }, [loadQueue]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / DEFAULT_PAGE_SIZE));
 
   function toggleExpanded(record: UniversityModerationRecord) {
     if (expandedId === record.university) {
@@ -106,18 +118,11 @@ export function AdminModerationScreen() {
       />
 
       {isLoading ? (
-        <Card>
-          <p className="text-sm text-muted-foreground">{t("adminModeration.states.loading")}</p>
-        </Card>
+        <div className="space-y-3">
+          <SkeletonRows count={5} />
+        </div>
       ) : hasError ? (
-        <Card>
-          <p className="text-sm text-danger" role="alert">
-            {t("adminModeration.states.loadError")}
-          </p>
-          <Button className="mt-4" onClick={() => void loadQueue()} type="button">
-            {t("essays.actions.retry")}
-          </Button>
-        </Card>
+        <RetryNotice message={t("adminModeration.states.loadError")} onRetry={() => void loadQueue()} />
       ) : records.length === 0 ? (
         <Card>
           <p className="text-sm text-muted-foreground">{t("adminModeration.states.empty")}</p>
@@ -222,6 +227,16 @@ export function AdminModerationScreen() {
               ) : null}
             </Card>
           ))}
+          {totalPages > 1 ? (
+            <PaginationControls
+              currentPage={currentPage}
+              itemsOnPage={records.length}
+              onPageChange={setCurrentPage}
+              pageSize={DEFAULT_PAGE_SIZE}
+              totalCount={totalCount}
+              totalPages={totalPages}
+            />
+          ) : null}
         </div>
       )}
     </div>

@@ -133,80 +133,64 @@ export function DashboardScreen() {
   const [needsAssessment, setNeedsAssessment] = useState(false);
   const [profileStrategy, setProfileStrategy] = useState<ProfileStrategy | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Roadmap/essays-count/readiness/gap-recommendations/strategy are all
+  // below-the-fold on first paint (PERFORMANCE-012 PART 1) -- they used to
+  // share one Promise.allSettled batch with the above-fold profile/events/
+  // suggestions/applications/recommendations calls, so the whole page waited
+  // on the slowest of 12 concurrent requests before anything rendered. They
+  // now fetch in their own independent batch with their own loading flag, so
+  // above-the-fold content can render as soon as its own (smaller) batch
+  // settles instead of waiting for these too.
+  const [isLoadingBelowFold, setIsLoadingBelowFold] = useState(true);
   const [isGeneratingRoadmap, setIsGeneratingRoadmap] = useState(false);
   const [isRefreshingSuggestions, setIsRefreshingSuggestions] = useState(false);
   const [hasPartialError, setHasPartialError] = useState(false);
 
-  const loadDashboard = useCallback(async () => {
+  const loadAboveFold = useCallback(async () => {
     setIsLoading(true);
-    setHasPartialError(false);
     const [
       completionResult,
       profileResult,
       registrationsResult,
-      readinessResult,
-      roadmapResult,
       suggestionsResult,
       applicationsResult,
-      essaysResult,
       recommendationsResult,
-      assessmentResult,
-      profileRecommendationsResult,
-      profileStrategyResult
+      assessmentResult
     ] = await Promise.allSettled([
       getProfileCompletionRequest(),
       getProfileRequest(),
       getMyEventRegistrationsRequest(),
-      getApplicationReadinessRequest(),
-      getRoadmapRequest(),
       getSuggestionsRequest(),
       getApplicationsRequest(),
-      getEssaysRequest(),
       getRecommendationsRequest(),
-      getProfileAssessmentLatestRequest(),
-      getProfileRecommendationsRequest(),
-      getProfileStrategyRequest()
+      getProfileAssessmentLatestRequest()
     ]);
 
+    let hadError = false;
     if (completionResult.status === "fulfilled") {
       setCompletion(completionResult.value);
     } else {
-      setHasPartialError(true);
+      hadError = true;
     }
     if (registrationsResult.status === "fulfilled") {
       setRegistrations(registrationsResult.value.results);
     } else {
-      setHasPartialError(true);
+      hadError = true;
     }
     if (profileResult.status === "fulfilled") {
       setProfile(profileResult.value);
     } else {
-      setHasPartialError(true);
-    }
-    if (readinessResult.status === "fulfilled") {
-      setReadiness(readinessResult.value);
-    } else {
-      setHasPartialError(true);
-    }
-    if (roadmapResult.status === "fulfilled") {
-      setRoadmapPlan(roadmapResult.value.plan);
-    } else {
-      setHasPartialError(true);
+      hadError = true;
     }
     if (suggestionsResult.status === "fulfilled") {
       setSuggestions(suggestionsResult.value.results);
     } else {
-      setHasPartialError(true);
+      hadError = true;
     }
     if (applicationsResult.status === "fulfilled") {
       setApplications(applicationsResult.value.results);
     } else {
-      setHasPartialError(true);
-    }
-    if (essaysResult.status === "fulfilled") {
-      setEssays(essaysResult.value.results);
-    } else {
-      setHasPartialError(true);
+      hadError = true;
     }
     if (recommendationsResult.status === "fulfilled") {
       setTopRecommendations(
@@ -215,26 +199,67 @@ export function DashboardScreen() {
           .slice(0, 3)
       );
     } else {
-      setHasPartialError(true);
+      hadError = true;
     }
     if (assessmentResult.status === "fulfilled") {
       setProfileAssessment(assessmentResult.value);
     } else {
+      hadError = true;
+    }
+    if (hadError) {
       setHasPartialError(true);
+    }
+    setIsLoading(false);
+  }, []);
+
+  const loadBelowFold = useCallback(async () => {
+    setIsLoadingBelowFold(true);
+    const [readinessResult, roadmapResult, essaysResult, profileRecommendationsResult, profileStrategyResult] =
+      await Promise.allSettled([
+        getApplicationReadinessRequest(),
+        getRoadmapRequest(),
+        getEssaysRequest(),
+        getProfileRecommendationsRequest(),
+        getProfileStrategyRequest()
+      ]);
+
+    let hadError = false;
+    if (readinessResult.status === "fulfilled") {
+      setReadiness(readinessResult.value);
+    } else {
+      hadError = true;
+    }
+    if (roadmapResult.status === "fulfilled") {
+      setRoadmapPlan(roadmapResult.value.plan);
+    } else {
+      hadError = true;
+    }
+    if (essaysResult.status === "fulfilled") {
+      setEssays(essaysResult.value.results);
+    } else {
+      hadError = true;
     }
     if (profileRecommendationsResult.status === "fulfilled") {
       setProfileRecommendations(profileRecommendationsResult.value.recommendations);
       setNeedsAssessment(profileRecommendationsResult.value.needs_assessment);
     } else {
-      setHasPartialError(true);
+      hadError = true;
     }
     if (profileStrategyResult.status === "fulfilled") {
       setProfileStrategy(profileStrategyResult.value);
     } else {
+      hadError = true;
+    }
+    if (hadError) {
       setHasPartialError(true);
     }
-    setIsLoading(false);
+    setIsLoadingBelowFold(false);
   }, []);
+
+  const loadDashboard = useCallback(() => {
+    setHasPartialError(false);
+    return Promise.all([loadAboveFold(), loadBelowFold()]);
+  }, [loadAboveFold, loadBelowFold]);
 
   useEffect(() => {
     void loadDashboard();
@@ -677,7 +702,7 @@ export function DashboardScreen() {
             </Button>
           </div>
         </div>
-        {isLoading ? (
+        {isLoadingBelowFold ? (
           <p className="mt-4 text-xs text-muted-foreground">
             {t("dashboard.roadmapWidget.loading")}
           </p>
@@ -1009,11 +1034,11 @@ export function DashboardScreen() {
 
       <section className="grid gap-4 lg:grid-cols-2">
         <GapRecommendationsPanel
-          isLoading={isLoading}
+          isLoading={isLoadingBelowFold}
           needsAssessment={needsAssessment}
           recommendations={profileRecommendations}
         />
-        <StrategyPanel isLoading={isLoading} strategy={profileStrategy} />
+        <StrategyPanel isLoading={isLoadingBelowFold} strategy={profileStrategy} />
       </section>
 
       <Card className="p-4">

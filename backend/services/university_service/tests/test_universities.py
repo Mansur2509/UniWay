@@ -1,4 +1,5 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -8,6 +9,10 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from services.profile_assessment_service.services import (
+    QUALITATIVE_FIT_DIMENSIONS,
+    compute_profile_snapshot_hash,
+)
 from services.university_service.currency import normalize_university_costs
 from services.university_service.models import (
     ExchangeRate,
@@ -927,6 +932,134 @@ class FitAnalysisTests(APITestCase):
             Decimal(str(response.data["student_academic_context"]["normalized_gpa_4"])),
             Decimal("3.80"),
         )
+
+    def test_fit_compares_five_point_gpa_against_hundred_point_benchmark(self):
+        self.profile.gpa = "4.90"
+        self.profile.gpa_scale = "5.00"
+        self.profile.curriculum_type = self.profile.CurriculumType.ACADEMIC_LYCEUM
+        self.profile.ap_courses_count = 3
+        self.profile.save()
+
+        university = create_university(
+            "hundred-scale-fit-university",
+            acceptance_rate="45.00",
+            gpa_average="88.00",
+            gpa_average_scale="100.00",
+        )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(f"/api/v1/universities/{university.slug}/fit/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("gpa_above_average", response.data["strengths"])
+        self.assertNotIn("gpa_below_average", response.data["risks"])
+        self.assertEqual(response.data["academic_fit"]["status"], "above_benchmark")
+        self.assertAlmostEqual(
+            response.data["academic_fit"]["normalized_student_gpa_percent"],
+            98.0,
+        )
+        self.assertAlmostEqual(
+            response.data["academic_fit"]["normalized_benchmark_percent"],
+            88.0,
+        )
+        self.assertEqual(response.data["academic_fit"]["curriculum_type"], "academic_lyceum")
+        self.assertEqual(
+            response.data["academic_fit"]["curriculum_note"],
+            "curriculum_context_available",
+        )
+
+    def test_fit_compares_four_point_gpa_against_hundred_point_benchmark(self):
+        self.profile.gpa = "3.80"
+        self.profile.gpa_scale = "4.00"
+        self.profile.save()
+
+        university = create_university(
+            "four-to-hundred-fit-university",
+            acceptance_rate="45.00",
+            gpa_average="88.00",
+            gpa_average_scale="100.00",
+        )
+
+        fit = calculate_university_fit(self.profile, university)
+
+        self.assertIn("gpa_above_average", fit["strengths"])
+        self.assertNotIn("gpa_below_average", fit["risks"])
+        self.assertEqual(fit["academic_fit"]["status"], "above_benchmark")
+        self.assertEqual(fit["academic_fit"]["normalized_student_gpa_percent"], 95.0)
+        self.assertEqual(fit["academic_fit"]["normalized_benchmark_percent"], 88.0)
+
+    def test_unknown_hundred_point_gpa_scale_does_not_create_false_gap(self):
+        self.profile.gpa = "4.90"
+        self.profile.gpa_scale = "5.00"
+        self.profile.save()
+        university = create_university(
+            "unknown-scale-gpa-university",
+            acceptance_rate="45.00",
+            gpa_average="88.00",
+        )
+
+        fit = calculate_university_fit(self.profile, university)
+
+        self.assertEqual(fit["academic_fit"]["status"], "unknown")
+        self.assertEqual(fit["academic_fit"]["confidence"], "low")
+        self.assertNotIn("gpa_below_average", fit["risks"])
+        self.assertNotIn("gpa_above_average", fit["strengths"])
+
+    def test_fit_get_uses_cached_qualitative_scores_without_ai_call(self):
+        from services.profile_assessment_service.models import AIProfileAssessment
+
+        self.profile.intended_majors = ["Computer Science"]
+        self.profile.save()
+        category_scores = {
+            "profile_evidence_score": 7,
+            "activities_score": 7,
+            "honors_olympiads_score": 7,
+            "research_experience_score": 7,
+            "portfolio_score": 7,
+            "subject_passion_score": 7,
+            "curiosity_score": 7,
+            "originality_score": 7,
+            "leadership_score": 7,
+            "community_impact_score": 7,
+            "research_fit_score": 7,
+            "olympiads_score": 7,
+        }
+        qualitative_scores = {
+            dimension: {
+                "score": 9,
+                "evidence": "Strong saved profile signal.",
+                "confidence": "high",
+            }
+            for dimension in QUALITATIVE_FIT_DIMENSIONS
+        }
+        AIProfileAssessment.objects.create(
+            user=self.user,
+            profile_snapshot_hash=compute_profile_snapshot_hash(self.user),
+            overall_profile_score=75,
+            confidence="high",
+            qualitative_fit_scores=qualitative_scores,
+            expires_at=timezone.now() + timezone.timedelta(days=30),
+            **category_scores,
+        )
+        university = create_university(
+            "cached-qualitative-fit-university",
+            acceptance_rate="45.00",
+        )
+        UniversityProgram.objects.create(
+            university=university,
+            name="Computer Science",
+            major_cluster=UniversityProgram.MajorCluster.COMPUTER_SCIENCE_AI_DATA,
+        )
+
+        with patch(
+            "services.profile_assessment_service.services.get_profile_assessment_client"
+        ) as client_factory:
+            fit = calculate_university_fit(self.profile, university)
+
+        client_factory.assert_not_called()
+        self.assertEqual(fit["qualitative_fit_status"], "fresh")
+        self.assertIsNotNone(fit["personal_fit_score"])
+        self.assertEqual(fit["personal_fit_context"]["major_cluster"], "computer_science_ai_data")
 
     def test_fit_normalizes_ten_point_gpa_for_comparison(self):
         # Spec example: 9/10 -> 90/100 -> 3.60/4.0.

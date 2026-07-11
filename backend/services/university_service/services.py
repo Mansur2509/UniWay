@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal
 
 from django.db.models import Count, Q
 
@@ -16,6 +15,13 @@ from services.user_profile_service.curriculum_rigor import (
     calculate_major_curriculum_fit,
 )
 
+from .academic_normalization import (
+    BENCHMARK_STATUS_ABOVE,
+    BENCHMARK_STATUS_BELOW,
+    BENCHMARK_STATUS_UNKNOWN,
+    compare_academic_benchmark,
+    normalize_university_gpa_benchmark,
+)
 from .budget import compare_cost_to_budget
 from .currency import normalize_university_costs
 from .deadline_normalization import normalize_university_deadline
@@ -29,7 +35,7 @@ from .fit_vector import (
     build_university_signal_weights,
     compare_student_vector_to_university_weights,
 )
-from .models import University
+from .models import University, UniversityProgram
 
 CATEGORY_ORDER = ("reach", "competitive", "target", "safety")
 FIT_DISCLAIMER = (
@@ -37,7 +43,6 @@ FIT_DISCLAIMER = (
     "It is not an admissions prediction or guarantee."
 )
 
-GPA_SIGNIFICANT_DIFF = Decimal("0.30")
 SAT_SIGNIFICANT_DIFF = 100
 
 STATUS_ON_TRACK = "on_track"
@@ -693,6 +698,194 @@ def _as_int_score(value: float) -> int:
     return max(1, min(100, round(value)))
 
 
+# PERFORMANCE-012 PART 5: personal/qualitative fit -- compares the cached
+# AIProfileFitCache-style dimension scores (`AIProfileAssessment.
+# qualitative_fit_scores`, see profile_assessment_service) against per-major
+# weight profiles. Purely deterministic: this module never calls AI, it only
+# reads whatever the cache already has and applies fixed weights/thresholds.
+_QUALITATIVE_DEFAULT_WEIGHT = 0.08
+_QUALITATIVE_HIGH_WEIGHT = 0.16
+_QUALITATIVE_MEDIUM_HIGH_WEIGHT = 0.13
+_QUALITATIVE_MEDIUM_WEIGHT = 0.10
+
+
+def _build_qualitative_weight_profile(emphasis: dict[str, float]) -> dict[str, float]:
+    from services.profile_assessment_service.services import QUALITATIVE_FIT_DIMENSIONS
+
+    profile = dict.fromkeys(QUALITATIVE_FIT_DIMENSIONS, _QUALITATIVE_DEFAULT_WEIGHT)
+    profile.update(emphasis)
+    return profile
+
+
+def _qualitative_weight_profiles() -> dict[str, dict[str, float]]:
+    # Built lazily (not at import time) since it needs QUALITATIVE_FIT_DIMENSIONS
+    # from profile_assessment_service, and that module imports from this one
+    # (get_current_assessment_for_profile) -- a top-level cross-import would
+    # be circular, matching the existing local-import pattern in this file.
+    cluster = UniversityProgram.MajorCluster
+    return {
+        cluster.BUSINESS_ECONOMICS_FINANCE: _build_qualitative_weight_profile(
+            {
+                "quantitative_readiness": _QUALITATIVE_HIGH_WEIGHT,
+                "leadership_initiative": _QUALITATIVE_HIGH_WEIGHT,
+                "major_alignment": _QUALITATIVE_HIGH_WEIGHT,
+                "writing_communication": _QUALITATIVE_MEDIUM_WEIGHT,
+                "service_impact": _QUALITATIVE_MEDIUM_WEIGHT,
+                "research_orientation": _QUALITATIVE_MEDIUM_WEIGHT,
+            }
+        ),
+        cluster.COMPUTER_SCIENCE_AI_DATA: _build_qualitative_weight_profile(
+            {
+                "quantitative_readiness": _QUALITATIVE_HIGH_WEIGHT,
+                "research_orientation": _QUALITATIVE_HIGH_WEIGHT,
+                "major_alignment": _QUALITATIVE_HIGH_WEIGHT,
+                "extracurricular_depth": _QUALITATIVE_MEDIUM_HIGH_WEIGHT,
+            }
+        ),
+        cluster.ENGINEERING: _build_qualitative_weight_profile(
+            {
+                "quantitative_readiness": _QUALITATIVE_HIGH_WEIGHT,
+                "research_orientation": _QUALITATIVE_MEDIUM_HIGH_WEIGHT,
+                "major_alignment": _QUALITATIVE_HIGH_WEIGHT,
+                "resilience_independence": _QUALITATIVE_MEDIUM_WEIGHT,
+            }
+        ),
+        cluster.HUMANITIES: _build_qualitative_weight_profile(
+            {
+                "writing_communication": _QUALITATIVE_HIGH_WEIGHT,
+                "intellectual_curiosity": _QUALITATIVE_HIGH_WEIGHT,
+                "leadership_initiative": _QUALITATIVE_MEDIUM_HIGH_WEIGHT,
+                "service_impact": _QUALITATIVE_MEDIUM_HIGH_WEIGHT,
+            }
+        ),
+        cluster.LAW_POLITICS_IR: _build_qualitative_weight_profile(
+            {
+                "writing_communication": _QUALITATIVE_HIGH_WEIGHT,
+                "intellectual_curiosity": _QUALITATIVE_HIGH_WEIGHT,
+                "leadership_initiative": _QUALITATIVE_MEDIUM_HIGH_WEIGHT,
+                "service_impact": _QUALITATIVE_MEDIUM_HIGH_WEIGHT,
+            }
+        ),
+        cluster.PSYCHOLOGY_COGNITIVE_SCIENCE: _build_qualitative_weight_profile(
+            {
+                "research_orientation": _QUALITATIVE_HIGH_WEIGHT,
+                "writing_communication": _QUALITATIVE_HIGH_WEIGHT,
+                "intellectual_curiosity": _QUALITATIVE_HIGH_WEIGHT,
+                "service_impact": _QUALITATIVE_MEDIUM_WEIGHT,
+            }
+        ),
+        cluster.SOCIAL_SCIENCES: _build_qualitative_weight_profile(
+            {
+                "research_orientation": _QUALITATIVE_HIGH_WEIGHT,
+                "writing_communication": _QUALITATIVE_HIGH_WEIGHT,
+                "intellectual_curiosity": _QUALITATIVE_HIGH_WEIGHT,
+                "service_impact": _QUALITATIVE_MEDIUM_WEIGHT,
+            }
+        ),
+    }
+
+
+_QUALITATIVE_GENERIC_WEIGHT_PROFILE_EMPHASIS: dict[str, float] = {}
+
+# University-selectivity context shifts what a given qualitative score "counts
+# for" -- the same cached dimension scores read as a stronger personal fit at
+# a less selective school and a more demanding one at an ultra-selective
+# school. Never changes the underlying 1-10 scores themselves, only how they
+# translate into a 0-100 personal_fit_score.
+SELECTIVITY_ULTRA_SELECTIVE = "ultra_selective"
+SELECTIVITY_ELITE = "elite"
+SELECTIVITY_STRONG = "strong"
+SELECTIVITY_STANDARD = "standard"
+SELECTIVITY_ACCESSIBLE = "accessible"
+SELECTIVITY_UNKNOWN = "unknown"
+
+_SELECTIVITY_ADJUSTMENT = {
+    SELECTIVITY_ULTRA_SELECTIVE: -12,
+    SELECTIVITY_ELITE: -6,
+    SELECTIVITY_STRONG: 0,
+    SELECTIVITY_STANDARD: 4,
+    SELECTIVITY_ACCESSIBLE: 8,
+    SELECTIVITY_UNKNOWN: 0,
+}
+
+
+def _selectivity_tier(university: University) -> str:
+    if university.acceptance_rate is None:
+        return SELECTIVITY_UNKNOWN
+    rate = float(university.acceptance_rate)
+    if rate < 5:
+        return SELECTIVITY_ULTRA_SELECTIVE
+    if rate < 15:
+        return SELECTIVITY_ELITE
+    if rate < 35:
+        return SELECTIVITY_STRONG
+    if rate < 60:
+        return SELECTIVITY_STANDARD
+    return SELECTIVITY_ACCESSIBLE
+
+
+def _score_personal_fit(profile, university: University, assessment) -> tuple[int | None, dict]:
+    """Weighted comparison of cached qualitative_fit_scores against this
+    major's weight profile, adjusted for university selectivity. Returns
+    (personal_fit_score or None, detail dict). Never calls AI -- `assessment`
+    is whatever `qualitative_fit_status()` already read.
+    """
+    if assessment is None:
+        return None, {}
+    scores = assessment.qualitative_fit_scores
+    if not scores:
+        return None, {}
+
+    from services.profile_assessment_service.services import QUALITATIVE_FIT_DIMENSIONS
+
+    from .major_matching import infer_major_clusters
+
+    inference = infer_major_clusters(profile)
+    cluster = inference.primary_major_cluster
+    weight_profiles = _qualitative_weight_profiles()
+    weights = weight_profiles.get(cluster) or _build_qualitative_weight_profile(
+        _QUALITATIVE_GENERIC_WEIGHT_PROFILE_EMPHASIS
+    )
+
+    weighted_sum = 0.0
+    total_weight = 0.0
+    dimensions_used = 0
+    for dimension in QUALITATIVE_FIT_DIMENSIONS:
+        entry = scores.get(dimension)
+        weight = weights.get(dimension, _QUALITATIVE_DEFAULT_WEIGHT)
+        if not isinstance(entry, dict) or not isinstance(entry.get("score"), int):
+            continue
+        weighted_sum += entry["score"] * weight
+        total_weight += weight
+        dimensions_used += 1
+
+    if total_weight <= 0 or dimensions_used == 0:
+        return None, {}
+
+    weighted_average_10 = weighted_sum / total_weight
+    tier = _selectivity_tier(university)
+    personal_fit_score = _as_int_score(weighted_average_10 * 10 + _SELECTIVITY_ADJUSTMENT[tier])
+    return personal_fit_score, {
+        "major_cluster": cluster,
+        "selectivity_tier": tier,
+        "dimensions_used": dimensions_used,
+    }
+
+
+def _curriculum_note_slug(profile, curriculum_rigor) -> str:
+    """Short, enum-like reason for the `academic_fit.curriculum_note` field
+    (PERFORMANCE-012 PART 3) -- curriculum context adjusts confidence and
+    interpretation, never a claim that one diploma outranks another, so this
+    is always one of a fixed set of slugs the frontend translates, never a
+    generated sentence.
+    """
+    if profile.curriculum_type == profile.CurriculumType.UNKNOWN:
+        return "curriculum_type_unknown"
+    if curriculum_rigor.missing_curriculum_data:
+        return "curriculum_context_partial"
+    return "curriculum_context_available"
+
+
 def _assess_academics(
     profile,
     university: University,
@@ -700,7 +893,7 @@ def _assess_academics(
     student_gpa,
     student_sat,
     student_ielts,
-    uni_gpa,
+    academic_benchmark: dict,
     uni_sat_midpoint,
     strengths: list[str],
     risks: list[str],
@@ -718,14 +911,18 @@ def _assess_academics(
     academic_score = 60
     severe_academic_gap = False
 
-    if student_gpa is not None and uni_gpa is not None:
+    # Compares normalized percentages (PERFORMANCE-012 PART 2), never a raw
+    # student GPA (0-4.0) diffed against a university benchmark that might be
+    # on a different scale -- that mismatch previously flagged clearly strong
+    # students (e.g. 4.9/5.0) as "below average" against benchmarks like
+    # 88/100. `academic_benchmark` is computed once in `calculate_university_fit`.
+    if academic_benchmark["status"] != BENCHMARK_STATUS_UNKNOWN:
         compared_any = True
-        gpa_diff = student_gpa - uni_gpa
-        if gpa_diff >= GPA_SIGNIFICANT_DIFF:
+        if academic_benchmark["status"] == BENCHMARK_STATUS_ABOVE:
             index_shift += 1
             academic_score += 10
             strengths.append("gpa_above_average")
-        elif gpa_diff <= -GPA_SIGNIFICANT_DIFF:
+        elif academic_benchmark["status"] == BENCHMARK_STATUS_BELOW:
             index_shift -= 1
             academic_score -= 18
             risks.append("gpa_below_average")
@@ -858,9 +1055,27 @@ def calculate_university_fit(profile, university: University) -> dict:
     major_curriculum_fit = calculate_major_curriculum_fit(
         profile, profile.intended_major or (profile.intended_majors[0] if profile.intended_majors else None)
     )
+    curriculum_score = curriculum_rigor.rigor_score
 
-    uni_gpa = Decimal(str(university.gpa_average)) if university.gpa_average is not None else None
-    if uni_gpa is None:
+    # PERFORMANCE-012 PART 5: pure cache read, never calls AI. `qualitative_fit_status`
+    # tells the caller whether the cached personal-fit scores (if any) are
+    # fresh/stale/pending_daily_refresh/missing/failed; `_score_personal_fit`
+    # uses whatever is cached (fresh or stale) so a student never loses their
+    # existing personal-fit read just because a refresh is due.
+    from services.profile_assessment_service.services import qualitative_fit_status
+
+    if hasattr(profile, "_qualitative_fit_status_cache"):
+        fit_status_value, qualitative_assessment = profile._qualitative_fit_status_cache
+    else:
+        fit_status_value, qualitative_assessment = qualitative_fit_status(profile.user)
+        profile._qualitative_fit_status_cache = (fit_status_value, qualitative_assessment)
+    personal_fit_score, personal_fit_detail = _score_personal_fit(
+        profile, university, qualitative_assessment
+    )
+
+    university_gpa_benchmark = normalize_university_gpa_benchmark(university)
+    academic_benchmark = compare_academic_benchmark(normalization, university_gpa_benchmark)
+    if university.gpa_average is None:
         missing_fields.append("university_gpa_average")
 
     uni_sat_midpoint = university.sat_average
@@ -883,7 +1098,7 @@ def calculate_university_fit(profile, university: University) -> dict:
         student_gpa=student_gpa,
         student_sat=student_sat,
         student_ielts=student_ielts,
-        uni_gpa=uni_gpa,
+        academic_benchmark=academic_benchmark,
         uni_sat_midpoint=uni_sat_midpoint,
         strengths=strengths,
         risks=risks,
@@ -905,9 +1120,9 @@ def calculate_university_fit(profile, university: University) -> dict:
         index = baseline_index if baseline_index is not None else 2
         index = max(0, min(3, index + index_shift))
         category = CATEGORY_ORDER[index]
-        if uni_rate is None and uni_gpa is None and uni_sat_midpoint is None:
+        if uni_rate is None and university.gpa_average is None and uni_sat_midpoint is None:
             next_actions.append("verify_university_data")
-        elif uni_rate is None or uni_gpa is None or uni_sat_midpoint is None:
+        elif uni_rate is None or university.gpa_average is None or uni_sat_midpoint is None:
             next_actions.append("limited_data_for_category")
 
     program_score = _score_program_fit(profile, university, strengths, missing_fields)
@@ -928,15 +1143,33 @@ def calculate_university_fit(profile, university: University) -> dict:
     cost_score = _score_cost_fit(profile, university, risks, missing_fields)
 
     academic_subscore = _as_int_score(academic_score)
-    raw_score = (
-        academic_subscore * 0.35
-        + program_score * 0.15
-        + profile_score * 0.15
-        + essay_score * 0.10
-        + deadline_score * 0.10
-        + cost_score * 0.10
-        + (70 if len(missing_fields) <= 3 else 45) * 0.05
-    )
+    completeness_score = 70 if len(missing_fields) <= 3 else 45
+    if personal_fit_score is not None:
+        # personal_fit_score gets its own 0.10 slice; profile_score's slice
+        # shrinks slightly to make room without changing any other weight.
+        raw_score = (
+            academic_subscore * 0.30
+            + program_score * 0.12
+            + profile_score * 0.13
+            + personal_fit_score * 0.10
+            + essay_score * 0.10
+            + deadline_score * 0.10
+            + cost_score * 0.10
+            + completeness_score * 0.05
+        )
+    else:
+        # No usable cached personal-fit scores yet (PART 5 rule: still return
+        # a full deterministic fit) -- personal_fit's weight folds back into
+        # profile_score rather than leaving a gap or silently lowering the score.
+        raw_score = (
+            academic_subscore * 0.30
+            + program_score * 0.12
+            + profile_score * 0.23
+            + essay_score * 0.10
+            + deadline_score * 0.10
+            + cost_score * 0.10
+            + completeness_score * 0.05
+        )
     fit_score = _as_int_score(raw_score)
     if severe_academic_gap:
         fit_score = min(fit_score, 55)
@@ -972,22 +1205,34 @@ def calculate_university_fit(profile, university: University) -> dict:
             student_gpa=student_gpa,
             student_sat=conditional_sat,
             student_ielts=conditional_ielts,
-            uni_gpa=uni_gpa,
+            academic_benchmark=academic_benchmark,
             uni_sat_midpoint=uni_sat_midpoint,
             strengths=scratch_a,
             risks=scratch_b,
             missing_fields=scratch_c,
             next_actions=scratch_d,
         )
-        conditional_raw_score = (
-            _as_int_score(conditional_academic_raw) * 0.35
-            + program_score * 0.15
-            + profile_score * 0.15
-            + essay_score * 0.10
-            + deadline_score * 0.10
-            + cost_score * 0.10
-            + (70 if len(missing_fields) <= 3 else 45) * 0.05
-        )
+        if personal_fit_score is not None:
+            conditional_raw_score = (
+                _as_int_score(conditional_academic_raw) * 0.30
+                + program_score * 0.12
+                + profile_score * 0.13
+                + personal_fit_score * 0.10
+                + essay_score * 0.10
+                + deadline_score * 0.10
+                + cost_score * 0.10
+                + completeness_score * 0.05
+            )
+        else:
+            conditional_raw_score = (
+                _as_int_score(conditional_academic_raw) * 0.30
+                + program_score * 0.12
+                + profile_score * 0.23
+                + essay_score * 0.10
+                + deadline_score * 0.10
+                + cost_score * 0.10
+                + completeness_score * 0.05
+            )
         conditional_candidate = _as_int_score(conditional_raw_score)
         if conditional_severe:
             conditional_candidate = min(conditional_candidate, 55)
@@ -1029,14 +1274,45 @@ def calculate_university_fit(profile, university: University) -> dict:
             "cost_context": cost_score,
             "data_confidence": _confidence_from_missing(missing_fields, normalization.confidence),
         },
+        # PERFORMANCE-012 PART 5: named subscore breakdown separating
+        # quantitative academic/test fit, program/profile alignment, and
+        # personal/qualitative fit (cached-AI-scores-vs-major-weights, never
+        # an AI call from this GET) into their own labeled fields.
+        "fit_breakdown": {
+            "academic_score": academic_subscore,
+            "testing_score": academic_subscore,
+            "curriculum_score": curriculum_score,
+            "program_alignment_score": program_score,
+            "extracurricular_profile_score": profile_score,
+            "personal_fit_score": personal_fit_score,
+            "timeline_score": deadline_score,
+            "cost_score": cost_score,
+        },
+        "personal_fit_score": personal_fit_score,
+        "personal_fit_context": personal_fit_detail or None,
+        # fresh/stale/missing/pending_daily_refresh/failed -- a pure cache
+        # read (see qualitative_fit_status), never triggers AI from this GET.
+        "qualitative_fit_status": fit_status_value,
+        "curriculum_score": curriculum_score,
         "strengths": strengths,
         "risks": risks,
+        "main_strength": strengths[0] if strengths else None,
+        "main_risk": risks[0] if risks else None,
         "missing_fields": missing_fields,
         "missing_data": missing_fields,
         "next_actions": next_actions,
         "conditional_notes": conditional_notes,
         "conditional_fit_score": conditional_fit_score,
         "conditional_targets": conditional_targets or None,
+        # Percentage-normalized GPA comparison (PERFORMANCE-012 PART 2/3) --
+        # never a raw scale-mismatched diff. `status` is meets/above/
+        # slightly_below/below_benchmark or unknown; a low confidence or
+        # unknown status means "not enough data", not "behind".
+        "academic_fit": {
+            **academic_benchmark,
+            "curriculum_type": profile.curriculum_type,
+            "curriculum_note": _curriculum_note_slug(profile, curriculum_rigor),
+        },
         "student_academic_context": {
             "original_gpa_value": normalization.original_gpa_value,
             "original_gpa_scale": normalization.original_gpa_scale,

@@ -40,7 +40,15 @@ class University(models.Model):
         max_digits=5, decimal_places=2, null=True, blank=True
     )
     gpa_average = models.DecimalField(
-        max_digits=4, decimal_places=2, null=True, blank=True
+        max_digits=6, decimal_places=2, null=True, blank=True
+    )
+    # Denominator for gpa_average (e.g. 4.00, 5.00, 100.00). Existing rows have
+    # no recorded scale, so a null value is NOT assumed to mean "4.0 scale" --
+    # `academic_normalization.py` infers it conservatively (PERFORMANCE-012
+    # PART 2) rather than risk comparing mismatched scales (a 0-4 student GPA
+    # diffed straight against a 0-100 benchmark).
+    gpa_average_scale = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True
     )
     sat_average = models.PositiveSmallIntegerField(null=True, blank=True)
     sat_p25 = models.PositiveSmallIntegerField(null=True, blank=True)

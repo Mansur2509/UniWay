@@ -224,6 +224,54 @@ def parse_acceptance_rate(value) -> tuple[Decimal | None, str | None]:
     return percent, None
 
 
+def parse_gpa_average(value) -> tuple[Decimal | None, Decimal | None, str | None]:
+    """Return (value, scale, warning) for Average GPA.
+
+    Keeps the legacy unlabeled <=4.50 catalogue convention, but preserves
+    explicit source scales such as 88/100 or 4.9/5 so fit comparisons can use
+    normalized percentages instead of raw mismatched values.
+    """
+
+    s = clean(value)
+    if not s:
+        return None, None, None
+    numbers = re.findall(r"-?\d+(?:\.\d+)?", s.replace(",", ""))
+    if not numbers:
+        return None, None, f"GPA (as provided): {s}"
+    try:
+        gpa = Decimal(numbers[0]).quantize(Decimal("0.01"))
+    except InvalidOperation:
+        return None, None, f"GPA (as provided): {s}"
+
+    scale = None
+    if len(numbers) >= 2:
+        try:
+            candidate_scale = Decimal(numbers[1]).quantize(Decimal("0.01"))
+        except InvalidOperation:
+            candidate_scale = None
+        if candidate_scale in {
+            Decimal("4.00"),
+            Decimal("5.00"),
+            Decimal("10.00"),
+            Decimal("20.00"),
+            Decimal("45.00"),
+            Decimal("100.00"),
+        }:
+            scale = candidate_scale
+        else:
+            return None, None, f"unsupported GPA scale: {s!r}"
+    elif "%" in s or "percent" in s.lower() or "percentage" in s.lower():
+        scale = Decimal("100.00")
+    elif gpa <= Decimal("4.50"):
+        scale = None
+    else:
+        return None, None, f"GPA scale not explicit: {s!r}"
+
+    if gpa < 0 or (scale is not None and gpa > scale):
+        return None, None, f"GPA out of range: {s!r}"
+    return gpa, scale, None
+
+
 def guess_currency(country: str, raw: str) -> str:
     if "£" in raw:
         return "GBP"
@@ -552,11 +600,8 @@ def parse_row(raw_row: dict, index: int, *, include_questionable: bool, default_
         if not include_questionable:
             sat25 = sat50 = sat75 = None
 
-    gpa = parse_decimal(raw_row.get("Average GPA"))
-    raw_gpa = clean(raw_row.get("Average GPA"))
-    gpa_note = ""
-    if gpa is None and raw_gpa:
-        gpa_note = f"GPA (as provided): {raw_gpa}"
+    gpa, gpa_scale, gpa_note = parse_gpa_average(raw_row.get("Average GPA"))
+    if gpa_note:
         warnings.append("GPA stored as text note")
 
     ielts_min = parse_decimal(raw_row.get("IELTS Minimum"))
@@ -617,6 +662,7 @@ def parse_row(raw_row: dict, index: int, *, include_questionable: bool, default_
         "sat_average": sat50,
         "sat_p75": sat75,
         "gpa_average": gpa,
+        "gpa_average_scale": gpa_scale,
         "ielts_minimum": ielts_min,
         "ielts_competitive": ielts_comp,
         "tuition_amount": tuition,

@@ -189,6 +189,21 @@ export async function withTimeout(
 ): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // A caller-supplied signal (e.g. an unmount AbortController) must also be
+  // able to cancel the request -- previously this function silently replaced
+  // any `init.signal` with its own, so no screen could ever cancel an
+  // in-flight request on unmount or on a newer request superseding an older
+  // one (PERFORMANCE-012 PART 1). Both sources now abort the same internal
+  // controller, which is the one actually passed to `fetch`.
+  const callerSignal = init.signal;
+  const onCallerAbort = () => controller.abort();
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      controller.abort();
+    } else {
+      callerSignal.addEventListener("abort", onCallerAbort);
+    }
+  }
   try {
     return await fetch(input, { ...init, signal: controller.signal });
   } catch (error) {
@@ -213,6 +228,7 @@ export async function withTimeout(
     );
   } finally {
     clearTimeout(timer);
+    callerSignal?.removeEventListener("abort", onCallerAbort);
   }
 }
 

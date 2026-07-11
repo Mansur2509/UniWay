@@ -20,7 +20,7 @@ FULL_BENCHMARK = BenchmarkResult(
     sample_size=5,
     scores={"activities": 7, "leadership": 6},
     academic={
-        "gpa_average": 3.6,
+        "gpa_average_percent": 90.0,
         "sat_average": 1400,
         "sat_p25": 1300,
         "sat_p75": 1500,

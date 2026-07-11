@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from statistics import mean
 
+from .academic_normalization import normalize_university_gpa_benchmark
 from .fit_vector import SIGNAL_NAMES
 from .major_matching import infer_major_clusters
 from .models import University
@@ -95,12 +96,23 @@ def _average_academic_requirements(universities: list[University]) -> dict[str, 
     per-field rather than treating them as zero."""
 
     per_field: dict[str, list[float]] = {field: [] for field in ACADEMIC_FIELDS}
+    gpa_percentages: list[float] = []
     for university in universities:
         for field in ACADEMIC_FIELDS:
             value = _numeric(getattr(university, field, None))
             if value is not None:
                 per_field[field].append(value)
-    return {field: round(mean(values), 2) for field, values in per_field.items() if values}
+        gpa_benchmark = normalize_university_gpa_benchmark(university)
+        if gpa_benchmark.normalized_percentage is not None:
+            gpa_percentages.append(float(gpa_benchmark.normalized_percentage))
+
+    result = {field: round(mean(values), 2) for field, values in per_field.items() if values}
+    if gpa_percentages:
+        # Mean of each university's normalized percentage, not a mean of raw
+        # gpa_average values that might mix scales (PERFORMANCE-012 PART 2) --
+        # `_compare_gpa` reads this key, never the raw "gpa_average" mean.
+        result["gpa_average_percent"] = round(mean(gpa_percentages), 2)
+    return result
 
 
 def _clusters_for_profile(profile) -> list[str]:
