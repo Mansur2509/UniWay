@@ -29,6 +29,7 @@ import {
   deleteEssayRequest,
   generateEssayFeedbackRequest,
   generateEssaySuggestionsRequest,
+  getEssayRequest,
   getEssaysRequest,
   getLatestEssayScoreRequest,
   scoreEssayRequest,
@@ -208,13 +209,25 @@ export function EssaysScreen() {
   });
 
   useEffect(() => {
-    if (selectedEssay) {
-      setDraftText(selectedEssay.draft_text);
-    }
-    // Reset the draft buffer only when switching to a different essay, not on
-    // every background update to the selected essay (which would clobber
-    // unsaved in-progress edits).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // The list response never includes draft_text (PERFORMANCE-011 PART 4),
+    // so opening an essay must fetch its full detail before the draft
+    // editor can render. Reset/reload the draft buffer only when switching
+    // to a different essay, not on every background update to the selected
+    // essay (which would clobber unsaved in-progress edits).
+    if (selectedEssayId === null) return;
+    let cancelled = false;
+    getEssayRequest(selectedEssayId)
+      .then((detail) => {
+        if (cancelled) return;
+        updateEssayInList(detail);
+        setDraftText(detail.draft_text);
+      })
+      .catch(() => {
+        if (!cancelled) setActionError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedEssayId]);
 
   useEffect(() => {
