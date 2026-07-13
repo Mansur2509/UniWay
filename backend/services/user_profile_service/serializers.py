@@ -5,6 +5,8 @@ from decimal import Decimal
 from django.db import transaction
 from rest_framework import serializers
 
+from services.exam_content_service.models import OfficialExamDate
+
 from .academic_normalization import (
     apply_academic_normalization,
     infer_gpa_scale_type,
@@ -28,6 +30,7 @@ from .services import (
     REQUIRED_ONBOARDING_SECTIONS,
     calculate_profile_completion,
     ensure_profile_records,
+    get_profile_records_for_read,
 )
 
 TELEGRAM_PATTERN = re.compile(r"^@?[A-Za-z0-9_]{5,32}$")
@@ -232,7 +235,7 @@ class ProfileSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         profile = instance
-        _, preferences = ensure_profile_records(profile.user)
+        _, preferences = get_profile_records_for_read(profile.user)
         exam_plans = profile.exam_plans if isinstance(profile.exam_plans, dict) else {}
         normalization = normalize_profile_academics(profile)
         return {
@@ -428,6 +431,18 @@ class ProfileSerializer(serializers.Serializer):
         if not isinstance(planned, list) or len(planned) > 12:
             raise serializers.ValidationError("Planned exams must be a list with at most 12 items.")
 
+        requested_official_ids = {
+            plan.get("official_exam_date_id")
+            for plan in planned
+            if isinstance(plan, dict)
+            and isinstance(plan.get("official_exam_date_id"), int)
+            and not isinstance(plan.get("official_exam_date_id"), bool)
+        }
+        official_dates = {
+            item.id: item
+            for item in OfficialExamDate.objects.filter(id__in=requested_official_ids)
+        }
+
         normalized_plans = []
         for plan in planned:
             if not isinstance(plan, dict):
@@ -439,19 +454,73 @@ class ProfileSerializer(serializers.Serializer):
             planned_retake_month = str(plan.get("planned_retake_month", "")).strip()
             current_score = str(plan.get("current_score", "")).strip()
             test_status = str(plan.get("test_status", "")).strip()
+            registration_status = str(plan.get("registration_status", "")).strip()
+            result = str(plan.get("result", "")).strip()
+            official_exam_date_id = plan.get("official_exam_date_id")
+            notification_intervals = plan.get("notification_intervals", [30, 7, 1])
             if not name or len(name) > 80:
                 raise serializers.ValidationError("Every planned exam needs a short name.")
+            official_date = None
+            if official_exam_date_id is not None:
+                if (
+                    not isinstance(official_exam_date_id, int)
+                    or isinstance(official_exam_date_id, bool)
+                    or official_exam_date_id <= 0
+                ):
+                    raise serializers.ValidationError(
+                        "Official exam date ID must be a positive integer."
+                    )
+                official_date = official_dates.get(official_exam_date_id)
+                if official_date is None:
+                    raise serializers.ValidationError("Official exam date does not exist.")
+                if exam_type and official_date.exam_type != exam_type:
+                    raise serializers.ValidationError(
+                        "Official exam date does not match the selected exam type."
+                    )
+                if official_date.test_date:
+                    exam_date = official_date.test_date.isoformat()
+            if test_status and test_status not in {
+                "planned",
+                "preparing",
+                "registered",
+                "taken",
+                "result_recorded",
+            }:
+                raise serializers.ValidationError("Exam progress status is not supported.")
             if exam_date:
                 try:
                     parsed_date = datetime.strptime(exam_date, "%Y-%m-%d").date()
                 except ValueError as error:
                     raise serializers.ValidationError("Exam dates must use YYYY-MM-DD.") from error
-                if parsed_date < date.today() or parsed_date.year > date.today().year + 5:
+                past_date_is_valid = test_status in {"taken", "result_recorded"}
+                if (
+                    (parsed_date < date.today() and not past_date_is_valid)
+                    or parsed_date.year > date.today().year + 5
+                ):
                     raise serializers.ValidationError("Exam date is outside the supported range.")
             if len(target_score) > 40:
                 raise serializers.ValidationError("Target scores must be 40 characters or fewer.")
             if exam_type and exam_type not in {"SAT", "AP", "ACT", "IELTS", "TOEFL"}:
                 raise serializers.ValidationError("Exam type is not supported.")
+            if registration_status and registration_status not in {
+                "not_registered",
+                "registered",
+                "cancelled",
+                "not_required",
+            }:
+                raise serializers.ValidationError("Exam registration status is not supported.")
+            if not isinstance(notification_intervals, list) or len(notification_intervals) > 8:
+                raise serializers.ValidationError(
+                    "Notification intervals must be a list with at most 8 items."
+                )
+            normalized_intervals = []
+            for interval in notification_intervals:
+                if not isinstance(interval, int) or not 1 <= interval <= 365:
+                    raise serializers.ValidationError(
+                        "Notification intervals must be whole days between 1 and 365."
+                    )
+                if interval not in normalized_intervals:
+                    normalized_intervals.append(interval)
             if planned_retake_month:
                 try:
                     datetime.strptime(planned_retake_month, "%Y-%m")
@@ -462,6 +531,7 @@ class ProfileSerializer(serializers.Serializer):
             for field_name, field_value in {
                 "current_score": current_score,
                 "test_status": test_status,
+                "result": result,
             }.items():
                 if len(field_value) > 80:
                     raise serializers.ValidationError(
@@ -476,6 +546,13 @@ class ProfileSerializer(serializers.Serializer):
                 normalized_plan["current_score"] = current_score
             if test_status:
                 normalized_plan["test_status"] = test_status
+            if registration_status:
+                normalized_plan["registration_status"] = registration_status
+            if result:
+                normalized_plan["result"] = result
+            if official_exam_date_id is not None:
+                normalized_plan["official_exam_date_id"] = official_exam_date_id
+            normalized_plan["notification_intervals"] = normalized_intervals
             if "planned_retake" in plan:
                 normalized_plan["planned_retake"] = bool(plan.get("planned_retake"))
             normalized_plans.append(normalized_plan)
@@ -668,7 +745,7 @@ class ProfileCompletionSerializer(serializers.Serializer):
 
     @classmethod
     def for_profile(cls, profile):
-        _, preferences = ensure_profile_records(profile.user)
+        _, preferences = get_profile_records_for_read(profile.user)
         completion = calculate_profile_completion(profile, preferences)
         return cls(completion)
 
@@ -698,7 +775,7 @@ class ApplicationReadinessSerializer(serializers.Serializer):
 
     @classmethod
     def for_profile(cls, profile):
-        _, preferences = ensure_profile_records(profile.user)
+        _, preferences = get_profile_records_for_read(profile.user)
         readiness = calculate_application_readiness(profile, preferences)
         return cls(readiness)
 

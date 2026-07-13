@@ -1,6 +1,14 @@
 from django.urls import path
 
-from .views import AuthTokenRefreshView, CurrentUserView, LoginView, LogoutView, RegisterView
+from .views import (
+    AuthTokenRefreshView,
+    CurrentUserView,
+    GoogleOAuthCallbackView,
+    GoogleOAuthStartView,
+    LoginView,
+    LogoutView,
+    RegisterView,
+)
 
 app_name = "auth"
 
@@ -10,5 +18,6 @@ urlpatterns = [
     path("logout/", LogoutView.as_view(), name="logout"),
     path("me/", CurrentUserView.as_view(), name="me"),
     path("token/refresh/", AuthTokenRefreshView.as_view(), name="token-refresh"),
+    path("google/start/", GoogleOAuthStartView.as_view(), name="google-start"),
+    path("google/callback/", GoogleOAuthCallbackView.as_view(), name="google-callback"),
 ]
-

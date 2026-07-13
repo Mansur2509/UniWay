@@ -4,13 +4,15 @@ import { apiRequest, normalizePaginatedResponse } from "@/shared/api/client";
 type ExamDateParams = {
   exam_type?: "SAT" | "AP";
   event_kind?: OfficialExamDate["event_kind"];
+  exam_year?: number;
+  include_past?: boolean;
   page_size?: number;
 };
 
 function buildQuery(params: ExamDateParams) {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
-    if (value) {
+    if (value !== undefined) {
       query.set(key, String(value));
     }
   });

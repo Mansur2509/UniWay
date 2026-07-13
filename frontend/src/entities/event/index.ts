@@ -119,7 +119,7 @@ export type EventDetails = {
   description: string;
   category: EventCategory;
   organizer_name: string;
-  location: EventLocation;
+  location: EventLocation | null;
   is_online: boolean;
   online_url: string;
   format: "online" | "offline" | "hybrid";
@@ -138,7 +138,7 @@ export type EventDetails = {
   language: string;
   eligibility: string;
   scholarship_available: boolean;
-  source: EventSource;
+  source: EventSource | null;
   registration_status: EventRegistrationStatus | null;
   registration_form_fields: EventFormField[];
   registration_ticket: EventTicket | null;

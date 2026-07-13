@@ -56,3 +56,26 @@ class ValidateDeployConfigTests(SimpleTestCase):
                 cors_allowed_origins=["https://uni-way-beta.vercel.app"],
                 csrf_trusted_origins=["https://uni-way-beta.vercel.app/callback"],
             )
+
+    def test_debug_false_rejects_wildcard_hosts_and_origins(self):
+        for allowed_hosts, cors_origins in ((["*"], []), (["api.example.com"], ["*"])):
+            with self.subTest(allowed_hosts=allowed_hosts, cors_origins=cors_origins):
+                with self.assertRaises(ImproperlyConfigured):
+                    validate_deploy_config(
+                        debug=False,
+                        allowed_hosts=allowed_hosts,
+                        cors_allowed_origins=cors_origins,
+                        csrf_trusted_origins=["https://app.example.com"],
+                    )
+
+    def test_debug_false_rejects_development_or_short_secret(self):
+        for secret_key in ("unsafe-development-key-change-before-deploy", "too-short"):
+            with self.subTest(secret_key=secret_key):
+                with self.assertRaises(ImproperlyConfigured):
+                    validate_deploy_config(
+                        debug=False,
+                        allowed_hosts=["api.example.com"],
+                        cors_allowed_origins=["https://app.example.com"],
+                        csrf_trusted_origins=["https://app.example.com"],
+                        secret_key=secret_key,
+                    )

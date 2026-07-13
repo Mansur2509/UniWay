@@ -6,7 +6,8 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from common.permissions import IsAdminRole
-from services.user_profile_service.services import ensure_profile_records
+from common.throttling import ScopedIPRateThrottle
+from services.user_profile_service.services import get_profile_records_for_read
 
 from .recommendations import compute_profile_recommendations
 from .serializers import AIProfileAssessmentSerializer
@@ -44,7 +45,7 @@ class LatestProfileAssessmentView(APIView):
 
 class RunProfileAssessmentView(APIView):
     permission_classes = [IsAuthenticated]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [ScopedRateThrottle, ScopedIPRateThrottle]
     throttle_scope = "ai"
 
     def post(self, request):
@@ -53,7 +54,7 @@ class RunProfileAssessmentView(APIView):
 
 class AdminRunProfileAssessmentView(APIView):
     permission_classes = [IsAdminRole]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [ScopedRateThrottle, ScopedIPRateThrottle]
     throttle_scope = "ai"
 
     def post(self, request, user_id: int):
@@ -95,7 +96,7 @@ class ProfileStrategyView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        profile, preferences = ensure_profile_records(request.user)
+        profile, preferences = get_profile_records_for_read(request.user)
         assessment = get_latest_valid_assessment(request.user)
         strategy = build_profile_strategy(request.user, profile, preferences, assessment)
         return Response({**strategy, "needs_assessment": assessment is None})

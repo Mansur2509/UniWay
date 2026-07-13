@@ -1,7 +1,10 @@
+from datetime import date, timedelta
+
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
+from services.exam_content_service.models import OfficialExamDate
 from services.user_profile_service.models import StudentProfile, UserPreference
 
 User = get_user_model()
@@ -268,6 +271,91 @@ class ProfileApiTests(APITestCase):
         )
         self.assertEqual(gpa_response.status_code, 400)
         self.assertIn("gpa", gpa_response.data)
+
+    def test_profile_canonicalizes_verified_exam_date_and_preserves_result(self):
+        self.client.force_authenticate(self.user)
+        official_date = OfficialExamDate.objects.create(
+            exam_type=OfficialExamDate.ExamType.AP,
+            name="AP Biology future test",
+            test_date=date.today() + timedelta(days=45),
+            exam_year=(date.today() + timedelta(days=45)).year,
+            academic_year="future",
+            source_url="https://apstudents.collegeboard.org/exam-dates",
+            source_title="College Board AP Exam Dates",
+            last_verified_date=date.today(),
+            verification_status=OfficialExamDate.VerificationStatus.VERIFIED,
+        )
+
+        response = self.client.patch(
+            reverse("profile:me"),
+            {
+                "exam_plans": {
+                    "taken": [],
+                    "planned": [
+                        {
+                            "name": "AP Biology future test",
+                            "exam_type": "AP",
+                            "date": (date.today() + timedelta(days=1)).isoformat(),
+                            "target_score": "5",
+                            "test_status": "result_recorded",
+                            "result": "5",
+                            "official_exam_date_id": official_date.id,
+                            "notification_intervals": [30, 7, 7, 1],
+                        }
+                    ],
+                }
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        saved = response.data["exam_plans"]["planned"][0]
+        self.assertEqual(saved["date"], official_date.test_date.isoformat())
+        self.assertEqual(saved["result"], "5")
+        self.assertEqual(saved["notification_intervals"], [30, 7, 1])
+
+    def test_profile_allows_past_date_only_for_completed_exam_status(self):
+        self.client.force_authenticate(self.user)
+        past_date = (date.today() - timedelta(days=7)).isoformat()
+        taken_response = self.client.patch(
+            reverse("profile:me"),
+            {
+                "exam_plans": {
+                    "taken": [],
+                    "planned": [
+                        {
+                            "name": "AP Biology",
+                            "exam_type": "AP",
+                            "date": past_date,
+                            "target_score": "5",
+                            "test_status": "taken",
+                        }
+                    ],
+                }
+            },
+            format="json",
+        )
+        planned_response = self.client.patch(
+            reverse("profile:me"),
+            {
+                "exam_plans": {
+                    "taken": [],
+                    "planned": [
+                        {
+                            "name": "AP Biology",
+                            "exam_type": "AP",
+                            "date": past_date,
+                            "target_score": "5",
+                            "test_status": "planned",
+                        }
+                    ],
+                }
+            },
+            format="json",
+        )
+
+        self.assertEqual(taken_response.status_code, 200, taken_response.data)
+        self.assertEqual(planned_response.status_code, 400)
 
     def test_readiness_returns_stars_without_outcome_estimate(self):
         self.client.force_authenticate(self.user)

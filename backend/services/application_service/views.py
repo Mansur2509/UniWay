@@ -13,7 +13,10 @@ from services.essay_service.models import EssayWorkspace
 from services.essay_service.serializers import EssayWorkspaceSerializer
 from services.university_service.recommendation_cache import invalidate_recommendation_caches
 from services.university_service.services import calculate_university_fit
-from services.user_profile_service.services import ensure_profile_records
+from services.user_profile_service.services import (
+    ensure_profile_records,
+    get_profile_records_for_read,
+)
 
 from .models import (
     ApplicationDocument,
@@ -39,13 +42,21 @@ class ApplicationTrackerViewSet(viewsets.ModelViewSet):
     serializer_class = ApplicationTrackerItemSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ("status", "university")
+    filterset_fields = ("status", "university", "priority", "target_intake_year")
 
     def get_queryset(self):
+        queryset = ApplicationTrackerItem.objects.filter(user=self.request.user)
+        if self.request.query_params.get("include_archived") != "true":
+            queryset = queryset.filter(archived_at__isnull=True)
         return (
-            ApplicationTrackerItem.objects.filter(user=self.request.user)
+            queryset
             .select_related("university", "target_program")
-            .prefetch_related("milestones", "requirements")
+            .prefetch_related(
+                "milestones",
+                "requirements",
+                "university__field_verifications",
+                "university__data_sources",
+            )
         )
 
     @action(detail=True, methods=["get"], url_path="timeline")
@@ -59,7 +70,7 @@ class ApplicationTrackerViewSet(viewsets.ModelViewSet):
             )
             .get(pk=self.get_object().pk)
         )
-        profile, _ = ensure_profile_records(request.user)
+        profile, _ = get_profile_records_for_read(request.user)
         payload = build_application_timeline(
             application, profile, today=timezone.now().date()
         )
@@ -96,6 +107,39 @@ class ApplicationTrackerViewSet(viewsets.ModelViewSet):
                 entity_id=application.id,
                 metadata={"from": previous_status, "to": application.status},
             )
+
+    def perform_destroy(self, instance):
+        instance.archived_at = timezone.now()
+        instance.save(update_fields=("archived_at", "updated_at"))
+        invalidate_recommendation_caches(self.request.user)
+
+    @action(detail=True, methods=["post"], url_path="restore")
+    def restore(self, request, pk=None):
+        application = (
+            ApplicationTrackerItem.objects.filter(user=request.user, pk=pk)
+            .select_related("university", "target_program")
+            .prefetch_related(
+                "milestones",
+                "requirements",
+                "university__field_verifications",
+                "university__data_sources",
+            )
+            .first()
+        )
+        if application is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if ApplicationTrackerItem.objects.filter(
+            user=request.user,
+            university=application.university,
+            archived_at__isnull=True,
+        ).exclude(pk=application.pk).exists():
+            raise ValidationError(
+                {"university": "An active target already exists for this university."}
+            )
+        application.archived_at = None
+        application.save(update_fields=("archived_at", "updated_at"))
+        invalidate_recommendation_caches(request.user)
+        return Response(self.get_serializer(application).data)
 
     @action(detail=True, methods=["get", "post"], url_path="milestones")
     def milestones(self, request, pk=None):

@@ -153,7 +153,15 @@ def generate_exam_date_notifications() -> int:
             except (ValueError, TypeError):
                 continue
             days_remaining = (exam_date - today).days
-            if days_remaining not in THRESHOLD_DAYS:
+            configured_intervals = exam.get("notification_intervals", THRESHOLD_DAYS)
+            if not isinstance(configured_intervals, list | tuple):
+                configured_intervals = THRESHOLD_DAYS
+            intervals = {
+                value
+                for value in configured_intervals
+                if isinstance(value, int) and 1 <= value <= 365
+            }
+            if days_remaining not in intervals:
                 continue
             notification = create_notification(
                 user=profile.user,
@@ -161,9 +169,9 @@ def generate_exam_date_notifications() -> int:
                 title=f"{name} in {days_remaining} day(s)",
                 message=f"Your planned {name} date is {date_str}.",
                 priority=_priority_for_days_remaining(days_remaining),
-                action_url="/profile",
+                action_url="/exams",
                 related_entity_type="exam_plan",
-                dedup_key=f"exam_date:{profile.user_id}:{name}:{date_str}",
+                dedup_key=f"exam_date:{profile.user_id}:{name}:{date_str}:{days_remaining}",
             )
             if notification:
                 created += 1

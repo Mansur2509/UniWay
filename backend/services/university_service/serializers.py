@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from common.xlsx_security import validate_xlsx_archive
+
 from .budget import compare_cost_to_budget
 from .import_jobs import MAX_IMPORT_UPLOAD_BYTES
 from .major_matching import build_program_recommendation_summary
@@ -187,7 +189,89 @@ class UniversitySerializer(UniversityShortlistMixin, serializers.ModelSerializer
 
     class Meta:
         model = University
-        fields = "__all__"
+        # Keep this public/detail contract explicit. Import and AI-context fields
+        # intentionally remain server-side even when new model fields are added.
+        fields = (
+            "id",
+            "name",
+            "slug",
+            "country",
+            "city",
+            "official_website",
+            "summary",
+            "institution_type",
+            "is_published",
+            "is_demo",
+            "acceptance_rate",
+            "gpa_average",
+            "gpa_average_scale",
+            "sat_average",
+            "sat_p25",
+            "sat_p50",
+            "sat_p75",
+            "ielts_minimum",
+            "ielts_competitive",
+            "test_policy",
+            "standardized_testing_policy_text",
+            "tuition_amount",
+            "tuition_currency",
+            "tuition_original_amount",
+            "tuition_original_currency",
+            "tuition_usd_amount",
+            "total_cost_original_amount",
+            "total_cost_original_currency",
+            "total_cost_usd_amount",
+            "currency_conversion_rate",
+            "currency_conversion_date",
+            "currency_conversion_source",
+            "currency_conversion_confidence",
+            "cost_notes",
+            "application_deadline",
+            "deadlines_text",
+            "admissions_cycle_target",
+            "scholarship_available",
+            "essay_requirements",
+            "application_requirements",
+            "ap_recommendations",
+            "financial_aid_notes",
+            "scholarships_text",
+            "need_based_aid_notes",
+            "merit_scholarship_notes",
+            "other_scholarships_notes",
+            "scholarship_links_text",
+            "data_quality_notes",
+            "qs_ranking",
+            "qs_ranking_year",
+            "qs_overall_score",
+            "global_rank",
+            "the_rank",
+            "national_rank",
+            "ranking_source",
+            "ranking_source_url",
+            "ranking_year",
+            "ranking_last_verified_date",
+            "ranking_confidence",
+            "national_ranking_source",
+            "admissions_url",
+            "financial_aid_url",
+            "application_portal_url",
+            "international_office_url",
+            "virtual_info_session_url",
+            "admissions_website",
+            "majors_list",
+            "programs",
+            "program_display_names",
+            "subject_rankings",
+            "program_matching",
+            "requirements",
+            "scholarships",
+            "data_sources",
+            "field_verifications",
+            "is_shortlisted",
+            "budget_comparison",
+            "created_at",
+            "updated_at",
+        )
         read_only_fields = ("created_at", "updated_at")
 
     def get_budget_comparison(self, obj):
@@ -258,7 +342,7 @@ class UniversityImportUploadSerializer(serializers.Serializer):
             raise serializers.ValidationError("Only .xlsx files are accepted.")
         if uploaded_file.size and uploaded_file.size > MAX_IMPORT_UPLOAD_BYTES:
             raise serializers.ValidationError("The workbook must be 10 MB or smaller.")
-        return uploaded_file
+        return validate_xlsx_archive(uploaded_file)
 
 
 class UniversityImportJobSerializer(serializers.ModelSerializer):

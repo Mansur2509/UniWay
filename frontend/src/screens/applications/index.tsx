@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { ExternalLink, Plus } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -10,6 +10,7 @@ import {
   DECISION_STATUSES,
   type ApplicationStatus,
   type ApplicationTrackerItem,
+  type ApplicationTrackerItemInput,
   type DocumentsStatus,
   type FinancialAidStatus,
   type RecommendationsStatus,
@@ -17,7 +18,7 @@ import {
 } from "@/entities/application";
 import type { RoadmapTask } from "@/entities/roadmap";
 import type { SuggestedItem } from "@/entities/suggestion";
-import type { SavedUniversityLite } from "@/entities/university";
+import type { SavedUniversity } from "@/entities/university";
 import {
   createApplicationMilestoneRequest,
   createApplicationRequest,
@@ -132,7 +133,7 @@ export function ApplicationsScreen() {
   const [suggestionsRequested, setSuggestionsRequested] = useState(false);
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const [suggestionsLoadError, setSuggestionsLoadError] = useState(false);
-  const [shortlist, setShortlist] = useState<SavedUniversityLite[]>([]);
+  const [shortlist, setShortlist] = useState<SavedUniversity[]>([]);
   const [shortlistRequested, setShortlistRequested] = useState(false);
   const [isShortlistLoading, setIsShortlistLoading] = useState(false);
   const [shortlistLoadError, setShortlistLoadError] = useState(false);
@@ -181,7 +182,7 @@ export function ApplicationsScreen() {
     setIsShortlistLoading(true);
     setShortlistLoadError(false);
     try {
-      const response = await getShortlistRequest({ lite: true });
+      const response = await getShortlistRequest({ lite: false });
       setShortlist(response.results);
     } catch {
       setShortlistLoadError(true);
@@ -244,8 +245,12 @@ export function ApplicationsScreen() {
   async function handleCreate(values: ApplicationFormValues) {
     const created = await createApplicationRequest({
       university: values.university ?? undefined,
+      target_program: values.target_program,
       application_round: values.application_round,
-      deadline: values.deadline || null
+      target_intake_year: values.target_intake_year,
+      personal_estimated_deadline: values.personal_estimated_deadline || null,
+      priority: values.priority,
+      notes: values.notes
     });
     setApplications((current) => [created, ...current]);
     setTotalCount((current) => current + 1);
@@ -254,11 +259,15 @@ export function ApplicationsScreen() {
     setIsFormOpen(false);
   }
 
-  async function handlePatch(field: string, value: string) {
+  async function handlePatch(
+    field: keyof ApplicationTrackerItemInput,
+    value: string | number | null
+  ) {
     if (!selected) return;
     setActionError(false);
     try {
-      const updated = await updateApplicationRequest(selected.id, { [field]: value });
+      const input = { [field]: value } as ApplicationTrackerItemInput;
+      const updated = await updateApplicationRequest(selected.id, input);
       updateInList(updated);
     } catch {
       setActionError(true);
@@ -685,11 +694,8 @@ export function ApplicationsScreen() {
             <div>
               <h2 className="text-xl font-semibold">{selected.university_name}</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {selected.deadline
-                  ? t("applications.detail.deadline", {
-                      date: formatDate(selected.deadline, locale)
-                    })
-                  : t("applications.detail.deadlineNotVerified")}
+                {selected.target_program_name || t("applications.detail.programNotSelected")}
+                {selected.target_intake_year ? ` / ${selected.target_intake_year}` : ""}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -702,10 +708,62 @@ export function ApplicationsScreen() {
                 {t("common.actions.close")}
               </Button>
               <Button onClick={() => void handleDelete(selected)} size="sm" type="button" variant="ghost">
-                {t("applications.actions.delete")}
+                {t("applications.actions.archive")}
               </Button>
             </div>
           </div>
+
+          <section className="rounded-sm border bg-surface p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold">
+                  {t("applications.officialDeadline.title")}
+                </h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {selected.official_deadline.date
+                    ? formatDate(selected.official_deadline.date, locale)
+                    : t("applications.officialDeadline.noExactDate")}
+                </p>
+              </div>
+              <span className="rounded-sm border bg-elevated px-2 py-1 text-xs font-semibold">
+                {t(
+                  `applications.deadlineStatus.${selected.official_deadline.status}` as TranslationKey
+                )}
+              </span>
+            </div>
+            {selected.official_deadline.status === "outdated" &&
+            selected.official_deadline.source_date ? (
+              <p className="mt-2 text-xs font-semibold text-warning">
+                {t("applications.officialDeadline.outdatedSource", {
+                  date: formatDate(selected.official_deadline.source_date, locale)
+                })}
+              </p>
+            ) : null}
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              {selected.official_deadline.last_verified_date ? (
+                <span>
+                  {t("applications.officialDeadline.lastVerified", {
+                    date: formatDate(selected.official_deadline.last_verified_date, locale)
+                  })}
+                </span>
+              ) : null}
+              {selected.official_deadline.source_url ? (
+                <a
+                  className="inline-flex items-center gap-1 font-semibold text-primary hover:text-primary-hover"
+                  href={selected.official_deadline.source_url}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {selected.official_deadline.source_title ||
+                    t("applications.officialDeadline.source")}
+                  <ExternalLink aria-hidden className="size-3" />
+                </a>
+              ) : null}
+            </div>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+              {t("applications.officialDeadline.disclaimer")}
+            </p>
+          </section>
 
           <section className="rounded-sm border bg-elevated p-4">
             <div className="flex items-center gap-1.5">
@@ -721,6 +779,61 @@ export function ApplicationsScreen() {
           </section>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="block">
+              <span className="text-xs font-semibold">{t("applications.detail.round")}</span>
+              <select
+                className={fieldClassName}
+                onChange={(event) => void handlePatch("application_round", event.target.value)}
+                value={selected.application_round}
+              >
+                {ROUND_OPTIONS.map((round) => (
+                  <option key={round} value={round}>
+                    {t(`applications.round.${round}` as TranslationKey)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold">
+                {t("applications.form.intakeYear")}
+              </span>
+              <select
+                className={fieldClassName}
+                onChange={(event) =>
+                  void handlePatch(
+                    "target_intake_year",
+                    event.target.value ? Number(event.target.value) : null
+                  )
+                }
+                value={selected.target_intake_year ?? ""}
+              >
+                <option value="">{t("applications.form.selectIntakeYear")}</option>
+                {Array.from(
+                  { length: 9 },
+                  (_, index) => new Date().getFullYear() + index
+                ).map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold">
+                {t("applications.form.personalDeadline")}
+              </span>
+              <input
+                className={fieldClassName}
+                onChange={(event) =>
+                  void handlePatch(
+                    "personal_estimated_deadline",
+                    event.target.value || null
+                  )
+                }
+                type="date"
+                value={selected.personal_estimated_deadline ?? ""}
+              />
+            </label>
             <label className="block">
               <span className="text-xs font-semibold">{t("applications.detail.status")}</span>
               <select

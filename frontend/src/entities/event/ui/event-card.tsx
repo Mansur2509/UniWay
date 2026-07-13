@@ -83,7 +83,9 @@ export function EventCard({ event }: { event: EventDetails }) {
             <dd>
               {event.is_online
                 ? t("events.location.online")
-                : [event.location.city, event.location.country].filter(Boolean).join(", ")}
+                : [event.location?.city, event.location?.country]
+                    .filter(Boolean)
+                    .join(", ") || t("events.value.notSet")}
             </dd>
           </div>
         </div>

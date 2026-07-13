@@ -123,8 +123,9 @@ def _reference_deadline(application, profile) -> tuple[date | None, str]:
     university's imported deadline normalized to the student's own
     graduation cycle. Returns (date, confidence).
     """
-    if application.deadline:
-        return application.deadline, CONFIDENCE_USER_PROVIDED
+    personal_deadline = application.personal_estimated_deadline or application.deadline
+    if personal_deadline:
+        return personal_deadline, CONFIDENCE_USER_PROVIDED
     university = application.university
     normalized = normalize_university_deadline(university, profile)
     if normalized.normalized_date:
@@ -137,11 +138,12 @@ def _collect_deadlines(application, today: date, profile) -> list[_Deadline]:
     deadlines: list[_Deadline] = []
 
     # Primary application/submission deadline.
-    if application.deadline:
+    personal_deadline = application.personal_estimated_deadline or application.deadline
+    if personal_deadline:
         deadlines.append(
             _Deadline(
                 kind="application",
-                date=application.deadline,
+                date=personal_deadline,
                 confidence=CONFIDENCE_USER_PROVIDED,
                 source_url=university.admissions_url or university.official_website or "",
                 source_label="tracker",
@@ -301,13 +303,15 @@ def _suggested_dates(application, today: date, profile) -> list[dict]:
     return suggestions
 
 
-def _linked_essays(application, today: date) -> list[dict]:
+def _linked_essays(application, today: date, prefetched_essays=None) -> list[dict]:
     # Import here to avoid a module-level cycle through essay_service.
     from services.essay_service.models import EssayWorkspace
 
-    essays = EssayWorkspace.objects.filter(
-        user=application.user, university=application.university
-    ).order_by("status", "-updated_at")
+    essays = prefetched_essays
+    if essays is None:
+        essays = EssayWorkspace.objects.filter(
+            user=application.user, university=application.university
+        ).order_by("status", "-updated_at")
     payload: list[dict] = []
     for essay in essays:
         word_count = len([w for w in essay.draft_text.split() if w.strip()])
@@ -373,7 +377,13 @@ def _to_float(value):
         return None
 
 
-def _official_exam_entry(exam_type: str, today: date) -> OfficialExamDate | None:
+def _official_exam_entry(
+    exam_type: str,
+    today: date,
+    prefetched_official_dates: dict[str, OfficialExamDate] | None = None,
+) -> OfficialExamDate | None:
+    if prefetched_official_dates is not None:
+        return prefetched_official_dates.get(exam_type)
     return (
         OfficialExamDate.objects.filter(
             exam_type=exam_type,
@@ -392,7 +402,12 @@ def _exam_after_deadline(official: OfficialExamDate | None, reference: date | No
     return usable_from <= reference
 
 
-def _linked_exams(application, profile, today: date) -> list[dict]:
+def _linked_exams(
+    application,
+    profile,
+    today: date,
+    prefetched_official_dates: dict[str, OfficialExamDate] | None = None,
+) -> list[dict]:
     university = application.university
     reference, _ = _reference_deadline(application, profile)
     planned = _planned_exam_types(profile.exam_plans)
@@ -411,7 +426,11 @@ def _linked_exams(application, profile, today: date) -> list[dict]:
     )
     student_sat = best_sat_score(profile.test_scores)
     if sat_threshold or student_sat or "SAT" in planned:
-        official = _official_exam_entry(OfficialExamDate.ExamType.SAT, today)
+        official = _official_exam_entry(
+            OfficialExamDate.ExamType.SAT,
+            today,
+            prefetched_official_dates,
+        )
         severity = (
             sat_gap_severity(student_sat, sat_threshold)
             if (student_sat is not None and sat_threshold)
@@ -494,7 +513,11 @@ def _linked_exams(application, profile, today: date) -> list[dict]:
 
     # AP — official College Board dates when the student is planning AP.
     if "AP" in planned:
-        official_ap = _official_exam_entry(OfficialExamDate.ExamType.AP, today)
+        official_ap = _official_exam_entry(
+            OfficialExamDate.ExamType.AP,
+            today,
+            prefetched_official_dates,
+        )
         entries.append(
             {
                 "exam": "AP",
@@ -613,7 +636,14 @@ def _suggested_events(suggested: list[dict]) -> list[dict]:
     return events
 
 
-def build_application_timeline(application, profile, *, today: date) -> dict:
+def build_application_timeline(
+    application,
+    profile,
+    *,
+    today: date,
+    prefetched_essays=None,
+    prefetched_official_dates: dict[str, OfficialExamDate] | None = None,
+) -> dict:
     """Assemble the full derived timeline payload for one application."""
     deadlines = _collect_deadlines(application, today, profile)
     suggested = _suggested_dates(application, today, profile)
@@ -631,6 +661,11 @@ def build_application_timeline(application, profile, *, today: date) -> dict:
         "deadlines": [_deadline_payload(deadline, today) for deadline in deadlines],
         "events": events,
         "suggested_dates": suggested,
-        "linked_essays": _linked_essays(application, today),
-        "linked_exams": _linked_exams(application, profile, today),
+        "linked_essays": _linked_essays(application, today, prefetched_essays),
+        "linked_exams": _linked_exams(
+            application,
+            profile,
+            today,
+            prefetched_official_dates,
+        ),
     }

@@ -15,9 +15,13 @@ from rest_framework.viewsets import ModelViewSet
 
 from common.pagination import CompactListPagination
 from common.permissions import IsAdminOrReadOnly, IsAdminRole
+from common.throttling import ScopedIPRateThrottle
 from services.activity_service.models import AnalyticsEvent
 from services.activity_service.services import track_event
-from services.user_profile_service.services import ensure_profile_records
+from services.user_profile_service.services import (
+    ensure_profile_records,
+    get_profile_records_for_read,
+)
 
 from .currency import normalize_amount_to_usd
 from .import_jobs import enqueue_university_import_job, mark_stale_university_import_job
@@ -204,6 +208,7 @@ def build_university_filter_options(*, include_demo: bool) -> dict:
 
 
 class UniversityViewSet(ModelViewSet):
+    throttle_scope = None
     serializer_class = UniversitySerializer
     permission_classes = [IsAdminOrReadOnly]
     lookup_field = "slug"
@@ -428,12 +433,18 @@ class UniversityViewSet(ModelViewSet):
         # calls AI. `semantic_fit_status` is a pure cache read -- the only
         # code path that can call AI is the explicit POST below.
         university = self.get_object()
-        profile, _ = ensure_profile_records(request.user)
+        profile, _ = get_profile_records_for_read(request.user)
         deterministic_fit = calculate_university_fit(profile, university)
         status_value, semantic_record = semantic_fit_status(request.user, university)
         return Response(build_fit_response(deterministic_fit, status_value, semantic_record))
 
-    @action(detail=True, methods=["post"], url_path="fit/refresh")
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="fit/refresh",
+        throttle_classes=[ScopedRateThrottle, ScopedIPRateThrottle],
+        throttle_scope="ai_fit_refresh",
+    )
     def refresh_fit(self, request, slug=None):
         # Explicit user action only. Returns the same shape as GET .../fit/
         # plus `refresh_reason` so the caller can tell a fresh AI result apart
@@ -537,7 +548,9 @@ class UniversityViewSet(ModelViewSet):
         # why shortlist/tracking actions explicitly invalidate it.
         payload = cache.get_or_set(
             recommendations_cache_key(request.user),
-            lambda: calculate_university_recommendations(*ensure_profile_records(request.user)),
+            lambda: calculate_university_recommendations(
+                *get_profile_records_for_read(request.user)
+            ),
             RECOMMENDATIONS_CACHE_SECONDS,
         )
         return Response(payload)
@@ -546,7 +559,7 @@ class UniversityViewSet(ModelViewSet):
     def strategy(self, request):
         payload = cache.get_or_set(
             strategy_cache_key(request.user),
-            lambda: build_application_strategy(*ensure_profile_records(request.user)),
+            lambda: build_application_strategy(*get_profile_records_for_read(request.user)),
             STRATEGY_CACHE_SECONDS,
         )
         return Response(payload)
@@ -555,7 +568,7 @@ class UniversityViewSet(ModelViewSet):
 class AdminUniversityImportBaseView(APIView):
     permission_classes = [IsAdminRole]
     parser_classes = [MultiPartParser, FormParser]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [ScopedRateThrottle, ScopedIPRateThrottle]
     throttle_scope = "university_import"
     mode: str
 

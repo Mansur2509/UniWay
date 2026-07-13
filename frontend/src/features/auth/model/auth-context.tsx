@@ -18,8 +18,8 @@ import type {
 } from "@/entities/user";
 import { ApiError } from "@/shared/api/client";
 import {
-  AUTH_INVALID_EVENT,
-  authStorage
+  authStorage,
+  subscribeToAuthInvalid
 } from "@/shared/lib/auth-storage";
 import { invalidateCacheByPrefix } from "@/shared/lib/request-cache";
 
@@ -57,12 +57,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("checking");
 
   const refreshUser = useCallback(async () => {
-    if (!authStorage.get()) {
-      setUser(null);
-      setStatus("unauthenticated");
-      return null;
-    }
-
     setStatus("checking");
     try {
       const currentUser = await getCurrentUserRequest();
@@ -93,15 +87,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus("unauthenticated");
     }
 
-    window.addEventListener(AUTH_INVALID_EVENT, handleInvalidAuth);
-    return () => window.removeEventListener(AUTH_INVALID_EVENT, handleInvalidAuth);
+    return subscribeToAuthInvalid(handleInvalidAuth);
   }, []);
 
   const login = useCallback(async (input: LoginInput) => {
     const response = await loginRequest(input);
     authStorage.set({
-      access: response.access,
-      refresh: response.refresh
+      access: response.access
     });
     // A stale cached entry from a previous session in this same tab must
     // never be served to the newly-logged-in user.
@@ -114,8 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback(async (input: RegisterInput) => {
     const response = await registerRequest(input);
     authStorage.set({
-      access: response.access,
-      refresh: response.refresh
+      access: response.access
     });
     invalidateCacheByPrefix("profile:");
     setUser(response.user);
@@ -125,13 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      if (authStorage.get()) {
-        await getCurrentUserRequest();
-      }
-      const tokens = authStorage.get();
-      if (tokens) {
-        await logoutRequest(tokens.refresh);
-      }
+      await logoutRequest();
     } catch {
       // Local logout still completes if the API is unavailable.
     } finally {

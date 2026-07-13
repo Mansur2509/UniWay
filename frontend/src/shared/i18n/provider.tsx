@@ -16,8 +16,12 @@ import {
   localeMetadata,
   type LocaleCode
 } from "./config";
-import { dictionaries } from "./dictionaries";
-import type { TranslationKey, TranslationValues } from "./types";
+import { defaultDictionary, loadDictionary } from "./dictionaries";
+import type {
+  TranslationDictionary,
+  TranslationKey,
+  TranslationValues
+} from "./types";
 
 const LOCALE_STORAGE_KEY = "uniway.locale";
 const LEGACY_LOCALE_STORAGE_KEY = "eduverse.locale";
@@ -62,18 +66,42 @@ function resolve(
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<LocaleCode>(defaultLocale);
+  const [requestedLocale, setRequestedLocale] = useState<LocaleCode>(defaultLocale);
+  const [activeDictionary, setActiveDictionary] = useState<{
+    locale: LocaleCode;
+    messages: TranslationDictionary;
+  }>({ locale: defaultLocale, messages: defaultDictionary });
 
   useEffect(() => {
     const storedLocale =
       window.localStorage.getItem(LOCALE_STORAGE_KEY) ??
       window.localStorage.getItem(LEGACY_LOCALE_STORAGE_KEY);
     if (storedLocale && isLocaleCode(storedLocale)) {
-      setLocaleState(storedLocale);
+      setRequestedLocale(storedLocale);
       window.localStorage.setItem(LOCALE_STORAGE_KEY, storedLocale);
       window.localStorage.removeItem(LEGACY_LOCALE_STORAGE_KEY);
     }
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    void loadDictionary(requestedLocale)
+      .then((messages) => {
+        if (active) {
+          setActiveDictionary({ locale: requestedLocale, messages });
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setActiveDictionary({ locale: defaultLocale, messages: defaultDictionary });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [requestedLocale]);
+
+  const locale = activeDictionary.locale;
 
   useEffect(() => {
     const metadata = localeMetadata[locale];
@@ -82,15 +110,15 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, [locale]);
 
   const setLocale = useCallback((nextLocale: LocaleCode) => {
-    setLocaleState(nextLocale);
+    setRequestedLocale(nextLocale);
     window.localStorage.setItem(LOCALE_STORAGE_KEY, nextLocale);
     window.localStorage.removeItem(LEGACY_LOCALE_STORAGE_KEY);
   }, []);
 
   const t = useCallback(
     (key: TranslationKey, values?: TranslationValues) =>
-      resolve(dictionaries[locale], key, values),
-    [locale]
+      resolve(activeDictionary.messages, key, values),
+    [activeDictionary.messages]
   );
 
   const contextValue = useMemo(

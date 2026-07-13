@@ -1,4 +1,6 @@
+from django.db import transaction
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import mixins, status, viewsets
@@ -9,10 +11,16 @@ from rest_framework.views import APIView
 
 from services.activity_service.models import AnalyticsEvent
 from services.activity_service.services import track_event
+from services.exam_content_service.models import OfficialExamDate
 
 from .models import RoadmapPlan, RoadmapTask
 from .roadmap_generator import generate_roadmap
-from .serializers import RoadmapPlanSerializer, RoadmapTaskCreateSerializer, RoadmapTaskSerializer
+from .serializers import (
+    ExamPlanRoadmapTaskCreateSerializer,
+    RoadmapPlanSerializer,
+    RoadmapTaskCreateSerializer,
+    RoadmapTaskSerializer,
+)
 
 
 class RoadmapPlanView(APIView):
@@ -152,6 +160,53 @@ class RoadmapTaskViewSet(
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return super().destroy(request, *args, **kwargs)
+
+    @action(detail=False, methods=["post"], url_path="from-exam-plan")
+    def from_exam_plan(self, request):
+        input_serializer = ExamPlanRoadmapTaskCreateSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        official_date = get_object_or_404(
+            OfficialExamDate,
+            pk=input_serializer.validated_data["official_exam_date_id"],
+        )
+        if (
+            official_date.verification_status
+            != OfficialExamDate.VerificationStatus.VERIFIED
+            or official_date.test_date is None
+            or official_date.test_date < timezone.now().date()
+        ):
+            return Response(
+                {"detail": "Only a verified upcoming official exam date can be added."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            plan, _ = RoadmapPlan.objects.get_or_create(
+                user=request.user,
+                active=True,
+                defaults={"title": "My admissions roadmap"},
+            )
+            plan = RoadmapPlan.objects.select_for_update().get(pk=plan.pk)
+            task, created = RoadmapTask.objects.get_or_create(
+                user=request.user,
+                plan=plan,
+                dedup_key=f"official_exam_date:{official_date.id}",
+                defaults={
+                    "title": input_serializer.validated_data["title"],
+                    "description": input_serializer.validated_data.get("description", ""),
+                    "category": RoadmapTask.Category.EXAMS,
+                    "priority": RoadmapTask.Priority.HIGH,
+                    "due_date": official_date.test_date,
+                    "source_type": RoadmapTask.SourceType.EXAM_PLAN,
+                    "evidence_note": official_date.source_title,
+                    "source_url": official_date.source_url,
+                },
+            )
+        output = RoadmapTaskSerializer(task, context={"request": request})
+        return Response(
+            output.data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=["post"], url_path="complete")
     def complete(self, request, pk=None):

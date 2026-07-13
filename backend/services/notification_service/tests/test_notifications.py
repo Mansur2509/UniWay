@@ -232,6 +232,32 @@ class GenerateExamDateNotificationsTests(APITestCase):
         notification = Notification.objects.get(user=self.user)
         self.assertEqual(notification.notification_type, Notification.NotificationType.EXAM_DATE_UPCOMING)
 
+        # The same scheduler run is idempotent for this user/exam/threshold.
+        self.assertEqual(generate_exam_date_notifications(), 0)
+        self.assertEqual(Notification.objects.filter(user=self.user).count(), 1)
+
+    def test_uses_per_exam_notification_intervals(self):
+        profile, _ = ensure_profile_records(self.user)
+        exam_date = (timezone.now().date() + timedelta(days=14)).isoformat()
+        profile.exam_plans = {
+            "planned": [
+                {
+                    "name": "AP Biology",
+                    "date": exam_date,
+                    "target_score": "5",
+                    "notification_intervals": [60, 14, 3],
+                }
+            ]
+        }
+        profile.save(update_fields=["exam_plans"])
+
+        created = generate_exam_date_notifications()
+
+        self.assertEqual(created, 1)
+        notification = Notification.objects.get(user=self.user)
+        self.assertIn(":14", notification.dedup_key)
+        self.assertEqual(notification.action_url, "/exams")
+
     def test_malformed_exam_entry_is_skipped_without_error(self):
         profile, _ = ensure_profile_records(self.user)
         profile.exam_plans = {"planned": [{"name": "SAT"}]}

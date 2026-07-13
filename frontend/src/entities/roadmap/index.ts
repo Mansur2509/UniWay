@@ -117,6 +117,12 @@ export type ManualRoadmapTaskInput = {
   due_date?: string | null;
 };
 
+export type ExamPlanRoadmapTaskInput = {
+  official_exam_date_id: number;
+  title: string;
+  description?: string;
+};
+
 export type RoadmapTaskUpdateInput = Partial<{
   title: string;
   description: string;

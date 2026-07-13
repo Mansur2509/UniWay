@@ -1,3 +1,4 @@
+import zipfile
 from datetime import timedelta
 from io import BytesIO
 
@@ -187,10 +188,36 @@ class AdminUniversityImportApiTests(APITestCase):
             format="multipart",
         )
 
-        self.assertEqual(response.status_code, 202, response.data)
-        self.assertEqual(response.data["status"], UniversityImportJob.Status.FAILED)
-        self.assertTrue(response.data["error_message"])
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertEqual(UniversityImportJob.objects.count(), 0)
         self.assertEqual(University.objects.count(), 0)
+
+    def test_archive_with_path_traversal_is_rejected_before_job_creation(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        buffer = BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("[Content_Types].xml", "<Types />")
+            archive.writestr("xl/workbook.xml", "<workbook />")
+            archive.writestr("../outside.txt", "unsafe")
+        self.client.force_authenticate(self.admin)
+
+        response = self.client.post(
+            self.dry_run_url,
+            {
+                "file": SimpleUploadedFile(
+                    "unsafe.xlsx",
+                    buffer.getvalue(),
+                    content_type=(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    ),
+                )
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(UniversityImportJob.objects.count(), 0)
 
     @override_settings(UNIVERSITY_IMPORT_STALE_AFTER_MINUTES=1)
     def test_stale_running_job_is_marked_failed_on_detail(self):

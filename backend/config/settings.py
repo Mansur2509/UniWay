@@ -3,6 +3,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 
 from config.database_guard import validate_production_database
 from config.deploy_guard import validate_deploy_config
@@ -58,6 +59,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "common.middleware.PrivateApiCacheControlMiddleware",
     "common.middleware.RequestTimingMiddleware",
 ]
 
@@ -129,6 +131,7 @@ validate_deploy_config(
     allowed_hosts=ALLOWED_HOSTS,
     cors_allowed_origins=CORS_ALLOWED_ORIGINS,
     csrf_trusted_origins=CSRF_TRUSTED_ORIGINS,
+    secret_key=SECRET_KEY,
 )
 
 SECURE_COOKIES = os.getenv("DJANGO_SECURE_COOKIES", "false").lower() == "true"
@@ -139,6 +142,52 @@ CSRF_COOKIE_SECURE = SECURE_COOKIES
 CSRF_COOKIE_SAMESITE = "Lax"
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = not DEBUG and os.getenv("DJANGO_SECURE_SSL_REDIRECT", "true").lower() == "true"
+SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_SECURE_HSTS_SECONDS", "31536000" if not DEBUG else "0"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = False
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+
+# The refresh credential is an ambient browser credential and is therefore
+# never returned to frontend JavaScript. Production uses SameSite=None because
+# the Vercel frontend and Render API are on different sites; Secure is required
+# by browsers for that mode. Local HTTP development stays on Lax.
+AUTH_REFRESH_COOKIE_NAME = os.getenv("AUTH_REFRESH_COOKIE_NAME", "uniway_refresh")
+AUTH_REFRESH_COOKIE_PATH = os.getenv("AUTH_REFRESH_COOKIE_PATH", "/api/auth/")
+AUTH_REFRESH_COOKIE_DOMAIN = os.getenv("AUTH_REFRESH_COOKIE_DOMAIN") or None
+AUTH_REFRESH_COOKIE_SAMESITE = os.getenv(
+    "AUTH_REFRESH_COOKIE_SAMESITE",
+    "None" if SECURE_COOKIES else "Lax",
+)
+if AUTH_REFRESH_COOKIE_SAMESITE not in {"Lax", "Strict", "None"}:
+    raise ImproperlyConfigured("AUTH_REFRESH_COOKIE_SAMESITE must be Lax, Strict, or None.")
+if not DEBUG and (not SECURE_COOKIES or AUTH_REFRESH_COOKIE_SAMESITE != "None"):
+    raise ImproperlyConfigured(
+        "Production authentication requires DJANGO_SECURE_COOKIES=true and "
+        "AUTH_REFRESH_COOKIE_SAMESITE=None for the cross-site frontend/API topology."
+    )
+
+# Backend-owned Google authorization-code flow. The client secret never enters
+# a frontend environment, and the callback returns only to this fixed,
+# allowlisted URL rather than a request-provided destination.
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "")
+GOOGLE_OAUTH_FRONTEND_URL = os.getenv(
+    "GOOGLE_OAUTH_FRONTEND_URL",
+    f"{CORS_ALLOWED_ORIGINS[0].rstrip('/')}/login" if CORS_ALLOWED_ORIGINS else "",
+)
+GOOGLE_OAUTH_STATE_COOKIE_NAME = os.getenv(
+    "GOOGLE_OAUTH_STATE_COOKIE_NAME", "uniway_google_oauth"
+)
+GOOGLE_OAUTH_ATTEMPT_MAX_AGE_SECONDS = int(
+    os.getenv("GOOGLE_OAUTH_ATTEMPT_MAX_AGE_SECONDS", "600")
+)
+GOOGLE_OAUTH_ENABLED = all(
+    (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, GOOGLE_OAUTH_FRONTEND_URL)
+)
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -164,14 +213,23 @@ REST_FRAMEWORK = {
         "user": "500/hour",
         "ai": "20/day",
         "ai_essay_score": "30/hour",
+        "ai_fit_refresh": "30/hour",
         "auth_login": "10/hour",
         "auth_register": "5/hour",
+        "auth_refresh": "30/hour",
+        "auth_oauth": "30/hour",
+        "feedback_submit": "10/hour",
+        "report_submit": "20/hour",
         "event_registration": "30/hour",
         "event_submission": "60/hour",
         "event_moderation": "120/hour",
         "university_import": "20/hour",
     },
 }
+if not DEBUG:
+    REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = [
+        "rest_framework.renderers.JSONRenderer",
+    ]
 
 # Beta-only fallback while no real background queue exists. Production should
 # leave this false so admin uploads return immediately and process in a daemon

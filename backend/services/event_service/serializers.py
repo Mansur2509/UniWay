@@ -201,6 +201,9 @@ class PublicEventSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if not request or not request.user.is_authenticated:
             return None
+        prefetched = getattr(obj, "current_user_registrations", None)
+        if prefetched is not None:
+            return prefetched[0].status if prefetched else None
         registration = (
             obj.registrations.filter(
                 user=request.user,
@@ -217,6 +220,9 @@ class PublicEventSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if not request or not request.user.is_authenticated:
             return None
+        prefetched = getattr(obj, "current_user_registrations", None)
+        if prefetched is not None:
+            return prefetched[0] if prefetched else None
         return (
             obj.registrations.filter(
                 user=request.user,

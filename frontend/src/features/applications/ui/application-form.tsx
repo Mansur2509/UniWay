@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import type { ApplicationRound } from "@/entities/application";
+import type { ApplicationPriority, ApplicationRound } from "@/entities/application";
 import type { SavedUniversity, SavedUniversityLite } from "@/entities/university";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { useUnsavedChangesGuard } from "@/shared/lib/use-unsaved-changes-guard";
@@ -23,8 +23,12 @@ const ROUNDS: ApplicationRound[] = [
 
 export type ApplicationFormValues = {
   university: number | null;
+  target_program: number | null;
   application_round: ApplicationRound;
-  deadline: string;
+  target_intake_year: number | null;
+  personal_estimated_deadline: string;
+  priority: ApplicationPriority;
+  notes: string;
 };
 
 export function ApplicationForm({
@@ -45,8 +49,12 @@ export function ApplicationForm({
   const { t } = useI18n();
   const [initialValues] = useState<ApplicationFormValues>({
     university: shortlist[0]?.university.id ?? null,
+    target_program: null,
     application_round: "regular_decision",
-    deadline: ""
+    target_intake_year: null,
+    personal_estimated_deadline: "",
+    priority: "medium",
+    notes: ""
   });
   const [values, setValues] = useState<ApplicationFormValues>(initialValues);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +63,16 @@ export function ApplicationForm({
     browserMessage: t("common.unsaved.browserMessage"),
     isDirty: hasUnsavedChanges
   });
+  const selectedSaved = shortlist.find(
+    (saved) => saved.university.id === values.university
+  );
+  const programOptions =
+    selectedSaved && "programs" in selectedSaved.university
+      ? selectedSaved.university.programs.filter(
+          (program) => !program.degree_level || program.degree_level.toLowerCase().includes("under")
+        )
+      : [];
+  const intakeYears = Array.from({ length: 9 }, (_, index) => new Date().getFullYear() + index);
 
   async function submitValues() {
     setError(null);
@@ -106,7 +124,11 @@ export function ApplicationForm({
           <select
             className={fieldClassName}
             onChange={(event) =>
-              setValues((current) => ({ ...current, university: Number(event.target.value) }))
+              setValues((current) => ({
+                ...current,
+                university: event.target.value ? Number(event.target.value) : null,
+                target_program: null
+              }))
             }
             value={values.university ?? ""}
           >
@@ -126,6 +148,31 @@ export function ApplicationForm({
               {t("applications.form.shortlistLoading")}
             </p>
           ) : null}
+        </label>
+        <label className="block">
+          <span className="text-xs font-semibold">{t("applications.form.program")}</span>
+          <select
+            className={fieldClassName}
+            disabled={!values.university || programOptions.length === 0}
+            onChange={(event) =>
+              setValues((current) => ({
+                ...current,
+                target_program: event.target.value ? Number(event.target.value) : null
+              }))
+            }
+            value={values.target_program ?? ""}
+          >
+            <option value="">
+              {programOptions.length > 0
+                ? t("applications.form.selectProgram")
+                : t("applications.form.programUnavailable")}
+            </option>
+            {programOptions.map((program) => (
+              <option key={program.id} value={program.id}>
+                {program.display_name || program.name}
+              </option>
+            ))}
+          </select>
         </label>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">
@@ -148,17 +195,78 @@ export function ApplicationForm({
             </select>
           </label>
           <label className="block">
-            <span className="text-xs font-semibold">{t("applications.form.deadline")}</span>
+            <span className="text-xs font-semibold">{t("applications.form.intakeYear")}</span>
+            <select
+              className={fieldClassName}
+              onChange={(event) =>
+                setValues((current) => ({
+                  ...current,
+                  target_intake_year: event.target.value ? Number(event.target.value) : null
+                }))
+              }
+              value={values.target_intake_year ?? ""}
+            >
+              <option value="">{t("applications.form.selectIntakeYear")}</option>
+              {intakeYears.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-xs font-semibold">{t("applications.form.priority")}</span>
+            <select
+              className={fieldClassName}
+              onChange={(event) =>
+                setValues((current) => ({
+                  ...current,
+                  priority: event.target.value as ApplicationPriority
+                }))
+              }
+              value={values.priority}
+            >
+              {(["low", "medium", "high", "dream"] as const).map((priority) => (
+                <option key={priority} value={priority}>
+                  {t(`applications.priority.${priority}` as TranslationKey)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold">
+              {t("applications.form.personalDeadline")}
+            </span>
             <input
               className={fieldClassName}
               onChange={(event) =>
-                setValues((current) => ({ ...current, deadline: event.target.value }))
+                setValues((current) => ({
+                  ...current,
+                  personal_estimated_deadline: event.target.value
+                }))
               }
               type="date"
-              value={values.deadline}
+              value={values.personal_estimated_deadline}
             />
+            <span className="mt-1 block text-xs text-muted-foreground">
+              {t("applications.form.personalDeadlineHelp")}
+            </span>
           </label>
         </div>
+        <label className="block">
+          <span className="text-xs font-semibold">{t("applications.form.notes")}</span>
+          <textarea
+            className={fieldClassName}
+            maxLength={3000}
+            onChange={(event) =>
+              setValues((current) => ({ ...current, notes: event.target.value }))
+            }
+            rows={3}
+            value={values.notes}
+          />
+        </label>
         {error ? (
           <p className="text-sm text-danger" role="alert">
             {error}

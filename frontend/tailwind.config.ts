@@ -44,6 +44,14 @@ const config: Config = {
       },
       boxShadow: {
         card: "0 1px 1px rgba(22, 31, 48, 0.05), 0 8px 24px rgba(22, 31, 48, 0.07)"
+      },
+      transitionDuration: {
+        fast: "var(--motion-fast)",
+        normal: "var(--motion-normal)",
+        slow: "var(--motion-slow)"
+      },
+      transitionTimingFunction: {
+        academic: "var(--motion-ease-out)"
       }
     }
   },

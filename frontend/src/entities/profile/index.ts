@@ -32,6 +32,10 @@ export type PlannedExam = {
   planned_retake_month?: string;
   current_score?: string;
   test_status?: string;
+  registration_status?: "not_registered" | "registered" | "cancelled" | "not_required";
+  result?: string;
+  official_exam_date_id?: number;
+  notification_intervals?: number[];
 };
 
 export type ExamPlans = {

@@ -30,7 +30,13 @@ Send an access token as:
 Authorization: Bearer <access-token>
 ```
 
-The Phase 1 web client stores tokens through one isolated local-storage helper. This is an MVP compromise, not the final production design. A future hardening task should move refresh credentials to Secure, HttpOnly, SameSite cookies.
+The browser keeps the short-lived access token in memory. The refresh token is
+issued only as a `Secure` (production), `HttpOnly`, scoped SameSite cookie and is
+not returned in new register/login/refresh JSON bodies. Cross-tab logout uses a
+non-secret browser signal; it never shares a token. Refresh/logout requests
+using the ambient cookie validate `Origin`/fetch-site against the configured
+allowlist. A body refresh token is accepted only as transitional compatibility
+for sessions issued before this migration.
 
 ### POST `/api/auth/register/`
 
@@ -47,27 +53,37 @@ Request:
 }
 ```
 
-Returns HTTP 201 with `access`, `refresh`, and `user`.
+Returns HTTP 201 with `access` and `user`, and sets the refresh cookie.
 
 ### POST `/api/auth/login/`
 
-Public. Accepts `email` and `password`. Returns `access`, `refresh`, and `user`.
+Public. Accepts `email` and `password`. Returns `access` and `user`, and sets the
+refresh cookie. Invalid credentials use a generic response.
 
 ### POST `/api/auth/token/refresh/`
 
-Public to clients holding a valid refresh token. Rotates the refresh token and returns a new access token plus a new refresh token.
+Public to clients holding a valid refresh cookie. Rotates/blacklists the old
+refresh token, returns a new access token, and replaces the HttpOnly cookie.
 
 ### POST `/api/auth/logout/`
 
-Authenticated. Accepts a refresh token and blacklists it. The access token must be supplied in the `Authorization` header.
+Authenticated. Reads and blacklists the refresh cookie, clears it, and returns
+HTTP 204. The access token must be supplied in the `Authorization` header.
 
-```json
-{
-  "refresh": "<refresh-token>"
-}
-```
+### GET `/api/auth/google/start/`
 
-Returns HTTP 204.
+Public, throttled. Starts Google Authorization Code flow with state, nonce, and
+S256 PKCE, stores only a signed HttpOnly short-lived state cookie, and redirects
+to Google. The client secret is never returned to the browser.
+
+### GET `/api/auth/google/callback/`
+
+Public, throttled provider callback. Consumes state exactly once, exchanges the
+code server-side, verifies issuer/audience/expiry/nonce/subject/verified email,
+links only safe active student accounts, sets the normal refresh cookie, and
+redirects to the single configured frontend result URL. Cancellation, conflict,
+blocked, invalid, and unavailable outcomes use controlled result codes; no
+caller-supplied redirect is accepted.
 
 ### GET `/api/auth/me/`
 
@@ -915,13 +931,30 @@ The score response is:
 }
 ```
 
-`reason` is one of `cached`, `scored`, `quota_exceeded`, `ai_unavailable`, `validation_failed`, or `missing_essay_text`. Cached results are keyed by `essay_text_hash + context_hash` and do not consume quota or call the provider. Failed provider calls and invalid provider JSON do not consume quota. Free users get 1 new score per day; Basic/Starter, Premium/Growth, and Pro/Premium-style tiers map to 10, 30, and 100 new scores per month by environment-configurable settings.
+`reason` is one of `cached`, `scored`, `quota_exceeded`, `ai_unavailable`,
+`validation_failed`, `missing_essay_text`, or `essay_too_long`. The last two
+input errors return HTTP 400; oversized text is rejected before a provider call.
+Cached results are keyed by `essay_text_hash + context_hash` and do not consume
+quota or call the provider. Failed provider calls and invalid provider JSON do
+not consume quota. Free users get 1 new score per day; Basic/Starter,
+Premium/Growth, and Pro/Premium-style tiers map to 10, 30, and 100 new scores
+per month by environment-configurable settings.
 
 The provider output must be strict JSON with only the documented fields. Suggestions are capped at 3 items and 20 words each, and are high-level revision guidance only. The backend rejects output that attempts to include rewritten essay text, generated drafts, unexpected fields, out-of-range scores, or admissions-outcome promises. If verified school/prompt context is missing, `school_program_alignment` is stored as `null`, confidence is lower, and a source warning is included rather than inventing requirements.
 
 ## Application tracker response shapes
 
-`ApplicationTrackerItem` embeds its `milestones[]`. Creating an application only requires `university`; all status fields (`status`, `essays_status`, `recommendations_status`, `test_scores_status`, `documents_status`, `financial_aid_status`) default to their "not started" equivalents — the API never auto-advances a status. A second `POST` for the same `(user, university)` pair returns 400. `ApplicationMilestone.linked_roadmap_task` is optional and validated to belong to the caller; it lets a milestone point at an existing roadmap task without `application_service` owning or duplicating roadmap data.
+`ApplicationTrackerItem` embeds its `milestones[]`. Creating an application only requires `university`; all status fields (`status`, `essays_status`, `recommendations_status`, `test_scores_status`, `documents_status`, `financial_aid_status`) default to their "not started" equivalents — the API never auto-advances a status. Active rows are unique per `(user, university)`. DELETE archives by setting `archived_at`; `POST /api/applications/{id}/restore/` restores when no active duplicate exists.
+
+The same object is the canonical prospective-university record. It accepts a
+university-owned `target_program`, application round, `target_intake_year`,
+priority, notes, and a clearly separate `personal_estimated_deadline`. The
+read-only `official_deadline` envelope contains `date`, `source_date`,
+`source_url`, `source_title`, `last_verified_date`, `intake_year`, `round_type`,
+`timezone`, and `status` (`verified`, `estimated`, `not_published`, `outdated`,
+or `requires_review`). Stale/wrong-cycle or unverified source dates are not
+returned as a precise official deadline. `ApplicationMilestone.linked_roadmap_task`
+is optional and validated to belong to the caller.
 
 ## Application timeline response shapes
 
@@ -937,9 +970,35 @@ SAT/AP entries in `linked_exams[]` may also include `late_registration_deadline`
 
 ## Official exam date response shapes
 
-`GET /api/v1/exam-dates/` returns DRF pagination by default and accepts `exam_type`, `event_kind`, `academic_year`, `verification_status`, and ordering by `test_date`, `registration_deadline`, or `late_registration_deadline`. The endpoint is read-only for authenticated users. SAT/AP dates are stored as planning metadata with `source_url`, `last_verified_date`, `verification_status`, and `notes`; partial records should be rendered with a verify-official-source warning rather than as guaranteed current College Board policy.
+`GET /api/v1/exam-dates/` returns DRF pagination by default and accepts
+`exam_type`, `event_kind`, `academic_year`, `exam_year`,
+`verification_status`, `include_past=true`, and ordering by `test_date`,
+`registration_deadline`, or `late_registration_deadline`. By default past
+records are excluded while an explicit not-published future-year record may be
+returned with `test_date: null`. The endpoint is read-only for authenticated
+users. Every SAT/AP source URL must be an official College Board URL.
 
-Each record includes `exam_type`, `event_kind` (`exam`, `ordering_deadline`, `performance_task`, or `portfolio_deadline`), `name`, `test_date`, optional `test_time`, optional `registration_deadline`, optional `late_registration_deadline`, optional `late_test_date`, optional `late_test_time`, `score_release_window`, `academic_year`, `region`, `source_url`, `last_verified_date`, `verification_status`, and `notes`.
+Each record includes `exam_type`, `event_kind` (`exam`, `ordering_deadline`,
+`performance_task`, or `portfolio_deadline`), `name`, nullable `test_date`,
+optional times/deadlines, `academic_year`, `exam_year`, `region`, `source_url`,
+`source_title`, `last_verified_date`, `last_verified_at`, `local_timezone`,
+stored `verification_status`, effective `date_status` (`verified`,
+`not_published`, `outdated`, or `requires_review`), `countdown_days`, and
+`notes`. A verified record requires an exact date; a not-published record
+forbids one. Past dates are always serialized as effectively outdated.
+
+`exam_plans.planned[]` in the profile can store `exam_type`, `date`,
+`target_score`, `test_status` (`planned`, `preparing`, `registered`, `taken`,
+`result_recorded`), `registration_status`, `result`,
+`official_exam_date_id`, and unique `notification_intervals`. When an official
+ID is supplied, the backend verifies the exam type and canonicalizes the date
+from that record. Past dates are accepted only for taken/result-recorded exams.
+
+`POST /api/roadmap/tasks/from-exam-plan/` accepts an official exam-date ID,
+title, and optional description. It creates an `exam_plan` roadmap task only
+for a verified upcoming record, preserves the College Board source, and is
+idempotent by user/roadmap/official-date key. Repeated clicks return the same
+task rather than a duplicate.
 
 ## Suggestions response shapes
 

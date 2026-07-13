@@ -36,6 +36,17 @@ def ensure_profile_records(user) -> tuple[StudentProfile, UserPreference]:
     return profile, preferences
 
 
+def get_profile_records_for_read(user) -> tuple[StudentProfile, UserPreference]:
+    """Return persisted records or unsaved defaults without writing on GET."""
+
+    profile = StudentProfile.objects.filter(user=user).first()
+    preferences = UserPreference.objects.filter(user=user).first()
+    return (
+        profile if profile is not None else StudentProfile(user=user),
+        preferences if preferences is not None else UserPreference(user=user),
+    )
+
+
 def calculate_profile_completion(
     profile: StudentProfile,
     preferences: UserPreference,

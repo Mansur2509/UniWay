@@ -22,6 +22,8 @@ on:
     - cron: "*/10 * * * *"
   workflow_dispatch: {}
 
+permissions: {}
+
 jobs:
   ping:
     runs-on: ubuntu-latest
@@ -31,12 +33,12 @@ jobs:
           echo "Pinging backend health endpoint..."
           # Measured cold starts have taken up to ~145s, so --max-time must clear
           # that with margin. The job's purpose is to send the wake-up request;
-          # a slow-but-eventual 200 is success, so failures here are swallowed
-          # (`|| true`) to avoid noisy false-alarm run failures on a real cold start.
+          # A slow-but-eventual 200 is success. A timeout or non-200 fails the
+          # workflow so this job also acts as a visible availability signal.
           code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 170 \
             https://eduverse-vvw2.onrender.com/api/v1/health/ || echo "000")
           echo "Health endpoint returned HTTP $code"
           if [ "$code" != "200" ]; then
-            echo "Warning: unexpected status $code (the service may have been cold-starting)."
+            echo "Unexpected status $code after the cold-start allowance."
+            exit 1
           fi
-          true

@@ -23,6 +23,14 @@ const FIT_TIER_STYLES: Record<string, string> = {
   unknown: "border-muted-foreground/30 bg-surface text-muted-foreground"
 };
 
+const DEADLINE_STATUS_STYLES: Record<string, string> = {
+  verified: "border-success/35 bg-success/10 text-success",
+  estimated: "border-warning/35 bg-warning/10 text-warning",
+  not_published: "border-muted-foreground/30 bg-surface text-muted-foreground",
+  outdated: "border-danger/35 bg-danger/10 text-danger",
+  requires_review: "border-warning/35 bg-warning/10 text-warning"
+};
+
 export function ApplicationCard({
   application,
   isSelected,
@@ -40,6 +48,10 @@ export function ApplicationCard({
     application.documents_status !== "submitted" && application.documents_status !== "ready"
   ].filter(Boolean).length;
   const progress = application.checklist_progress;
+  const deadline =
+    application.official_deadline.status === "verified"
+      ? application.official_deadline.date
+      : application.personal_estimated_deadline || application.deadline;
 
   return (
     <Card className={`flex min-w-0 flex-col gap-2 p-4 ${isSelected ? "border-primary/60" : ""}`}>
@@ -63,15 +75,22 @@ export function ApplicationCard({
         <GraduationCap aria-hidden className="size-4 shrink-0 text-accent" />
         {application.university_name}
       </h3>
-      {application.deadline ? (
+      {deadline ? (
         <p className="text-xs text-muted-foreground">
-          {t("applications.card.deadline", { date: formatDate(application.deadline, locale) })}
+          {t("applications.card.deadline", { date: formatDate(deadline, locale) })}
         </p>
       ) : (
         <p className="text-xs italic text-muted-foreground">
           {t("applications.card.noDeadline")}
         </p>
       )}
+      <span
+        className={`w-fit rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${DEADLINE_STATUS_STYLES[application.official_deadline.status]}`}
+      >
+        {t(
+          `applications.deadlineStatus.${application.official_deadline.status}` as TranslationKey
+        )}
+      </span>
       <p className="text-xs text-muted-foreground">
         {t("applications.card.incompleteRequirements", { count: incompleteCount })}
       </p>

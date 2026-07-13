@@ -1,3 +1,5 @@
+from django.db.models import F, Q
+from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
@@ -13,7 +15,7 @@ class ExamViewSet(ModelViewSet):
     search_fields = ("name",)
 
     def get_queryset(self):
-        queryset = Exam.objects.prefetch_related("sections")
+        queryset = Exam.objects.prefetch_related("sections").order_by("name", "id")
         if self.request.user.is_authenticated and self.request.user.is_admin_role:
             return queryset
         return queryset.filter(is_published=True)
@@ -31,14 +33,32 @@ class QuestionViewSet(ReadOnlyModelViewSet):
     queryset = Question.objects.filter(
         is_published=True,
         section__exam__is_published=True,
-    ).select_related("section", "section__exam", "explanation").prefetch_related("answer_choices")
+    ).select_related("section", "section__exam", "explanation").prefetch_related(
+        "answer_choices"
+    ).order_by("section__exam__slug", "section__slug", "id")
 
 
 class OfficialExamDateViewSet(ReadOnlyModelViewSet):
     serializer_class = OfficialExamDateSerializer
     permission_classes = [IsAuthenticated]
-    filterset_fields = ("exam_type", "event_kind", "academic_year", "verification_status")
+    filterset_fields = (
+        "exam_type",
+        "event_kind",
+        "academic_year",
+        "exam_year",
+        "verification_status",
+    )
     ordering_fields = ("test_date", "registration_deadline", "late_registration_deadline")
 
     def get_queryset(self):
-        return OfficialExamDate.objects.all().order_by("test_date", "exam_type", "name")
+        queryset = OfficialExamDate.objects.all()
+        if self.request.query_params.get("include_past") != "true":
+            queryset = queryset.filter(
+                Q(test_date__gte=timezone.now().date()) | Q(test_date__isnull=True)
+            )
+        return queryset.order_by(
+            "exam_year",
+            F("test_date").asc(nulls_last=True),
+            "exam_type",
+            "name",
+        )

@@ -1,4 +1,6 @@
+import csv
 from datetime import timedelta
+from io import StringIO
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -404,6 +406,36 @@ class ExportAndAnalyticsTests(EventInfrastructureTestCase):
         self.assertIn("Motivation", body)
         self.assertIn("Great reason.", body)
         self.assertIn(self.student.email, body)
+
+    def test_export_neutralizes_spreadsheet_formula_prefixes(self):
+        event = self.create_event(status=Event.Status.DRAFT)
+        fields = self.add_form_fields(
+            event,
+            fields=[
+                {"field_type": "short_text", "label": "Equals", "is_required": True},
+                {"field_type": "short_text", "label": "Plus", "is_required": True},
+                {"field_type": "short_text", "label": "Minus", "is_required": True},
+                {"field_type": "short_text", "label": "At", "is_required": True},
+            ],
+        )
+        event.moderation_status = Event.Status.PUBLISHED
+        event.save(update_fields=["moderation_status"])
+        answers = {
+            str(fields[0]["id"]): "=1+1",
+            str(fields[1]["id"]): "+cmd",
+            str(fields[2]["id"]): " -10",
+            str(fields[3]["id"]): "@SUM(A1:A2)",
+        }
+        self.register(event, self.student, answers=answers)
+        self.client.force_authenticate(self.organizer)
+
+        response = self.client.get(
+            reverse("organizer-events:registrations-export", kwargs={"slug": event.slug})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rows = list(csv.reader(StringIO(response.content.decode("utf-8"))))
+        self.assertEqual(rows[-1][-4:], ["'=1+1", "'+cmd", "'-10", "'@SUM(A1:A2)"])
 
     def test_export_is_scoped_to_owning_organizer(self):
         event = self.create_event(status=Event.Status.PUBLISHED)

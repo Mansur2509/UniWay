@@ -99,6 +99,18 @@ class RoadmapTaskCreateSerializer(serializers.ModelSerializer):
         return value
 
 
+class ExamPlanRoadmapTaskCreateSerializer(serializers.Serializer):
+    official_exam_date_id = serializers.IntegerField(min_value=1)
+    title = serializers.CharField(max_length=240)
+    description = serializers.CharField(max_length=2000, required=False, allow_blank=True)
+
+    def validate_title(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Title is required.")
+        return value
+
+
 class RoadmapPlanSerializer(serializers.ModelSerializer):
     tasks = serializers.SerializerMethodField()
 

@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Subscription
+from .models import Plan, Subscription
 from .serializers import SubscriptionSerializer
 from .services import reset_usage_if_period_elapsed
 
@@ -15,7 +15,9 @@ class SubscriptionViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["get"], url_path="me")
     def me(self, request):
-        subscription, _ = Subscription.objects.get_or_create(user=request.user)
-        subscription = reset_usage_if_period_elapsed(subscription)
+        subscription = Subscription.objects.filter(user=request.user).first() or Subscription(
+            user=request.user,
+            plan=Plan.FREE,
+        )
+        subscription = reset_usage_if_period_elapsed(subscription, persist=False)
         return Response(self.get_serializer(subscription).data)
-

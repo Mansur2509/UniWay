@@ -1,11 +1,15 @@
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
+from django.db import connection
 from django.test import override_settings
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from services.ai_gateway_service.exceptions import AIProviderError
+from services.application_service.models import ApplicationTrackerItem
 from services.essay_service.models import EssayWorkspace
 from services.profile_assessment_service.models import AIProfileAssessment
 from services.profile_assessment_service.services import (
@@ -590,3 +594,25 @@ class ProtocolEightApiEndpointsTests(APITestCase):
             response = self.client.get("/api/v1/strategy/me/")
 
         self.assertEqual(response.status_code, 200)
+
+    def test_strategy_query_count_does_not_grow_with_application_count(self):
+        first_university = create_university("strategy-query-count-0")
+        ApplicationTrackerItem.objects.create(user=self.user, university=first_university)
+        cache.clear()
+        with CaptureQueriesContext(connection) as small:
+            small_response = self.client.get("/api/v1/strategy/me/")
+
+        for index in range(1, 8):
+            university = create_university(f"strategy-query-count-{index}")
+            ApplicationTrackerItem.objects.create(user=self.user, university=university)
+        cache.clear()
+        with CaptureQueriesContext(connection) as large:
+            large_response = self.client.get("/api/v1/strategy/me/")
+
+        self.assertEqual(small_response.status_code, 200)
+        self.assertEqual(large_response.status_code, 200)
+        self.assertEqual(
+            len(small),
+            len(large),
+            "Strategy query count grew with application count -- check timeline prefetching.",
+        )

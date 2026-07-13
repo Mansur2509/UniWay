@@ -28,6 +28,7 @@ PROMPT_VERSION = "1"
 
 MAX_NEXT_ACTIONS = 4
 DAILY_COUNT_CACHE_TTL_SECONDS = 86_400
+MIN_REFRESH_LOCK_TTL_SECONDS = 60
 
 # calculate_university_fit's `category` uses "safety" internally (shared with
 # recommendations.py/strategy.py); the public tier vocabulary for this task
@@ -54,6 +55,10 @@ def semantic_fit_ai_available() -> bool:
 
 def _daily_count_cache_key(user) -> str:
     return f"semantic-fit-daily-count:{user.id}:{timezone.now().date().isoformat()}"
+
+
+def _refresh_lock_cache_key(user) -> str:
+    return f"semantic-fit-refresh-lock:{user.id}"
 
 
 def _daily_limit_reached(user) -> bool:
@@ -225,13 +230,24 @@ def refresh_semantic_fit(user, university: University, *, client=None) -> dict:
     profile, prompt, or AI output text -- only IDs/status/timing.
 
     Returns {"reason": ..., "record": UniversitySemanticFit | None}. Reason
-    is one of: "cached" (already valid, no call made), "ai_unavailable",
-    "daily_limit_reached", "validation_failed" (rejected twice, stored as
-    failed), or "refreshed" (stored a new OK result).
+    is one of: "cached" (already valid, no call made), "in_progress",
+    "ai_unavailable", "daily_limit_reached", "validation_failed" (rejected
+    twice, stored as failed), or "refreshed" (stored a new OK result).
     """
 
     started_at = time.monotonic()
-    result = _refresh_semantic_fit_impl(user, university, client=client)
+    lock_key = _refresh_lock_cache_key(user)
+    lock_ttl = max(
+        MIN_REFRESH_LOCK_TTL_SECONDS,
+        int(settings.AI_TIMEOUT_SECONDS) * 3,
+    )
+    if not cache.add(lock_key, 1, timeout=lock_ttl):
+        result = {"reason": "in_progress", "record": None}
+    else:
+        try:
+            result = _refresh_semantic_fit_impl(user, university, client=client)
+        finally:
+            cache.delete(lock_key)
     duration_ms = int((time.monotonic() - started_at) * 1000)
     log_ai_call(
         logger,

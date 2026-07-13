@@ -156,9 +156,9 @@ export function EventDetailScreen({ slug }: { slug: string }) {
               >
                 {event.is_online
                   ? t("events.location.online")
-                  : [event.location.venue, event.location.city, event.location.country]
+                  : [event.location?.venue, event.location?.city, event.location?.country]
                       .filter(Boolean)
-                      .join(", ")}
+                      .join(", ") || t("events.value.notSet")}
               </DetailItem>
               <DetailItem icon={WalletCards} label={t("events.fields.price")}>
                 {priceText(event, t)}
@@ -263,15 +263,17 @@ export function EventDetailScreen({ slug }: { slug: string }) {
           <Card>
             <h2 className="text-lg font-semibold">{t("events.fields.organizer")}</h2>
             <p className="mt-2 text-sm text-muted-foreground">{event.organizer_name}</p>
-            <a
-              className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary-hover hover:underline"
-              href={event.source.source_url}
-              rel="noreferrer"
-              target="_blank"
-            >
-              {t("events.actions.officialSource")}
-              <ExternalLink aria-hidden className="size-4" />
-            </a>
+            {event.source?.source_url ? (
+              <a
+                className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary-hover hover:underline"
+                href={event.source.source_url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                {t("events.actions.officialSource")}
+                <ExternalLink aria-hidden className="size-4" />
+              </a>
+            ) : null}
           </Card>
         </aside>
       </div>

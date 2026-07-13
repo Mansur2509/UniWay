@@ -15,7 +15,7 @@ from services.essay_service.models import AIEssayScoreReport
 from services.roadmap_service.models import RoadmapTask
 from services.user_profile_service.services import (
     calculate_profile_completion,
-    ensure_profile_records,
+    get_profile_records_for_read,
 )
 
 from .models import AnalyticsEvent
@@ -39,7 +39,7 @@ class MyAnalyticsView(APIView):
 
     def get(self, request):
         user = request.user
-        profile, preferences = ensure_profile_records(user)
+        profile, preferences = get_profile_records_for_read(user)
         completion = calculate_profile_completion(profile, preferences)
 
         roadmap_tasks = RoadmapTask.objects.filter(user=user)

@@ -452,3 +452,55 @@ Expanded university workbooks can fail in a way that ordinary cell cleaning cann
 `backend/services/university_service/import_schema.py` defines the canonical 72 columns, expected types, visibility, validators, reject patterns, and repair policy. The CLI importer validates identity alignment before matching/upsert. Rows where `Name` looks like a country, `Country` looks like a city, and `City` is a URL are classified as `shifted_left_missing_name`. They are repaired only when at least 5 later cells repeat the same university-name prefix and the website domain plausibly matches the extracted identity, including known acronyms in parenthetical names. Otherwise the row is manual-review only and no university is created.
 
 The audit CSV now records `raw_name`, `normalized_name`, and `row_alignment_status`; the manual-review CSV includes the raw first 5 cells, extracted possible name, detected country/city, possible reason, and suggested action. This keeps operators from silently importing bad rows and gives workbook repair a concrete checklist without exposing audit/manual-review/system fields through public APIs.
+
+## ADR-045: Browser sessions use memory access tokens and HttpOnly refresh cookies
+
+- **Status:** Accepted
+- **Date:** 2026-07-12
+
+The browser no longer persists JWT refresh credentials in JavaScript-readable
+storage. Login, registration, refresh, and Google OAuth issue a rotating refresh
+token only through a scoped HttpOnly SameSite cookie; the short-lived access
+token remains in memory. Ambient-cookie refresh/logout requests validate the
+request origin, logout blacklists the refresh token, and a non-secret browser
+signal coordinates logout between tabs. Transitional body-token support exists
+only for sessions created before the migration.
+
+Google sign-in uses a backend Authorization Code flow with PKCE, nonce, signed
+state cookie, and a single-use database state digest. Only backend-verified ID
+token claims are trusted. A verified email may auto-link only to an active
+normal student; organizer/admin/staff/superuser and suspended accounts require a
+separate controlled recovery/linking process. Redirects are fixed and
+allowlisted, and no Google secret is present in the frontend.
+
+## ADR-046: Target universities and exam plans preserve official and personal data separately
+
+- **Status:** Accepted
+- **Date:** 2026-07-12
+
+The application tracker remains the canonical student-owned record for both an
+application and a prospective university. Program, round, intake year, priority,
+notes, and a personal planning estimate live on that record. Official deadline
+data is returned as a source/status envelope and is never overwritten or
+silently replaced by the personal estimate. Removing a target archives it; a
+restore action reverses the operation without deleting history.
+
+SAT/AP date records are annual, source-timestamped College Board records with an
+effective verified/not-published/outdated/requires-review lifecycle. Historical
+dates are hidden from the default upcoming feed, unknown future dates stay null,
+and student plans may attach only a validated record of the matching exam type.
+Adding a verified exam date to the roadmap uses a server-side idempotent action
+so double clicks or retries cannot create duplicate tasks.
+
+## ADR-047: Locale dictionaries are loaded per selected locale
+
+- **Status:** Accepted
+- **Date:** 2026-07-12
+
+Four complete dictionaries had become the largest universal frontend payload.
+English remains the deterministic server/hydration fallback, while Russian and
+the two Uzbek dictionaries are dynamically imported only when selected. The
+provider switches locale and dictionary atomically, keeps a complete prior
+dictionary visible while loading, and falls back to English if a chunk fails.
+This reduced authenticated-route First Load JS by about 154 kB without adding a
+runtime i18n dependency or permitting raw-key flashes.

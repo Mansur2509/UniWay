@@ -19,8 +19,8 @@ export function EventMapPreview({ events }: { events: EventDetails[] }) {
   const mappedEvents = events
     .map((event) => ({
       event,
-      left: mapPosition(event.location.longitude, -180, 180),
-      top: mapPosition(event.location.latitude, 90, -90)
+      left: mapPosition(event.location?.longitude ?? null, -180, 180),
+      top: mapPosition(event.location?.latitude ?? null, 90, -90)
     }))
     .filter(
       (item): item is typeof item & { left: number; top: number } =>
@@ -80,9 +80,9 @@ export function EventMapPreview({ events }: { events: EventDetails[] }) {
                 <p className="mt-1 text-xs text-muted-foreground">
                   {event.is_online
                     ? t("events.map.online")
-                    : [event.location.city, event.location.country]
+                    : [event.location?.city, event.location?.country]
                         .filter(Boolean)
-                        .join(", ")}
+                        .join(", ") || t("events.value.notSet")}
                 </p>
               </Link>
             ))}

@@ -32,7 +32,7 @@ from services.user_profile_service.services import ensure_profile_records
 
 User = get_user_model()
 
-DEMO_PASSWORD = "UniWay-Demo-842!"
+DEMO_PASSWORD = "UniWay-Demo-842!"  # nosec B105 - public student sample account only
 
 # `KNOWN_ADMIN_EMAILS` is re-exported from common.admin_bootstrap for callers that
 # still import it from here.
@@ -107,9 +107,14 @@ class Command(BaseCommand):
             )
             user.username = email
             user.role = role
-            user.is_active = True
-            user.is_staff = role == User.Role.ADMIN
-            user.set_password(DEMO_PASSWORD)
+            is_privileged_demo = role in {User.Role.ORGANIZER, User.Role.ADMIN}
+            user.is_active = not is_privileged_demo
+            user.is_staff = False
+            user.is_superuser = False
+            if is_privileged_demo:
+                user.set_unusable_password()
+            else:
+                user.set_password(DEMO_PASSWORD)
             user.save()
 
             profile, preferences = ensure_profile_records(user)

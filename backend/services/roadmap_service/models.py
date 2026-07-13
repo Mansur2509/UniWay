@@ -20,6 +20,13 @@ class RoadmapPlan(models.Model):
 
     class Meta:
         ordering = ("-generated_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("user",),
+                condition=models.Q(active=True),
+                name="unique_active_roadmap_plan_per_user",
+            )
+        ]
 
     def __str__(self) -> str:
         return self.title or f"Roadmap for {self.user_id}"

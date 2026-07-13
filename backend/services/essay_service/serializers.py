@@ -76,6 +76,12 @@ class EssayFeedbackSerializer(serializers.ModelSerializer):
 
 
 class EssayWorkspaceSerializer(serializers.ModelSerializer):
+    draft_text = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=50_000,
+        trim_whitespace=False,
+    )
     university_name = serializers.CharField(source="university.name", read_only=True, default=None)
     university_slug = serializers.CharField(source="university.slug", read_only=True, default=None)
     application_university_name = serializers.CharField(

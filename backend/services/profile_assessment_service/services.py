@@ -297,6 +297,7 @@ def _target_context(user, profile) -> dict:
     applications = list(
         ApplicationTrackerItem.objects.filter(user=user)
         .select_related("university", "target_program")
+        .prefetch_related("university__programs")
     )
     targets = _string_list(profile.target_universities, max_items=30)
     saved_names = [item.university.name for item in saved]

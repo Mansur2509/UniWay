@@ -34,21 +34,26 @@ from .serializers import (
     SportSerializer,
     VolunteerSerializer,
 )
-from .services import calculate_profile_completion, ensure_profile_records
+from .services import (
+    calculate_profile_completion,
+    ensure_profile_records,
+    get_profile_records_for_read,
+)
 
 
 class CurrentProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get_profile(self, request):
-        profile, _ = ensure_profile_records(request.user)
+    def get_profile(self, request, *, for_update=False):
+        records = ensure_profile_records if for_update else get_profile_records_for_read
+        profile, _ = records(request.user)
         return profile
 
     def get(self, request):
         return Response(ProfileSerializer(self.get_profile(request)).data)
 
     def patch(self, request):
-        profile = self.get_profile(request)
+        profile = self.get_profile(request, for_update=True)
         serializer = ProfileSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         profile = serializer.save()
@@ -60,7 +65,7 @@ class ProfileCompletionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        profile, _ = ensure_profile_records(request.user)
+        profile, _ = get_profile_records_for_read(request.user)
         return Response(ProfileCompletionSerializer.for_profile(profile).data)
 
 
@@ -90,7 +95,7 @@ class ApplicationReadinessView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        profile, _ = ensure_profile_records(request.user)
+        profile, _ = get_profile_records_for_read(request.user)
         return Response(ApplicationReadinessSerializer.for_profile(profile).data)
 
 
@@ -104,7 +109,10 @@ class ProfileViewSet(
 
     @action(detail=False, methods=["get", "patch"], url_path="me")
     def me(self, request):
-        profile, _ = ensure_profile_records(request.user)
+        if request.method == "PATCH":
+            profile, _ = ensure_profile_records(request.user)
+        else:
+            profile, _ = get_profile_records_for_read(request.user)
         if request.method == "PATCH":
             serializer = self.get_serializer(profile, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)

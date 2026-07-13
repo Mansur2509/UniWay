@@ -1,6 +1,10 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APITestCase
+from rest_framework.throttling import ScopedRateThrottle
 
 from services.feedback_service.models import UserReport
 
@@ -16,6 +20,7 @@ def detail_url(pk: int) -> str:
 
 class UserReportSubmissionTests(APITestCase):
     def setUp(self):
+        cache.clear()
         self.student = User.objects.create_user(
             username="reporter@example.com",
             email="reporter@example.com",
@@ -64,6 +69,30 @@ class UserReportSubmissionTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         report = UserReport.objects.get()
         self.assertEqual(report.status, UserReport.Status.OPEN)
+
+    def test_user_report_submission_is_rate_limited(self):
+        self.client.force_authenticate(self.student)
+        with patch.object(
+            ScopedRateThrottle,
+            "THROTTLE_RATES",
+            {"report_submit": "2/minute"},
+        ):
+            first = self.client.post(
+                CREATE_URL,
+                {"target_type": "event", "target_id": 1, "reason": "First report"},
+            )
+            second = self.client.post(
+                CREATE_URL,
+                {"target_type": "event", "target_id": 2, "reason": "Second report"},
+            )
+            third = self.client.post(
+                CREATE_URL,
+                {"target_type": "event", "target_id": 3, "reason": "Third report"},
+            )
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(third.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
 
 class UserReportAdminPermissionTests(APITestCase):

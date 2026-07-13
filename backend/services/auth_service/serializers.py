@@ -1,10 +1,15 @@
 from django.contrib.auth import authenticate, get_user_model, password_validation
 from django.db import transaction
 from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 
 from services.subscription_service.models import Plan, Subscription
 from services.user_profile_service.models import StudentProfile, UserPreference
+
+from .cookies import refresh_token_from_request
 
 User = get_user_model()
 
@@ -53,8 +58,13 @@ class CurrentUserSerializer(serializers.Serializer):
     subscription = SubscriptionBasicSerializer(read_only=True)
 
     def to_representation(self, instance):
-        profile, _ = StudentProfile.objects.get_or_create(user=instance)
-        subscription, _ = Subscription.objects.get_or_create(user=instance, defaults={"plan": Plan.FREE})
+        profile = StudentProfile.objects.filter(user=instance).first() or StudentProfile(
+            user=instance
+        )
+        subscription = Subscription.objects.filter(user=instance).first() or Subscription(
+            user=instance,
+            plan=Plan.FREE,
+        )
         return {
             "id": instance.id,
             "email": instance.email,
@@ -99,7 +109,9 @@ class RegisterSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         if attrs["password"] != attrs["password_confirm"]:
-            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
+            raise serializers.ValidationError(
+                {"password_confirm": "Passwords do not match."}  # nosec B105
+            )
         password_validation.validate_password(attrs["password"])
         return attrs
 
@@ -141,11 +153,14 @@ class LoginSerializer(serializers.Serializer):
 
 
 class LogoutSerializer(serializers.Serializer):
-    refresh = serializers.CharField(write_only=True)
+    refresh = serializers.CharField(write_only=True, required=False)
 
     def save(self, **kwargs):
+        token_value = refresh_token_from_request(self.context["request"])
+        if not token_value:
+            return
         try:
-            token = RefreshToken(self.validated_data["refresh"])
+            token = RefreshToken(token_value)
             if str(token["user_id"]) != str(self.context["request"].user.pk):
                 raise serializers.ValidationError(
                     {"refresh": "Refresh token does not belong to the authenticated user."}
@@ -153,3 +168,22 @@ class LogoutSerializer(serializers.Serializer):
             token.blacklist()
         except TokenError as error:
             raise serializers.ValidationError({"refresh": "Invalid or expired refresh token."}) from error
+
+
+class ActiveUserTokenRefreshSerializer(TokenRefreshSerializer):
+    """Reject refresh for removed/inactive accounts before rotating the token."""
+
+    def validate(self, attrs):
+        try:
+            refresh = self.token_class(attrs["refresh"])
+            user_id = refresh.get(api_settings.USER_ID_CLAIM)
+        except (KeyError, TokenError) as error:
+            raise AuthenticationFailed("Invalid or expired refresh token.") from error
+
+        if not user_id or not User.objects.filter(
+            **{api_settings.USER_ID_FIELD: user_id},
+            is_active=True,
+        ).exists():
+            raise AuthenticationFailed("Invalid or expired refresh token.")
+
+        return super().validate(attrs)

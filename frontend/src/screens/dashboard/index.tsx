@@ -343,16 +343,6 @@ export function DashboardScreen() {
     (task) => task.priority === "urgent" && task.status === "todo"
   ).length;
 
-  const applicationStatusCounts = useMemo(
-    () => ({
-      researching: applications.filter((item) => item.status === "researching").length,
-      preparing: applications.filter((item) => item.status === "preparing").length,
-      submitted: applications.filter((item) => item.status === "submitted").length,
-      awaiting_decision: applications.filter((item) => item.status === "awaiting_decision").length
-    }),
-    [applications]
-  );
-
   const essayStatusCounts = useMemo(
     () => ({
       not_started: essays.filter((item) => item.status === "not_started").length,
@@ -366,8 +356,14 @@ export function DashboardScreen() {
   const nextDeadline = useMemo(() => {
     const candidates: Array<{ label: string; date: string }> = [];
     applications.forEach((application) => {
-      if (application.deadline) {
-        candidates.push({ label: application.university_name, date: application.deadline });
+      if (
+        application.official_deadline.status === "verified" &&
+        application.official_deadline.date
+      ) {
+        candidates.push({
+          label: application.university_name,
+          date: application.official_deadline.date
+        });
       }
     });
     roadmapTasks
@@ -389,12 +385,30 @@ export function DashboardScreen() {
 
   const nextDeadlineUrgency = urgencyForDays(nextDeadlineDays);
 
+  const nearestVerifiedTargetDeadline = useMemo(
+    () =>
+      applications
+        .filter(
+          (application) =>
+            application.official_deadline.status === "verified" &&
+            application.official_deadline.date
+        )
+        .sort((left, right) =>
+          (left.official_deadline.date ?? "").localeCompare(
+            right.official_deadline.date ?? ""
+          )
+        )[0] ?? null,
+    [applications]
+  );
+
   // Active applications (still being worked on) that have no user or verified
   // deadline yet — surfaced so a missing deadline is never treated as "safe".
   const missingDeadlineCount = useMemo(
     () =>
       applications.filter(
         (application) =>
+          application.official_deadline.status !== "verified" &&
+          !application.personal_estimated_deadline &&
           !application.deadline &&
           !["accepted", "rejected", "withdrawn"].includes(application.status)
       ).length,
@@ -771,24 +785,36 @@ export function DashboardScreen() {
                   <p>{t("dashboard.applicationsWidget.emptyAction")}</p>
                 </div>
               ) : (
-                <dl className="mt-3 space-y-1.5 text-xs">
-                  <DashboardCountRow
-                    count={applicationStatusCounts.researching}
-                    label={t("applications.status.researching")}
-                  />
-                  <DashboardCountRow
-                    count={applicationStatusCounts.preparing}
-                    label={t("applications.status.preparing")}
-                  />
-                  <DashboardCountRow
-                    count={applicationStatusCounts.submitted}
-                    label={t("applications.status.submitted")}
-                  />
-                  <DashboardCountRow
-                    count={applicationStatusCounts.awaiting_decision}
-                    label={t("applications.status.awaiting_decision")}
-                  />
-                </dl>
+                <>
+                  <ul className="mt-3 space-y-2 text-xs">
+                    {applications.slice(0, 3).map((application) => (
+                      <li
+                        className="flex min-w-0 items-center justify-between gap-2"
+                        key={application.id}
+                      >
+                        <span className="truncate font-semibold">
+                          {application.university_name}
+                        </span>
+                        <span className="shrink-0 text-muted-foreground">
+                          {t(
+                            `applications.deadlineStatus.${application.official_deadline.status}` as TranslationKey
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {nearestVerifiedTargetDeadline?.official_deadline.date ? (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      {t("dashboard.applicationsWidget.nearestVerified", {
+                        university: nearestVerifiedTargetDeadline.university_name,
+                        date: formatDate(
+                          nearestVerifiedTargetDeadline.official_deadline.date,
+                          locale
+                        )
+                      })}
+                    </p>
+                  ) : null}
+                </>
               )}
               <Button asChild className="mt-3" size="sm" variant="ghost">
                 <Link href="/applications">{t("dashboard.applicationsWidget.open")}</Link>

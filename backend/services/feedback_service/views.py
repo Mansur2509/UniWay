@@ -1,8 +1,10 @@
 from django.utils import timezone
 from rest_framework import generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 
 from common.permissions import IsAdminRole
+from common.throttling import ScopedIPRateThrottle
 from services.activity_service.models import AnalyticsEvent
 from services.activity_service.services import track_event
 
@@ -22,6 +24,8 @@ class FeedbackReportCreateView(generics.CreateAPIView):
 
     serializer_class = FeedbackReportCreateSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle, ScopedIPRateThrottle]
+    throttle_scope = "feedback_submit"
 
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
@@ -54,6 +58,8 @@ class AdminFeedbackReportDetailView(generics.RetrieveUpdateAPIView):
 class UserReportCreateView(generics.CreateAPIView):
     serializer_class = UserReportCreateSerializer
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle, ScopedIPRateThrottle]
+    throttle_scope = "report_submit"
 
     def perform_create(self, serializer):
         serializer.save(reporter=self.request.user)

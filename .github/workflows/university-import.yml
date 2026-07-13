@@ -36,6 +36,9 @@ on:
         required: true
         default: false
 
+permissions:
+  contents: read
+
 jobs:
   import:
     runs-on: ubuntu-latest
@@ -44,12 +47,18 @@ jobs:
       DJANGO_SETTINGS_MODULE: config.settings
       IMPORT_AUDIT_OUT: import_audit.csv
       IMPORT_MANUAL_REVIEW_OUT: manual_review.csv
+      INPUT_MODE: ${{ inputs.mode }}
+      INPUT_DATASET_PATH: ${{ inputs.dataset_path }}
+      INPUT_SHEETS: ${{ inputs.sheets }}
+      INPUT_LIMIT: ${{ inputs.limit }}
+      INPUT_MISSING_ONLY: ${{ inputs.missing_only }}
+      INPUT_LIST_SHEETS: ${{ inputs.list_sheets }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
@@ -71,39 +80,74 @@ jobs:
         working-directory: backend
         run: python manage.py migrate --noinput
 
-      - name: List sheets
-        if: ${{ inputs.list_sheets }}
-        working-directory: backend
-        run: python manage.py import_universities_data "../${{ inputs.dataset_path }}" --list-sheets
-
-      - name: Run import
-        if: ${{ !inputs.list_sheets }}
+      - name: Validate inputs and run requested operation
         working-directory: backend
         shell: bash
         run: |
           set -euo pipefail
 
+          case "$INPUT_MODE" in
+            dry_run|commit) ;;
+            *) echo "Invalid mode" >&2; exit 2 ;;
+          esac
+          case "$INPUT_MISSING_ONLY" in
+            true|false) ;;
+            *) echo "Invalid missing_only value" >&2; exit 2 ;;
+          esac
+          case "$INPUT_LIST_SHEETS" in
+            true|false) ;;
+            *) echo "Invalid list_sheets value" >&2; exit 2 ;;
+          esac
+          if [[ -n "$INPUT_LIMIT" && ! "$INPUT_LIMIT" =~ ^[1-9][0-9]{0,5}$ ]]; then
+            echo "Limit must be a positive integer no larger than six digits" >&2
+            exit 2
+          fi
+          if [[ -z "$INPUT_DATASET_PATH" || "$INPUT_DATASET_PATH" == /* || "$INPUT_DATASET_PATH" == *".."* || "$INPUT_DATASET_PATH" == *\\* ]]; then
+            echo "Dataset path must be a repository-relative path without traversal" >&2
+            exit 2
+          fi
+          if [[ "$INPUT_SHEETS" == *$'\n'* || ${#INPUT_SHEETS} -gt 500 ]]; then
+            echo "Sheets input is invalid or too long" >&2
+            exit 2
+          fi
+
+          repo_root="$(realpath ..)"
+          dataset_path="$(realpath -m "../$INPUT_DATASET_PATH")"
+          case "$dataset_path" in
+            "$repo_root"/*) ;;
+            *) echo "Dataset path escaped the repository" >&2; exit 2 ;;
+          esac
+          if [[ ! -f "$dataset_path" ]]; then
+            echo "Dataset file does not exist in the checked-out repository" >&2
+            exit 2
+          fi
+
+          if [[ "$INPUT_LIST_SHEETS" == "true" ]]; then
+            python manage.py import_universities_data "$dataset_path" --list-sheets
+            exit 0
+          fi
+
           mode_flag="--dry-run"
-          if [ "${{ inputs.mode }}" = "commit" ]; then
+          if [[ "$INPUT_MODE" == "commit" ]]; then
             mode_flag="--commit"
           fi
 
           missing_flag=""
-          if [ "${{ inputs.missing_only }}" = "true" ]; then
+          if [[ "$INPUT_MISSING_ONLY" == "true" ]]; then
             missing_flag="--missing-only"
           fi
 
           sheets_flag=()
-          if [ -n "${{ inputs.sheets }}" ]; then
-            sheets_flag=(--sheets "${{ inputs.sheets }}")
+          if [[ -n "$INPUT_SHEETS" ]]; then
+            sheets_flag=(--sheets "$INPUT_SHEETS")
           fi
 
           limit_flag=()
-          if [ -n "${{ inputs.limit }}" ]; then
-            limit_flag=(--limit "${{ inputs.limit }}")
+          if [[ -n "$INPUT_LIMIT" ]]; then
+            limit_flag=(--limit "$INPUT_LIMIT")
           fi
 
-          python manage.py import_universities_data "../${{ inputs.dataset_path }}" \
+          python manage.py import_universities_data "$dataset_path" \
             "$mode_flag" \
             $missing_flag \
             "${sheets_flag[@]}" \
@@ -113,7 +157,7 @@ jobs:
 
       - name: Upload import artifacts
         if: ${{ always() && !inputs.list_sheets }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: university-import-audit
           path: |

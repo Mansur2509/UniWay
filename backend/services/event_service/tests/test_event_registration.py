@@ -4,6 +4,8 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -188,6 +190,26 @@ class EventRegistrationTests(APITestCase):
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["registration_form_fields"], [])
         self.assertIsNone(response.data["results"][0]["registration_ticket"])
+
+    def test_event_catalog_query_count_does_not_grow_with_event_count(self):
+        self.client.force_authenticate(self.user)
+        self.client.get(reverse("events:list"))
+        with CaptureQueriesContext(connection) as small:
+            small_response = self.client.get(reverse("events:list"))
+
+        for index in range(6):
+            self.create_event(slug=f"query-count-event-{index}")
+        with CaptureQueriesContext(connection) as large:
+            large_response = self.client.get(reverse("events:list"))
+
+        self.assertEqual(small_response.status_code, 200)
+        self.assertEqual(large_response.status_code, 200)
+        self.assertEqual(large_response.data["count"], 7)
+        self.assertEqual(
+            len(small),
+            len(large),
+            "Event catalog query count grew with event count -- check registration status prefetch.",
+        )
 
     def test_event_catalog_empty_list_accepts_page_size_query(self):
         Event.objects.all().delete()

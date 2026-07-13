@@ -207,7 +207,8 @@ export type AIEssayScoreReason =
   | "quota_exceeded"
   | "ai_unavailable"
   | "validation_failed"
-  | "missing_essay_text";
+  | "missing_essay_text"
+  | "essay_too_long";
 
 export type AIEssayScoreResponse = {
   reason: AIEssayScoreReason;

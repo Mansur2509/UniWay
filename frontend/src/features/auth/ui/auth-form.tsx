@@ -11,6 +11,7 @@ import { Card } from "@/shared/ui/card";
 import { fieldClassName } from "@/shared/ui/field";
 
 import { useAuth } from "../model/auth-context";
+import { getGoogleOAuthStartUrl } from "../api/auth-api";
 
 type AuthFormProps = {
   mode: "login" | "register";
@@ -19,10 +20,10 @@ type AuthFormProps = {
   showModeLink?: boolean;
 };
 
-const DEMO_PASSWORD = "EduVerse-Demo-842!";
+const DEMO_PASSWORD = "UniWay-Demo-842!";
 const DEMO_ACCOUNTS = [
   {
-    email: "student.demo@eduverse.local",
+    email: "student.demo@uniway.local",
     labelKey: "auth.demo.student",
     role: "student"
   }
@@ -44,6 +45,7 @@ export function AuthForm({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingDemoRole, setPendingDemoRole] = useState<string | null>(null);
+  const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false);
   const isRegister = mode === "register";
 
   useEffect(() => {
@@ -51,6 +53,23 @@ export function AuthForm({
     setPasswordConfirm("");
     setError(null);
   }, [mode]);
+
+  useEffect(() => {
+    const oauthStatus = new URLSearchParams(window.location.search).get("oauth");
+    const messageKeyByStatus: Record<string, TranslationKey> = {
+      cancelled: "auth.google.cancelled",
+      unavailable: "auth.google.unavailable",
+      invalid: "auth.google.invalid",
+      conflict: "auth.google.conflict",
+      blocked: "auth.google.blocked",
+      failed: "auth.google.failed"
+    };
+    const key = oauthStatus ? messageKeyByStatus[oauthStatus] : undefined;
+    if (key) {
+      setError(t(key));
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [t]);
 
   function localizedSubmitError(submitError: unknown, errorContext: "login" | "register" = mode) {
     let errorMessage = t("common.error.generic");
@@ -160,6 +179,18 @@ export function AuthForm({
     }
   }
 
+  function handleGoogleLogin() {
+    if (isSubmitting || isGoogleRedirecting) return;
+    setError(null);
+    setIsGoogleRedirecting(true);
+    try {
+      window.location.assign(getGoogleOAuthStartUrl());
+    } catch {
+      setIsGoogleRedirecting(false);
+      setError(t("auth.google.failed"));
+    }
+  }
+
   return (
     <Card className="w-full max-w-md p-6 sm:p-8">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary-hover">
@@ -255,6 +286,27 @@ export function AuthForm({
               : t("auth.signIn")}
         </Button>
       </form>
+
+      <div className="my-5 flex items-center gap-3" aria-hidden>
+        <span className="h-px flex-1 bg-border" />
+        <span className="text-xs font-semibold uppercase text-muted-foreground">
+          {t("auth.google.or")}
+        </span>
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
+      <Button
+        className="w-full"
+        disabled={isSubmitting || isGoogleRedirecting}
+        onClick={handleGoogleLogin}
+        type="button"
+        variant="secondary"
+      >
+        {isGoogleRedirecting ? t("auth.google.redirecting") : t("auth.google.continue")}
+      </Button>
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">
+        {t("auth.google.securityNote")}
+      </p>
 
       <div className="mt-5 border-t pt-5">
         <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">

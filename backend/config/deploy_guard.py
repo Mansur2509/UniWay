@@ -29,7 +29,12 @@ def _looks_like_origin_missing_protocol(origin: str) -> bool:
 
 
 def validate_deploy_config(
-    *, debug: bool, allowed_hosts: list[str], cors_allowed_origins: list[str], csrf_trusted_origins: list[str]
+    *,
+    debug: bool,
+    allowed_hosts: list[str],
+    cors_allowed_origins: list[str],
+    csrf_trusted_origins: list[str],
+    secret_key: str | None = None,
 ) -> None:
     """Raise ImproperlyConfigured for common production env-var format bugs.
 
@@ -41,12 +46,29 @@ def validate_deploy_config(
     if debug:
         return
 
+    if secret_key is not None and (
+        secret_key == "unsafe-development-key-change-before-deploy"  # nosec B105
+        or len(secret_key) < 50
+    ):
+        raise ImproperlyConfigured(
+            "DJANGO_SECRET_KEY must be a unique production secret of at least 50 characters."
+        )
+
+    if not allowed_hosts or "*" in allowed_hosts:
+        raise ImproperlyConfigured(
+            "DJANGO_ALLOWED_HOSTS must contain explicit production hostnames; wildcard hosts are forbidden."
+        )
+    if "*" in cors_allowed_origins or "*" in csrf_trusted_origins:
+        raise ImproperlyConfigured(
+            "CORS_ALLOWED_ORIGINS and CSRF_TRUSTED_ORIGINS must use explicit origins."
+        )
+
     bad_hosts = [host for host in allowed_hosts if _looks_like_host_with_protocol(host)]
     if bad_hosts:
         raise ImproperlyConfigured(
             f"DJANGO_ALLOWED_HOSTS contains a value with a protocol prefix: {bad_hosts!r}. "
             "ALLOWED_HOSTS entries are bare hostnames only, e.g. "
-            "\"eduverse-vvw2.onrender.com,uni-way-beta.vercel.app\" -- remove the \"https://\"."
+            "\"api.example.com,app.example.com\" -- remove the \"https://\"."
         )
 
     bad_cors = [

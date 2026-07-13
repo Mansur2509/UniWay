@@ -7,6 +7,7 @@ from django.test import override_settings
 from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APITestCase
+from rest_framework.throttling import ScopedRateThrottle
 
 from services.ai_gateway_service.exceptions import AIProviderError, AIProviderUnavailable
 from services.university_service.models import UniversitySemanticFit
@@ -95,6 +96,29 @@ class SemanticFitTests(APITestCase):
         # Backward-compatible flat fields (existing FitAnalysisTests) stay present.
         self.assertIn("category", response.data)
         self.assertIn("fit_score", response.data)
+
+    def test_explicit_fit_refresh_has_a_dedicated_rate_limit(self):
+        with patch.object(
+            ScopedRateThrottle,
+            "THROTTLE_RATES",
+            {"ai_fit_refresh": "2/minute"},
+        ):
+            first = self.client.post(self._refresh_url(), {}, format="json")
+            second = self.client.post(self._refresh_url(), {}, format="json")
+            third = self.client.post(self._refresh_url(), {}, format="json")
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(third.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_concurrent_refresh_lock_prevents_duplicate_provider_call(self):
+        cache.set(f"semantic-fit-refresh-lock:{self.user.id}", 1, timeout=60)
+        fake_client = FakeSemanticFitClient(responses=[VALID_RESPONSE])
+
+        result = refresh_semantic_fit(self.user, self.university, client=fake_client)
+
+        self.assertEqual(result["reason"], "in_progress")
+        self.assertEqual(fake_client.calls, 0)
 
     def test_get_fit_never_calls_ai_even_when_cache_exists(self):
         fake_client = FakeSemanticFitClient(responses=[VALID_RESPONSE])

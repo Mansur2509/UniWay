@@ -9,7 +9,12 @@ from rest_framework.test import APITestCase
 from services.application_service.models import ApplicationRequirement, ApplicationTrackerItem
 from services.essay_service.models import EssayWorkspace
 from services.roadmap_service.models import RoadmapPlan, RoadmapTask
-from services.university_service.models import University
+from services.university_service.models import (
+    University,
+    UniversityDataSource,
+    UniversityFieldVerification,
+    UniversityProgram,
+)
 from services.user_profile_service.models import Recommender
 
 User = get_user_model()
@@ -50,6 +55,98 @@ class ApplicationTrackerApiTests(APITestCase):
         self.assertEqual(response.data["status"], ApplicationTrackerItem.Status.RESEARCHING)
         self.assertEqual(response.data["university_name"], self.university.name)
 
+    def test_target_metadata_and_verified_regular_deadline_are_serialized(self):
+        self.university.application_deadline = date(2026, 11, 1)
+        self.university.save(update_fields=["application_deadline"])
+        source_url = "https://example.com/admissions/deadlines"
+        UniversityFieldVerification.objects.create(
+            university=self.university,
+            field_name="application_deadline",
+            status=UniversityFieldVerification.Status.VERIFIED,
+            source_url=source_url,
+            last_verified_date=date.today(),
+        )
+        UniversityDataSource.objects.create(
+            university=self.university,
+            source_title="First-year application deadlines",
+            source_url=source_url,
+        )
+        program = UniversityProgram.objects.create(
+            university=self.university,
+            name="Economics",
+            degree_level="undergraduate",
+        )
+        self.client.force_authenticate(self.user1)
+
+        response = self.client.post(
+            "/api/applications/",
+            {
+                "university": self.university.id,
+                "target_program": program.id,
+                "target_intake_year": 2027,
+                "application_round": "regular_decision",
+                "personal_estimated_deadline": "2026-10-25",
+                "priority": "high",
+                "notes": "Confirm the official checklist before submitting.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["target_program_name"], "Economics")
+        self.assertEqual(response.data["target_intake_year"], 2027)
+        self.assertEqual(response.data["personal_estimated_deadline"], "2026-10-25")
+        self.assertEqual(response.data["official_deadline"]["status"], "verified")
+        self.assertEqual(response.data["official_deadline"]["date"], "2026-11-01")
+        self.assertEqual(
+            response.data["official_deadline"]["source_title"],
+            "First-year application deadlines",
+        )
+
+    def test_stale_cycle_deadline_is_not_returned_as_current_exact_date(self):
+        self.university.application_deadline = date(2025, 11, 1)
+        self.university.save(update_fields=["application_deadline"])
+        UniversityFieldVerification.objects.create(
+            university=self.university,
+            field_name="application_deadline",
+            status=UniversityFieldVerification.Status.VERIFIED,
+            source_url="https://example.com/admissions/deadlines",
+            last_verified_date=date.today(),
+        )
+        self.client.force_authenticate(self.user1)
+
+        response = self.client.post(
+            "/api/applications/",
+            {
+                "university": self.university.id,
+                "target_intake_year": 2027,
+                "application_round": "regular_decision",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.data["official_deadline"]["status"], "outdated")
+        self.assertIsNone(response.data["official_deadline"]["date"])
+        self.assertEqual(response.data["official_deadline"]["source_date"], "2025-11-01")
+
+    def test_program_must_belong_to_selected_university(self):
+        other = create_university(slug="other-program-university")
+        program = UniversityProgram.objects.create(
+            university=other,
+            name="Computer Science",
+            degree_level="undergraduate",
+        )
+        self.client.force_authenticate(self.user1)
+
+        response = self.client.post(
+            "/api/applications/",
+            {"university": self.university.id, "target_program": program.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("target_program", response.data)
+
     def test_duplicate_application_for_same_university_is_rejected(self):
         self.client.force_authenticate(self.user1)
         self.client.post("/api/applications/", {"university": self.university.id}, format="json")
@@ -65,6 +162,24 @@ class ApplicationTrackerApiTests(APITestCase):
         self.client.force_authenticate(self.user2)
         response = self.client.get("/api/applications/")
         self.assertEqual(response.data["results"], [])
+
+    def test_delete_archives_without_deleting_and_allows_a_new_active_target(self):
+        self.client.force_authenticate(self.user1)
+        created = self.client.post(
+            "/api/applications/", {"university": self.university.id}, format="json"
+        )
+
+        archived = self.client.delete(f"/api/applications/{created.data['id']}/")
+
+        self.assertEqual(archived.status_code, status.HTTP_204_NO_CONTENT)
+        stored = ApplicationTrackerItem.objects.get(pk=created.data["id"])
+        self.assertIsNotNone(stored.archived_at)
+        active_list = self.client.get("/api/applications/")
+        self.assertEqual(active_list.data["results"], [])
+        recreated = self.client.post(
+            "/api/applications/", {"university": self.university.id}, format="json"
+        )
+        self.assertEqual(recreated.status_code, status.HTTP_201_CREATED, recreated.data)
 
     def test_list_query_count_does_not_grow_per_application(self):
         # PERFORMANCE-011 PART 4: guards the select_related/prefetch_related

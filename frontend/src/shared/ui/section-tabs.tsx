@@ -20,7 +20,7 @@ export function SectionTabs({ ariaLabel, items }: { ariaLabel: string; items: Se
         return (
           <Link
             className={cn(
-              "inline-flex min-h-9 items-center rounded-sm border px-3 text-xs font-semibold transition-colors",
+              "inline-flex min-h-9 items-center rounded-sm border px-3 text-xs font-semibold transition-colors duration-fast ease-academic",
               isActive
                 ? "border-primary bg-primary text-primary-foreground"
                 : "bg-surface text-muted-foreground hover:border-navy/35 hover:text-foreground"

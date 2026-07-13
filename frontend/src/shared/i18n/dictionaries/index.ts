@@ -1,14 +1,18 @@
 import type { LocaleCode } from "../config";
 import type { TranslationDictionary } from "../types";
 import { en } from "./en";
-import { ru } from "./ru";
-import { uzCyrl } from "./uz-cyrl";
-import { uzLatn } from "./uz-latn";
 
-export const dictionaries: Record<LocaleCode, TranslationDictionary> = {
-  en,
-  ru,
-  "uz-Latn": uzLatn,
-  "uz-Cyrl": uzCyrl
-};
+export const defaultDictionary: TranslationDictionary = en;
 
+export async function loadDictionary(locale: LocaleCode): Promise<TranslationDictionary> {
+  switch (locale) {
+    case "ru":
+      return (await import("./ru")).ru;
+    case "uz-Latn":
+      return (await import("./uz-latn")).uzLatn;
+    case "uz-Cyrl":
+      return (await import("./uz-cyrl")).uzCyrl;
+    default:
+      return defaultDictionary;
+  }
+}

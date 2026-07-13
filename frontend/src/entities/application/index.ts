@@ -179,6 +179,9 @@ export type ApplicationTrackerItem = {
   fit_tier: ApplicationFitTier;
   source: ApplicationSource;
   deadline: string | null;
+  personal_estimated_deadline: string | null;
+  target_intake_year: number | null;
+  official_deadline: OfficialApplicationDeadline;
   financial_aid_deadline: string | null;
   scholarship_deadline: string | null;
   essays_status: ApplicationTaskStatus;
@@ -187,6 +190,7 @@ export type ApplicationTrackerItem = {
   documents_status: DocumentsStatus;
   financial_aid_status: FinancialAidStatus;
   notes: string;
+  archived_at: string | null;
   milestones: ApplicationMilestone[];
   checklist_progress: ChecklistProgress;
   created_at: string;
@@ -201,6 +205,8 @@ export type ApplicationTrackerItemInput = Partial<{
   priority: ApplicationPriority;
   source: ApplicationSource;
   deadline: string | null;
+  personal_estimated_deadline: string | null;
+  target_intake_year: number | null;
   financial_aid_deadline: string | null;
   scholarship_deadline: string | null;
   essays_status: ApplicationTaskStatus;
@@ -329,6 +335,18 @@ export type ChecklistProgress = {
   completed: number;
   total: number;
   percent: number | null;
+};
+
+export type OfficialApplicationDeadline = {
+  date: string | null;
+  source_date: string | null;
+  source_url: string;
+  source_title: string;
+  last_verified_date: string | null;
+  intake_year: number | null;
+  round_type: ApplicationRound;
+  timezone: string;
+  status: "verified" | "estimated" | "not_published" | "outdated" | "requires_review";
 };
 
 export type PaginatedResponse<Item> = {

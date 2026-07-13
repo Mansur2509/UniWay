@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import AnswerChoice, Exam, ExamSection, Explanation, OfficialExamDate, Question
@@ -41,6 +42,9 @@ class ExamSerializer(serializers.ModelSerializer):
 
 
 class OfficialExamDateSerializer(serializers.ModelSerializer):
+    date_status = serializers.SerializerMethodField()
+    countdown_days = serializers.SerializerMethodField()
+
     class Meta:
         model = OfficialExamDate
         fields = (
@@ -56,9 +60,23 @@ class OfficialExamDateSerializer(serializers.ModelSerializer):
             "late_test_time",
             "score_release_window",
             "academic_year",
+            "exam_year",
             "region",
             "source_url",
+            "source_title",
             "last_verified_date",
+            "last_verified_at",
+            "local_timezone",
             "verification_status",
+            "date_status",
+            "countdown_days",
             "notes",
         )
+
+    def get_date_status(self, obj):
+        return obj.date_status
+
+    def get_countdown_days(self, obj):
+        if obj.test_date is None or obj.test_date < timezone.localdate():
+            return None
+        return (obj.test_date - timezone.localdate()).days

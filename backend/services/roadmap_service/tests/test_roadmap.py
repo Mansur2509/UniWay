@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.db import connection
+from django.db import IntegrityError, connection, transaction
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework import status
@@ -68,6 +68,12 @@ class RoadmapGenerationTests(APITestCase):
             username="student1", email="student1@test.com", password="testpass123"
         )
         self.today = timezone.now().date()
+
+    def test_database_allows_only_one_active_plan_per_user(self):
+        RoadmapPlan.objects.create(user=self.user, title="Primary", active=True)
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            RoadmapPlan.objects.create(user=self.user, title="Duplicate", active=True)
 
     def test_generate_roadmap_for_empty_profile_creates_profile_gap_tasks(self):
         plan, warnings = generate_roadmap(self.user)
@@ -614,6 +620,63 @@ class RoadmapApiTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_verified_exam_date_add_to_roadmap_is_idempotent(self):
+        self.client.force_authenticate(self.user1)
+        exam_date = OfficialExamDate.objects.create(
+            exam_type=OfficialExamDate.ExamType.AP,
+            name="AP Biology future test",
+            test_date=date.today() + timedelta(days=45),
+            exam_year=(date.today() + timedelta(days=45)).year,
+            academic_year="future",
+            source_url="https://apstudents.collegeboard.org/exam-dates",
+            source_title="College Board AP Exam Dates",
+            last_verified_date=date.today(),
+            verification_status=OfficialExamDate.VerificationStatus.VERIFIED,
+        )
+        payload = {
+            "official_exam_date_id": exam_date.id,
+            "title": "AP Biology",
+            "description": "Prepare for the verified AP date.",
+        }
+
+        first = self.client.post("/api/roadmap/tasks/from-exam-plan/", payload, format="json")
+        second = self.client.post("/api/roadmap/tasks/from-exam-plan/", payload, format="json")
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED, first.data)
+        self.assertEqual(second.status_code, status.HTTP_200_OK, second.data)
+        self.assertEqual(first.data["id"], second.data["id"])
+        self.assertEqual(first.data["source_type"], RoadmapTask.SourceType.EXAM_PLAN)
+        self.assertEqual(
+            RoadmapTask.objects.filter(
+                user=self.user1,
+                dedup_key=f"official_exam_date:{exam_date.id}",
+            ).count(),
+            1,
+        )
+
+    def test_unverified_exam_date_cannot_be_added_to_roadmap(self):
+        self.client.force_authenticate(self.user1)
+        exam_date = OfficialExamDate.objects.create(
+            exam_type=OfficialExamDate.ExamType.AP,
+            name="AP date under review",
+            test_date=date.today() + timedelta(days=45),
+            exam_year=(date.today() + timedelta(days=45)).year,
+            academic_year="future",
+            source_url="https://apstudents.collegeboard.org/calendar",
+            source_title="College Board AP Calendar",
+            last_verified_date=date.today(),
+            verification_status=OfficialExamDate.VerificationStatus.REQUIRES_REVIEW,
+        )
+
+        response = self.client.post(
+            "/api/roadmap/tasks/from-exam-plan/",
+            {"official_exam_date_id": exam_date.id, "title": "AP review date"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(RoadmapTask.objects.filter(user=self.user1).exists())
 
     def test_manual_task_can_be_updated(self):
         self.client.force_authenticate(self.user1)

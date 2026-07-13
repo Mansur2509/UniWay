@@ -10,12 +10,21 @@ instead of a guess.
 
 from __future__ import annotations
 
-from datetime import date
+from collections import defaultdict
+
+from django.core.cache import cache
+from django.utils import timezone
 
 from services.application_service.models import ApplicationTrackerItem
 from services.application_service.timeline import (
     CONFIDENCE_MISSING,
     build_application_timeline,
+)
+from services.essay_service.models import EssayWorkspace
+from services.exam_content_service.models import OfficialExamDate
+from services.university_service.recommendation_cache import (
+    STRATEGY_CACHE_SECONDS,
+    strategy_cache_key,
 )
 from services.university_service.strategy import build_application_strategy
 from services.user_profile_service.models import Recommender
@@ -150,11 +159,42 @@ def build_profile_strategy(user, profile, preferences, assessment) -> dict:
     guessing.
     """
 
-    today = date.today()
+    today = timezone.localdate()
     applications = list(
-        ApplicationTrackerItem.objects.filter(user=user).select_related("university")
+        ApplicationTrackerItem.objects.filter(user=user)
+        .select_related("university")
+        .prefetch_related(
+            "milestones",
+            "roadmap_tasks",
+            "university__field_verifications",
+            "university__scholarships",
+        )
     )
-    timelines = [build_application_timeline(application, profile, today=today) for application in applications]
+    essays_by_university = defaultdict(list)
+    university_ids = {application.university_id for application in applications}
+    for essay in EssayWorkspace.objects.filter(
+        user=user,
+        university_id__in=university_ids,
+    ).order_by("status", "-updated_at"):
+        essays_by_university[essay.university_id].append(essay)
+
+    official_dates: dict[str, OfficialExamDate] = {}
+    for item in OfficialExamDate.objects.filter(
+        event_kind=OfficialExamDate.EventKind.EXAM,
+        test_date__gte=today,
+    ).order_by("exam_type", "test_date"):
+        official_dates.setdefault(item.exam_type, item)
+
+    timelines = [
+        build_application_timeline(
+            application,
+            profile,
+            today=today,
+            prefetched_essays=essays_by_university.get(application.university_id, []),
+            prefetched_official_dates=official_dates,
+        )
+        for application in applications
+    ]
 
     events: list[dict] = []
     for application, timeline in zip(applications, timelines, strict=True):
@@ -194,6 +234,11 @@ def build_profile_strategy(user, profile, preferences, assessment) -> dict:
         event.get("type") == "submission_deadline" and event.get("confidence") != CONFIDENCE_MISSING
         for event in events
     )
+    university_list_strategy = cache.get_or_set(
+        strategy_cache_key(user),
+        lambda: build_application_strategy(profile, preferences),
+        STRATEGY_CACHE_SECONDS,
+    )
 
     return {
         "generated_at": today.isoformat(),
@@ -204,5 +249,5 @@ def build_profile_strategy(user, profile, preferences, assessment) -> dict:
         "essay_plan": _essay_plan(timelines, events, missing_evidence),
         "recommendation_letter_plan": _recommendation_letter_plan(user, events, missing_evidence),
         "activities_research_plan": _activities_research_plan(missing_evidence),
-        "university_list_strategy": build_application_strategy(profile, preferences),
+        "university_list_strategy": university_list_strategy,
     }

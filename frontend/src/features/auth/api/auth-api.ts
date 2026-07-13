@@ -6,6 +6,7 @@ import type {
   UpdateCurrentUserInput
 } from "@/entities/user";
 import { apiRequest, SESSION_CHECK_TIMEOUT_MS } from "@/shared/api/client";
+import { env } from "@/shared/config/env";
 
 export function loginRequest(input: LoginInput) {
   return apiRequest<AuthResponse>("/login/", {
@@ -25,11 +26,11 @@ export function registerRequest(input: RegisterInput) {
   });
 }
 
-export function logoutRequest(refresh: string) {
+export function logoutRequest() {
   return apiRequest<void>("/logout/", {
     base: "auth",
     method: "POST",
-    body: { refresh }
+    body: {}
   });
 }
 
@@ -43,4 +44,8 @@ export function updateCurrentUserRequest(input: UpdateCurrentUserInput) {
     method: "PATCH",
     body: input
   });
+}
+
+export function getGoogleOAuthStartUrl() {
+  return `${env.authApiBaseUrl}/google/start/`;
 }

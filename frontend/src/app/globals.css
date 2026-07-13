@@ -25,6 +25,10 @@
   --danger: 0 63% 42%;
   --focus-ring: 348 74% 31%;
   --radius: 0.125rem;
+  --motion-fast: 140ms;
+  --motion-normal: 220ms;
+  --motion-slow: 320ms;
+  --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 [data-theme="dark"] {
@@ -72,7 +76,7 @@ h2,
 h3 {
   font-family: Georgia, Cambria, "Times New Roman", serif;
   text-wrap: balance;
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
 }
 
 a,
@@ -81,6 +85,21 @@ input,
 select,
 textarea {
   outline-color: hsl(var(--focus-ring));
+  transition-duration: var(--motion-fast);
+  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-timing-function: var(--motion-ease-out);
+}
+
+:where(a, button, input, select, textarea):focus-visible {
+  outline-style: solid;
+  outline-width: 2px;
+  outline-offset: 2px;
+}
+
+:where(tbody tr, [role="tab"], [role="menuitem"], [role="option"]) {
+  transition-duration: var(--motion-fast);
+  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-timing-function: var(--motion-ease-out);
 }
 
 input,
@@ -135,4 +154,16 @@ textarea::placeholder {
 
 .scrollbar-quiet-inverse::-webkit-scrollbar-track {
   background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -69,7 +69,10 @@ class GeminiSemanticFitClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            # URL host and scheme are fixed to Google's Gemini HTTPS API above.
+            with urllib.request.urlopen(  # nosec B310
+                request, timeout=self.timeout_seconds
+            ) as response:
                 data = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as error:
             try:

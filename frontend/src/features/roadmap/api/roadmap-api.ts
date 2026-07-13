@@ -1,4 +1,5 @@
 import type {
+  ExamPlanRoadmapTaskInput,
   GenerateRoadmapResponse,
   ManualRoadmapTaskInput,
   RoadmapPlanResponse,
@@ -39,6 +40,14 @@ export async function getRoadmapTasksRequest(filters: RoadmapTaskFilters = {}) {
 
 export function createRoadmapTaskRequest(input: ManualRoadmapTaskInput) {
   return apiRequest<RoadmapTask>("/tasks/", {
+    base: "roadmap",
+    method: "POST",
+    body: input
+  });
+}
+
+export function createExamPlanRoadmapTaskRequest(input: ExamPlanRoadmapTaskInput) {
+  return apiRequest<RoadmapTask>("/tasks/from-exam-plan/", {
     base: "roadmap",
     method: "POST",
     body: input

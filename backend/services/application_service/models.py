@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 
 from common.validators import validate_http_url
 
@@ -97,6 +98,8 @@ class ApplicationTrackerItem(models.Model):
     fit_tier = models.CharField(max_length=15, choices=FitTier.choices, default=FitTier.UNKNOWN)
     source = models.CharField(max_length=20, choices=Source.choices, default=Source.USER_ADDED)
     deadline = models.DateField(null=True, blank=True)
+    personal_estimated_deadline = models.DateField(null=True, blank=True)
+    target_intake_year = models.PositiveSmallIntegerField(null=True, blank=True)
     financial_aid_deadline = models.DateField(null=True, blank=True)
     scholarship_deadline = models.DateField(null=True, blank=True)
     essays_status = models.CharField(
@@ -115,6 +118,7 @@ class ApplicationTrackerItem(models.Model):
         max_length=20, choices=FinancialAidStatus.choices, default=FinancialAidStatus.NOT_APPLYING
     )
     notes = models.TextField(max_length=3000, blank=True)
+    archived_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -122,10 +126,17 @@ class ApplicationTrackerItem(models.Model):
         ordering = ("deadline", "-priority", "-created_at")
         constraints = [
             models.UniqueConstraint(
-                fields=("user", "university"), name="unique_application_per_university"
+                fields=("user", "university"),
+                condition=Q(archived_at__isnull=True),
+                name="unique_active_application_per_university",
             )
         ]
-        indexes = [models.Index(fields=("user", "status"))]
+        indexes = [
+            models.Index(fields=("user", "status")),
+            models.Index(
+                fields=("user", "archived_at"), name="app_service_user_id_2e4444_idx"
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"{self.university_id} application for {self.user_id}"

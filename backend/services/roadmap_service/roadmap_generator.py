@@ -10,6 +10,7 @@ estimated planning windows rather than presented as real deadlines.
 from datetime import date, timedelta
 from types import SimpleNamespace
 
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
@@ -841,6 +842,7 @@ class RoadmapBuilder:
             )
 
 
+@transaction.atomic
 def generate_roadmap(user) -> tuple[RoadmapPlan, list[str]]:
     """Generate or refresh the user's active roadmap. Returns (plan, warnings)."""
     profile, preferences = ensure_profile_records(user)
@@ -854,6 +856,7 @@ def generate_roadmap(user) -> tuple[RoadmapPlan, list[str]]:
             "target_country": (profile.target_countries or [""])[0],
         },
     )
+    plan = RoadmapPlan.objects.select_for_update().get(pk=plan.pk)
 
     builder = RoadmapBuilder(user, plan)
     warnings = builder.build(profile, preferences)

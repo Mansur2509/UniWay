@@ -632,7 +632,9 @@ export function OnboardingFlow({ onCompleted }: { onCompleted?: () => void }) {
     () =>
       officialDates.filter(
         (item) =>
-          item.exam_type === "AP" && item.event_kind === "exam" && item.test_date >= todayIso
+          item.exam_type === "AP" &&
+          item.event_kind === "exam" &&
+          Boolean(item.test_date && item.test_date >= todayIso)
       ),
     [officialDates, todayIso]
   );

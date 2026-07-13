@@ -404,6 +404,36 @@ class UniversityCatalogTests(APITestCase):
         for field_name in excluded_fields:
             self.assertNotIn(field_name, item)
 
+    def test_detail_omits_ai_only_import_context_fields(self):
+        university = create_university(
+            "public-contract-university",
+            data_quality_notes="Public source-quality context.",
+            profile_evidence_notes="Internal profile evidence prompt context.",
+            activities_notes="Internal activities prompt context.",
+            honors_olympiads_notes="Internal honors prompt context.",
+            research_experience_notes="Internal research prompt context.",
+            portfolio_notes="Internal portfolio prompt context.",
+            essay_drafts_notes="Internal essay prompt context.",
+        )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(f"/api/v1/universities/{university.slug}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["data_quality_notes"],
+            "Public source-quality context.",
+        )
+        for field_name in {
+            "profile_evidence_notes",
+            "activities_notes",
+            "honors_olympiads_notes",
+            "research_experience_notes",
+            "portfolio_notes",
+            "essay_drafts_notes",
+        }:
+            self.assertNotIn(field_name, response.data)
+
     def test_list_query_count_and_response_size_stay_compact_with_nested_data(self):
         for index in range(21):
             university = create_university(

@@ -1,6 +1,10 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APITestCase
+from rest_framework.throttling import ScopedRateThrottle
 
 from services.feedback_service.models import FeedbackReport
 
@@ -15,6 +19,9 @@ def detail_url(pk: int) -> str:
 
 
 class FeedbackSubmissionTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+
     def test_authenticated_user_can_submit_feedback(self):
         user = User.objects.create_user(
             username="student@example.com",
@@ -81,6 +88,25 @@ class FeedbackSubmissionTests(APITestCase):
         report = FeedbackReport.objects.get()
         self.assertEqual(report.status, FeedbackReport.Status.NEW)
         self.assertIsNone(report.user)
+
+    def test_anonymous_feedback_submission_is_rate_limited(self):
+        payload = {
+            "feedback_type": "issue",
+            "page_module": "/login",
+            "message": "A bounded test feedback message.",
+        }
+        with patch.object(
+            ScopedRateThrottle,
+            "THROTTLE_RATES",
+            {"feedback_submit": "2/minute"},
+        ):
+            first = self.client.post(CREATE_URL, payload)
+            second = self.client.post(CREATE_URL, payload)
+            third = self.client.post(CREATE_URL, payload)
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(third.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
 
 class FeedbackAdminPermissionTests(APITestCase):

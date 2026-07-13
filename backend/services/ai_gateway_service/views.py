@@ -4,12 +4,14 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from common.throttling import ScopedIPRateThrottle
+
 from .serializers import MentorRequestSerializer
 
 
 class MentorPlaceholderView(APIView):
     permission_classes = [IsAuthenticated]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [ScopedRateThrottle, ScopedIPRateThrottle]
     throttle_scope = "ai"
 
     def post(self, request):
@@ -26,4 +28,3 @@ class MentorPlaceholderView(APIView):
             },
             status=status.HTTP_501_NOT_IMPLEMENTED,
         )
-

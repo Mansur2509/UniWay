@@ -2,7 +2,7 @@ import csv
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -15,7 +15,9 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
+from common.csv_security import neutralize_spreadsheet_formula
 from common.permissions import IsAdminOrReadOnly, IsAdminRole, IsOrganizerOrAdmin
+from common.throttling import ScopedIPRateThrottle
 from services.activity_service.models import AnalyticsEvent
 from services.activity_service.services import track_event
 
@@ -66,7 +68,16 @@ class PublicEventListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = public_event_queryset()
+        queryset = public_event_queryset().prefetch_related(
+            Prefetch(
+                "registrations",
+                queryset=EventRegistration.objects.filter(
+                    user=self.request.user,
+                    status__in=ACTIVE_REGISTRATION_STATUSES,
+                ).order_by("-updated_at"),
+                to_attr="current_user_registrations",
+            )
+        )
         params = self.request.query_params
         search = params.get("search", "").strip()
         category = params.get("category", "").strip()
@@ -104,8 +115,21 @@ class PublicEventDetailView(generics.RetrieveAPIView):
     lookup_field = "slug"
 
     def get_queryset(self):
-        queryset = public_event_queryset()
-        if event_infrastructure_tables_available():
+        infrastructure_available = event_infrastructure_tables_available()
+        registration_queryset = EventRegistration.objects.filter(
+            user=self.request.user,
+            status__in=ACTIVE_REGISTRATION_STATUSES,
+        ).order_by("-updated_at")
+        if infrastructure_available:
+            registration_queryset = registration_queryset.select_related("ticket")
+        queryset = public_event_queryset().prefetch_related(
+            Prefetch(
+                "registrations",
+                queryset=registration_queryset,
+                to_attr="current_user_registrations",
+            )
+        )
+        if infrastructure_available:
             queryset = queryset.prefetch_related("form_fields")
         return queryset
 
@@ -117,7 +141,7 @@ class PublicEventDetailView(generics.RetrieveAPIView):
 
 class EventRegistrationView(APIView):
     permission_classes = [IsAuthenticated]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [ScopedRateThrottle, ScopedIPRateThrottle]
     throttle_scope = "event_registration"
 
     def post(self, request, slug):
@@ -150,7 +174,7 @@ class EventRegistrationView(APIView):
 
 class EventRegistrationCancelView(APIView):
     permission_classes = [IsAuthenticated]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [ScopedRateThrottle, ScopedIPRateThrottle]
     throttle_scope = "event_registration"
 
     def post(self, request, slug):
@@ -251,7 +275,7 @@ class OrganizerCategoryListView(generics.ListAPIView):
 class OrganizerEventListCreateView(generics.ListCreateAPIView):
     serializer_class = OrganizerEventSerializer
     permission_classes = [IsOrganizerOrAdmin]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [ScopedRateThrottle, ScopedIPRateThrottle]
     throttle_scope = "event_submission"
 
     def get_queryset(self):
@@ -271,7 +295,7 @@ class OrganizerEventDetailView(generics.GenericAPIView):
     serializer_class = OrganizerEventSerializer
     permission_classes = [IsOrganizerOrAdmin]
     lookup_field = "slug"
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [ScopedRateThrottle, ScopedIPRateThrottle]
     throttle_scope = "event_submission"
 
     def get_queryset(self):
@@ -293,7 +317,7 @@ class OrganizerEventSubmitView(generics.GenericAPIView):
     serializer_class = OrganizerEventSerializer
     permission_classes = [IsOrganizerOrAdmin]
     lookup_field = "slug"
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [ScopedRateThrottle, ScopedIPRateThrottle]
     throttle_scope = "event_submission"
 
     def get_queryset(self):
@@ -471,7 +495,7 @@ class OrganizerEventParticipantsExportView(generics.GenericAPIView):
             "checked_in_at",
             "registered_at",
         ] + [field.label for field in fields]
-        writer.writerow(header)
+        writer.writerow([neutralize_spreadsheet_formula(value) for value in header])
         for registration in registrations:
             answers_by_field = {
                 answer.field_id: answer.value for answer in registration.answers.all()
@@ -479,15 +503,20 @@ class OrganizerEventParticipantsExportView(generics.GenericAPIView):
             ticket = getattr(registration, "ticket", None)
             writer.writerow(
                 [
-                    registration.registration_data.get("full_name", ""),
-                    registration.contact_snapshot.get("email", ""),
-                    registration.contact_snapshot.get("telegram_username", ""),
-                    registration.status,
-                    registration.payment_status,
-                    ticket.status if ticket else "",
-                    ticket.checked_in_at.isoformat() if ticket and ticket.checked_in_at else "",
-                    registration.created_at.isoformat(),
-                    *[answers_by_field.get(field.id, "") for field in fields],
+                    neutralize_spreadsheet_formula(value)
+                    for value in [
+                        registration.registration_data.get("full_name", ""),
+                        registration.contact_snapshot.get("email", ""),
+                        registration.contact_snapshot.get("telegram_username", ""),
+                        registration.status,
+                        registration.payment_status,
+                        ticket.status if ticket else "",
+                        ticket.checked_in_at.isoformat()
+                        if ticket and ticket.checked_in_at
+                        else "",
+                        registration.created_at.isoformat(),
+                        *[answers_by_field.get(field.id, "") for field in fields],
+                    ]
                 ]
             )
         return response
@@ -557,7 +586,7 @@ class OrganizerEventArchiveView(generics.GenericAPIView):
     serializer_class = OrganizerEventSerializer
     permission_classes = [IsOrganizerOrAdmin]
     lookup_field = "slug"
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [ScopedRateThrottle, ScopedIPRateThrottle]
     throttle_scope = "event_submission"
 
     def get_queryset(self):
@@ -576,7 +605,7 @@ class OrganizerEventCancelView(generics.GenericAPIView):
     serializer_class = OrganizerEventSerializer
     permission_classes = [IsOrganizerOrAdmin]
     lookup_field = "slug"
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [ScopedRateThrottle, ScopedIPRateThrottle]
     throttle_scope = "event_submission"
 
     def get_queryset(self):
@@ -607,7 +636,7 @@ class AdminEventActionView(generics.GenericAPIView):
     serializer_class = OrganizerEventSerializer
     permission_classes = [IsAdminRole]
     lookup_field = "slug"
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [ScopedRateThrottle, ScopedIPRateThrottle]
     throttle_scope = "event_moderation"
     queryset = Event.objects.select_related(
         "category",

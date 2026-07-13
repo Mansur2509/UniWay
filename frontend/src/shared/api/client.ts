@@ -85,6 +85,7 @@ export class ApiError extends Error {
 }
 
 let refreshPromise: Promise<AuthTokens | null> | null = null;
+const inFlightGetResponses = new Map<string, Promise<Response>>();
 
 export type PaginatedListResponse<Item> = {
   count: number;
@@ -234,9 +235,6 @@ export async function withTimeout(
 
 async function refreshTokens(): Promise<AuthTokens | null> {
   const currentTokens = authStorage.get();
-  if (!currentTokens) {
-    return null;
-  }
 
   let response: Response;
   try {
@@ -245,7 +243,10 @@ async function refreshTokens(): Promise<AuthTokens | null> {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh: currentTokens.refresh })
+        credentials: "include",
+        body: JSON.stringify(
+          currentTokens?.refresh ? { refresh: currentTokens.refresh } : {}
+        )
       },
       REQUEST_TIMEOUT_MS
     );
@@ -263,11 +264,9 @@ async function refreshTokens(): Promise<AuthTokens | null> {
 
   const data = (await response.json()) as {
     access: string;
-    refresh?: string;
   };
   const tokens = {
-    access: data.access,
-    refresh: data.refresh ?? currentTokens.refresh
+    access: data.access
   };
   authStorage.set(tokens);
   return tokens;
@@ -339,24 +338,43 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
   const maxNetworkRetries = method === "GET" ? MAX_GET_NETWORK_RETRIES : 0;
   const url = `${baseUrl}${path}`;
 
-  let response: Response;
-  let networkAttempt = 0;
-  for (;;) {
-    try {
-      response = await withTimeout(url, init, timeoutMs);
-      break;
-    } catch (error) {
-      if (
-        error instanceof ApiError &&
-        error.isNetworkError &&
-        networkAttempt < maxNetworkRetries
-      ) {
-        networkAttempt += 1;
-        await new Promise((resolve) => setTimeout(resolve, NETWORK_RETRY_DELAY_MS));
-        continue;
+  const executeRequest = async () => {
+    let networkAttempt = 0;
+    for (;;) {
+      try {
+        return await withTimeout(url, init, timeoutMs);
+      } catch (error) {
+        if (
+          error instanceof ApiError &&
+          error.isNetworkError &&
+          networkAttempt < maxNetworkRetries
+        ) {
+          networkAttempt += 1;
+          await new Promise((resolve) => setTimeout(resolve, NETWORK_RETRY_DELAY_MS));
+          continue;
+        }
+        throw error;
       }
-      throw error;
     }
+  };
+
+  let response: Response;
+  if (method === "GET" && !requestOptions.signal) {
+    const dedupeKey = `${url}|${tokens?.access ?? "anonymous"}`;
+    let inFlight = inFlightGetResponses.get(dedupeKey);
+    if (!inFlight) {
+      inFlight = executeRequest();
+      inFlightGetResponses.set(dedupeKey, inFlight);
+      const clearInFlight = () => {
+        if (inFlightGetResponses.get(dedupeKey) === inFlight) {
+          inFlightGetResponses.delete(dedupeKey);
+        }
+      };
+      void inFlight.then(clearInFlight, clearInFlight);
+    }
+    response = (await inFlight).clone();
+  } else {
+    response = await executeRequest();
   }
 
   if (response.status === 401 && auth && retryOnUnauthorized) {

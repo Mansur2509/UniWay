@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
+from common.throttling import ScopedIPRateThrottle
 from services.activity_service.models import AnalyticsEvent
 from services.activity_service.services import track_event
 from services.notification_service.models import Notification
@@ -38,6 +39,7 @@ AI_SCORE_REASON_STATUS = {
     "ai_unavailable": status.HTTP_503_SERVICE_UNAVAILABLE,
     "validation_failed": status.HTTP_503_SERVICE_UNAVAILABLE,
     "missing_essay_text": status.HTTP_400_BAD_REQUEST,
+    "essay_too_long": status.HTTP_400_BAD_REQUEST,
 }
 
 
@@ -67,7 +69,7 @@ class EssayWorkspaceViewSet(viewsets.ModelViewSet):
     def get_throttles(self):
         if self.action == "score":
             self.throttle_scope = "ai_essay_score"
-            return [ScopedRateThrottle()]
+            return [ScopedRateThrottle(), ScopedIPRateThrottle()]
         return super().get_throttles()
 
     def perform_create(self, serializer):

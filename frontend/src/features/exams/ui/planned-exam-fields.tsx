@@ -62,7 +62,9 @@ export function PlannedExamFields({
       officialDates
         .filter(
           (item) =>
-            item.exam_type === "SAT" && item.event_kind === "exam" && item.test_date >= todayIso
+            item.exam_type === "SAT" &&
+            item.event_kind === "exam" &&
+            Boolean(item.test_date && item.test_date >= todayIso)
         )
         .slice(0, MAX_SAT_SUGGESTIONS),
     [officialDates, todayIso]
@@ -71,7 +73,9 @@ export function PlannedExamFields({
     () =>
       officialDates.filter(
         (item) =>
-          item.exam_type === "AP" && item.event_kind === "exam" && item.test_date >= todayIso
+          item.exam_type === "AP" &&
+          item.event_kind === "exam" &&
+          Boolean(item.test_date && item.test_date >= todayIso)
       ),
     [officialDates, todayIso]
   );
@@ -98,8 +102,8 @@ export function PlannedExamFields({
             >
               <option value="">{t("exams.plan.selectDate")}</option>
               {satDateOptions.map((item) => (
-                <option key={item.id} value={item.test_date}>
-                  {formatDate(item.test_date, locale)}
+                <option key={item.id} value={item.test_date ?? ""}>
+                  {item.test_date ? formatDate(item.test_date, locale) : ""}
                   {item.test_time ? ` / ${item.test_time}` : ""}
                 </option>
               ))}
@@ -190,8 +194,8 @@ export function PlannedExamFields({
               >
                 <option value="">{t("exams.plan.selectDate")}</option>
                 {dateOptions.map((item) => (
-                  <option key={item.id} value={item.test_date}>
-                    {formatDate(item.test_date, locale)}
+                  <option key={item.id} value={item.test_date ?? ""}>
+                    {item.test_date ? formatDate(item.test_date, locale) : ""}
                     {item.test_time ? ` / ${item.test_time}` : ""}
                   </option>
                 ))}

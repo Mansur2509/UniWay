@@ -1086,6 +1086,8 @@ export function EssaysScreen() {
                           ? t("essays.score.unavailable")
                           : scoreNotice.reason === "missing_essay_text"
                             ? t("essays.score.missingText")
+                            : scoreNotice.reason === "essay_too_long"
+                              ? t("essays.score.tooLong")
                             : t("essays.score.validationFailed")}
                     </p>
                   </Card>

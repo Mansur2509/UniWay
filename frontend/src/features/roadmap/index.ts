@@ -3,6 +3,7 @@ export {
   generateRoadmapRequest,
   getRoadmapTasksRequest,
   createRoadmapTaskRequest,
+  createExamPlanRoadmapTaskRequest,
   updateRoadmapTaskRequest,
   deleteRoadmapTaskRequest,
   completeRoadmapTaskRequest,

@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from rest_framework import serializers
 
 from .models import (
@@ -176,6 +178,7 @@ class ApplicationTrackerItemSerializer(serializers.ModelSerializer):
     )
     milestones = serializers.SerializerMethodField()
     checklist_progress = serializers.SerializerMethodField()
+    official_deadline = serializers.SerializerMethodField()
 
     class Meta:
         model = ApplicationTrackerItem
@@ -192,6 +195,9 @@ class ApplicationTrackerItemSerializer(serializers.ModelSerializer):
             "fit_tier",
             "source",
             "deadline",
+            "personal_estimated_deadline",
+            "target_intake_year",
+            "official_deadline",
             "financial_aid_deadline",
             "scholarship_deadline",
             "essays_status",
@@ -200,12 +206,34 @@ class ApplicationTrackerItemSerializer(serializers.ModelSerializer):
             "documents_status",
             "financial_aid_status",
             "notes",
+            "archived_at",
             "milestones",
             "checklist_progress",
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "fit_tier", "created_at", "updated_at")
+        read_only_fields = ("id", "fit_tier", "archived_at", "created_at", "updated_at")
+
+    def validate(self, attrs):
+        university = attrs.get("university", getattr(self.instance, "university", None))
+        target_program = attrs.get(
+            "target_program", getattr(self.instance, "target_program", None)
+        )
+        if target_program is not None and (
+            university is None or target_program.university_id != university.id
+        ):
+            raise serializers.ValidationError(
+                {"target_program": "Select a program offered by the chosen university."}
+            )
+
+        intake_year = attrs.get(
+            "target_intake_year", getattr(self.instance, "target_intake_year", None)
+        )
+        if intake_year is not None and not date.today().year <= intake_year <= date.today().year + 8:
+            raise serializers.ValidationError(
+                {"target_intake_year": "Target intake year is outside the supported range."}
+            )
+        return attrs
 
     def get_milestones(self, obj):
         return ApplicationMilestoneSerializer(obj.milestones.all(), many=True).data
@@ -222,3 +250,69 @@ class ApplicationTrackerItemSerializer(serializers.ModelSerializer):
         completed = sum(1 for item in requirements if item.status in done_statuses)
         total = len(requirements)
         return {"completed": completed, "total": total, "percent": round(completed / total * 100)}
+
+    def get_official_deadline(self, obj):
+        university = obj.university
+        raw_date = university.application_deadline
+        verification = next(
+            (
+                item
+                for item in university.field_verifications.all()
+                if item.field_name == "application_deadline"
+            ),
+            None,
+        )
+        source_url = verification.source_url if verification else ""
+        source = next(
+            (
+                item
+                for item in university.data_sources.all()
+                if source_url and item.source_url.rstrip("/") == source_url.rstrip("/")
+            ),
+            None,
+        )
+        payload = {
+            "date": None,
+            "source_date": raw_date.isoformat() if raw_date else None,
+            "source_url": source_url,
+            "source_title": source.source_title if source else "",
+            "last_verified_date": (
+                verification.last_verified_date.isoformat() if verification else None
+            ),
+            "intake_year": obj.target_intake_year,
+            "round_type": obj.application_round,
+            "timezone": "",
+            "status": "not_published" if raw_date is None else "requires_review",
+        }
+        if raw_date is None:
+            return payload
+
+        # The imported single university deadline is explicitly the regular
+        # decision value. Never relabel it as ED/EA/rolling.
+        if obj.application_round != ApplicationTrackerItem.ApplicationRound.REGULAR_DECISION:
+            return payload
+        if obj.target_intake_year is None:
+            return payload
+
+        expected_year = (
+            obj.target_intake_year - 1 if raw_date.month >= 8 else obj.target_intake_year
+        )
+        stale_source = bool(
+            verification
+            and verification.last_verified_date < date.today() - timedelta(days=400)
+        )
+        if raw_date.year != expected_year or stale_source:
+            payload["status"] = "outdated"
+            return payload
+        if verification is None:
+            return payload
+
+        status_map = {
+            "verified": "verified",
+            "estimated": "estimated",
+            "partial": "requires_review",
+        }
+        payload["status"] = status_map.get(verification.status, "requires_review")
+        if payload["status"] in {"verified", "estimated"}:
+            payload["date"] = raw_date.isoformat()
+        return payload

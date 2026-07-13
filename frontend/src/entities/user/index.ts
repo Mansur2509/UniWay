@@ -28,7 +28,6 @@ export type CurrentUser = {
 
 export type AuthResponse = {
   access: string;
-  refresh: string;
   user: CurrentUser;
 };
 
@@ -46,4 +45,3 @@ export type UpdateCurrentUserInput = {
   full_name?: string;
   profile?: Partial<UserProfile>;
 };
-

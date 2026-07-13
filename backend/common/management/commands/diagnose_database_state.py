@@ -15,6 +15,7 @@ from importlib import import_module
 from pathlib import PurePosixPath, PureWindowsPath
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.db import connection
 
@@ -31,7 +32,8 @@ USER_DATA_MODEL_SPECS = (
     ("RoadmapTask", "services.roadmap_service.models", "RoadmapTask"),
 )
 
-USER_TABLE = "auth_service_user"
+User = get_user_model()
+USER_TABLE = User._meta.db_table
 
 
 def sanitize_host(host: str) -> str:
@@ -83,14 +85,14 @@ def mask_email(email: str) -> str:
     return f"{visible}***@{domain}"
 
 
-def user_data_tables() -> list[tuple[str, str]]:
+def user_data_models() -> list[tuple[str, object]]:
     entries = []
     for label, module_path, attr in USER_DATA_MODEL_SPECS:
         try:
             model = getattr(import_module(module_path), attr)
         except (ImportError, AttributeError):
             continue
-        entries.append((label, model._meta.db_table))
+        entries.append((label, model))
     return entries
 
 
@@ -136,21 +138,15 @@ class Command(BaseCommand):
             self.stdout.write(f"django_migrations exists: {'django_migrations' in table_set}")
             self.stdout.write(f"{USER_TABLE} exists: {USER_TABLE in table_set}")
 
-            quote = connection.ops.quote_name
             if USER_TABLE in table_set:
-                cursor.execute(f"SELECT COUNT(*) FROM {quote(USER_TABLE)}")
-                self.stdout.write(f"total users: {cursor.fetchone()[0]}")
-                cursor.execute(
-                    f"SELECT COUNT(*) FROM {quote(USER_TABLE)} WHERE LOWER(email) = LOWER(%s)",
-                    [email],
-                )
-                found = cursor.fetchone()[0] > 0
+                self.stdout.write(f"total users: {User._base_manager.count()}")
+                found = User._base_manager.filter(email__iexact=email).exists()
                 self.stdout.write(f"target email ({mask_email(email)}) found: {found}")
 
-            for label, table in user_data_tables():
+            for label, model in user_data_models():
+                table = model._meta.db_table
                 if table in table_set:
-                    cursor.execute(f"SELECT COUNT(*) FROM {quote(table)}")
-                    self.stdout.write(f"{label} rows: {cursor.fetchone()[0]}")
+                    self.stdout.write(f"{label} rows: {model._base_manager.count()}")
                 else:
                     self.stdout.write(f"{label} rows: (table {table} missing)")
 
