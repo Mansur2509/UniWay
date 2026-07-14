@@ -156,7 +156,7 @@ Classification:
 **Problem:** Lists 9 of the 10 valid `RoadmapSourceType` values (`entities/roadmap/index.ts:18-28`) — missing `"cached_assessment"`. A task with that source type displays fine on its card but can never be isolated via the filter dropdown.
 **Severity:** Low-Medium
 **Fix required:** Add the missing value to the const array.
-**Status:** Open
+**Status:** Fixed — `"cached_assessment"` added to `ROADMAP_SOURCE_TYPES`.
 **Verification:** Confirm a `cached_assessment`-sourced task appears when that filter is selected.
 
 ### GAP-014 — Essay feedback "issues" list fetched but never displayed
@@ -164,7 +164,7 @@ Classification:
 **Problem:** `EssayFeedback.issues: string[]` is fetched and its `.length` checked, but the actual issue text is never rendered — only the sibling `strengths` array is rendered as a bulleted list (:1044-1058). No `essays.feedback.issues` translation key exists, suggesting this section was never built rather than intentionally hidden.
 **Severity:** Medium (a real piece of AI feedback the student paid attention-cost for is invisible)
 **Fix required:** Add the missing rendering block + i18n keys, mirroring the `strengths` block.
-**Status:** Open
+**Status:** Fixed — added an "Areas to improve" list mirroring `strengths`, with a pointer to the revision checklist for full detail, plus `essays.feedback.issues`/`essays.feedback.issue.*` keys across all 4 locales.
 
 ### GAP-015 — Dynamic i18n keys built from unbounded backend strings (spot-check risk)
 **Files (representative, not exhaustive):**
@@ -183,14 +183,14 @@ Classification:
 **Problem:** The comment claims this is "the single source of truth for planned SAT/IELTS/AP fields, shared by onboarding, Profile, and the Exams page," but the Exams screen has its own separate, incompatible inline AP/SAT editor with additional fields (`registrationStatus`/`testStatus`/`result`/`notificationIntervals`) not present in the shared component's `ApPlanRow`.
 **Severity:** Low (maintainability/architecture, not user-facing)
 **Fix required:** Either update the comment to reflect reality, or reconcile the two implementations so there's actually one source of truth (larger effort — recommend just correcting the comment for this release and tracking reconciliation separately).
-**Status:** Open
+**Status:** Fixed — comment corrected to state only onboarding and Profile share this component, and that Exams has its own separate editor.
 
 ### GAP-017 — AP subject dropdown has no fallback when no official dates are seeded
 **File:** `features/exams/ui/planned-exam-fields.tsx:176-188`
 **Problem:** The AP subject `<select>`'s only options come from currently-seeded upcoming official AP dates. If that list is empty for any reason, "Add AP Subject" still adds a row with an empty, unusable dropdown and no free-text fallback.
 **Severity:** Low (edge case, dependent on seed-data completeness)
 **Fix required:** Add a free-text fallback or a clear "no subjects available" message in that state.
-**Status:** Open
+**Status:** Fixed — "Add AP Subject" is now disabled when no subject options are available (the existing "no upcoming AP dates" message above it already explains why).
 
 ### GAP-018 — No student-facing way to report a university/organizer/event
 **File:** `features/admin-moderation/api/admin-moderation-api.ts:44` (`createUserReportRequest`) — confirmed orphaned, zero call sites.
@@ -217,7 +217,7 @@ Classification:
 ## Summary
 
 - **11 Must-fix items** (GAP-001 through GAP-011), spanning notifications, admin moderation ×3, university detail, application sub-panels ×3, application-form error messaging and empty-shortlist guidance, onboarding exam-plan detection, essay/roadmap double-submit guards, and events/my-events stale-refetch feedback.
-- **7 Should-fix items** (GAP-012 through GAP-018): essay-linkage UI, one missing filter option, one missing feedback-rendering section, a family of i18n dynamic-key risks, one doc-comment/architecture drift, one edge-case dropdown fallback, and one missing report-abuse entry point.
+- **7 Should-fix items** (GAP-012 through GAP-018), independently re-confirmed by a fresh skeptical sweep in task 018: essay-linkage UI, one missing filter option, one missing feedback-rendering section, a family of i18n dynamic-key risks, one doc-comment/architecture drift, one edge-case dropdown fallback, and one missing report-abuse entry point. **4 of 7 fixed in 018** (GAP-013 filter, GAP-014 feedback rendering, GAP-016 stale comment, GAP-017 dropdown fallback). **3 remain open by design**: GAP-012 (essay-application linkage UI) and GAP-018 (report entry point) are real new-UI-surface work, each spun off as a separate tracked follow-up task rather than rushed into this release; GAP-015 (dynamic i18n key risk) is a process/lint-rule suggestion with nothing currently broken.
 - **1 already-tracked future item** (events-organizer frontend), confirmed still accurate.
 - **5 intentional/non-issues** confirmed correctly labeled or architecturally inert.
 

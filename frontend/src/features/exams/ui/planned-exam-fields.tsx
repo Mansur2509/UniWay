@@ -35,9 +35,10 @@ export type PlannedExamFieldsProps = {
 const MAX_SAT_SUGGESTIONS = 5;
 
 /** Single source of truth for planned SAT/IELTS/AP fields, shared by
- * onboarding, Profile, and the Exams page so none of them can drift out of
- * sync with each other (e.g. Profile keeping a plain date input while
- * onboarding gained suggested-date selects and multi-row AP support). */
+ * onboarding and Profile so the two can't drift out of sync with each other
+ * (e.g. Profile keeping a plain date input while onboarding gained
+ * suggested-date selects and multi-row AP support). The Exams page has its
+ * own separate editor with additional fields and does not use this. */
 export function PlannedExamFields({
   officialDates,
   officialDatesError = false,
@@ -157,7 +158,13 @@ export function PlannedExamFields({
             <h3 className="font-semibold">{t("exams.plan.apPlanRows")}</h3>
             <p className="mt-1 text-xs text-muted-foreground">{t("exams.plan.apPlanRowsHelp")}</p>
           </div>
-          <Button onClick={onAddApPlan} size="sm" type="button" variant="secondary">
+          <Button
+            disabled={apSubjectOptions.length === 0}
+            onClick={onAddApPlan}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
             {t("exams.plan.addApSubject")}
           </Button>
         </div>

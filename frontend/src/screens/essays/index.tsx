@@ -1063,6 +1063,24 @@ export function EssaysScreen() {
                         </ul>
                       </div>
                     ) : null}
+                    {selectedEssay.latest_feedback.issues.length > 0 ? (
+                      <div className="mt-4">
+                        <h4 className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                          {t("essays.feedback.issues")}
+                        </h4>
+                        <ul className="mt-2 space-y-1.5 text-sm">
+                          {selectedEssay.latest_feedback.issues.map((issue) => (
+                            <li className="flex items-start gap-2" key={issue}>
+                              <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
+                              {t(`essays.feedback.issue.${issue}` as TranslationKey)}
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {t("essays.feedback.seeChecklistForDetail")}
+                        </p>
+                      </div>
+                    ) : null}
                     {selectedEssay.latest_feedback.issues.length === 0 &&
                     selectedEssay.latest_feedback.strengths.length === 0 ? (
                       <p className="mt-2 text-xs text-muted-foreground">

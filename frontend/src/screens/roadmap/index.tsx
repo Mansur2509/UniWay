@@ -63,7 +63,8 @@ const ROADMAP_SOURCE_TYPES = [
   "essay_status",
   "exam_plan",
   "planning_window",
-  "event"
+  "event",
+  "cached_assessment"
 ] as const;
 
 const emptyFilters = {
