@@ -41,11 +41,11 @@ Protect student identity and essay content, prevent unauthorized writes and mode
 - [x] Backend-offline state that does not impersonate logout
 - [x] Backend-confirmed mandatory onboarding gate before the app shell mounts
 - [x] Final onboarding completion validated by the profile API
-- [ ] Email verification and password-reset flow
-- [ ] Move browser refresh credentials from localStorage to Secure HttpOnly cookies
+- [ ] Email verification, password-reset, and device/session-management flow
+- [x] Move browser refresh credentials to Secure HttpOnly cookies and keep access tokens in memory
 - [x] Organizer event ownership and moderation object-permission tests
-- [ ] Upload MIME, extension, size, and malware checks
-- [ ] AI prompt-injection test suite and content policy layer
+- [x] Admin XLSX extension, size, ZIP/container, filename, and parser-limit checks
+- [x] AI prompt-injection, invalid-output, quota, timeout, and content-policy tests
 - [ ] Audit log retention and privacy policy
 - [ ] Dependency, container, and secret scanning in CI
 - [ ] Backup, recovery, and incident response runbooks
@@ -91,9 +91,14 @@ University XLSX imports are the first beta upload workflow. They are admin/staff
 
 ## Browser token storage
 
-AUTH-001 stores access and refresh tokens in localStorage through `frontend/src/shared/lib/auth-storage.ts`. Keeping access centralized prevents token handling from spreading across features, but localStorage remains readable by JavaScript and therefore increases the impact of an XSS vulnerability.
+Access tokens are held in memory only. Refresh credentials are rotating,
+blacklist-aware JWTs delivered through a scoped Secure HttpOnly cookie in
+production and are never returned in JSON. The frontend storage helper keeps
+only a non-secret cross-tab logout signal; it does not persist tokens.
 
-Logout blacklists the refresh token and clears both browser tokens. A previously issued access token remains valid until its short 15-minute expiry, which is standard for stateless JWT access tokens.
+Logout blacklists the refresh token, clears the cookie and in-memory access
+token, and broadcasts session invalidation to other tabs. A previously issued
+access token remains valid only until its short expiry.
 
 The global frontend `AppGate` prevents protected shell/content flash and keeps all product routes behind a backend-confirmed session. This improves confidentiality and user clarity, but backend authentication and object permissions remain the security boundary.
 
@@ -105,13 +110,13 @@ Readiness responses must not expose admission probabilities, guarantees, or inve
 
 The only anonymous API entry points are health checks, registration, login, and JWT refresh for a client already holding a refresh credential. Logout, current-user, profile, catalogs, registrations, organizer, moderation, subscription, exam-question, and AI endpoints require authentication or a stronger role.
 
-Before production:
+Before production maturity:
 
-1. Move refresh tokens to Secure, HttpOnly, SameSite cookies.
-2. Keep access tokens short-lived and preferably in memory.
-3. Add a strict Content Security Policy and automated XSS checks.
-4. Add email verification, password reset, device/session visibility, and suspicious-login controls.
-- Add per-user and per-IP limits to expensive or abuse-prone endpoints.
+1. Rotate any historically exposed database/Django credentials and invalidate old sessions.
+2. Add email verification, password reset, device/session visibility, and suspicious-login controls.
+3. Add a shared production cache so throttles are consistent across workers.
+4. Complete privacy export/deletion/retention and mandatory CI security gates.
+5. Add per-user and per-IP limits to expensive or abuse-prone endpoints.
 
 ## AI-specific controls
 

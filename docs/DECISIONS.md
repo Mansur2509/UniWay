@@ -504,3 +504,38 @@ provider switches locale and dictionary atomically, keeps a complete prior
 dictionary visible while loading, and falls back to English if a chunk fails.
 This reduced authenticated-route First Load JS by about 154 kB without adding a
 runtime i18n dependency or permitting raw-key flashes.
+
+## ADR-048: Google OAuth deployment uses one exact backend callback and fixed frontend return
+
+- **Status:** Accepted
+- **Date:** 2026-07-13
+
+Google OAuth remains a backend-owned Authorization Code flow. The production
+client registers exactly `/api/auth/google/callback/` on the allowlisted backend
+host; query strings, fragments, user-info URLs, alternate callback paths, HTTP
+production callbacks, and non-`ALLOWED_HOSTS` hosts are rejected before an
+authorization attempt is created. OAuth results return only to the fixed
+allowlisted frontend `/login` URL. There is no request-controlled `next` URL and
+no generic redirect-list environment variable.
+
+The frontend does not need a public Google client ID because it does not run the
+Google JavaScript SDK. Client ID and client secret remain Render-only. The
+Requests transport used by `google-auth` is an explicit pinned dependency so a
+clean deployment does not depend on an accidental build-cache package.
+
+## ADR-049: Lucide is the single general-purpose application icon family
+
+- **Status:** Accepted
+- **Date:** 2026-07-13
+
+UniWay uses Lucide with a five-step 14-24 px size scale, 1.75 stroke, inherited
+color, stable geometry, and reduced-motion-safe transitions. `AppIcon` owns the
+shared rendering contract and `IconButton` requires a localized accessible name
+and tooltip for icon-only controls. Google's official four-color `G` is the only
+branded SVG exception and is centralized in one shared component.
+
+Icons are added where they improve route/action/status scanning. Recommendations
+and strategy remain contextual rather than bloating the main sidebar; AP remains
+inside Exams; no placeholder Settings or analytics routes are created to satisfy
+an icon checklist. Text continues to carry meaning, so no status relies on an
+icon or color alone.

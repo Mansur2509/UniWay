@@ -28,6 +28,7 @@ User = get_user_model()
 GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"  # nosec B105 - public endpoint
 GOOGLE_ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
+GOOGLE_CALLBACK_PATH = "/api/auth/google/callback/"
 OAUTH_COOKIE_SALT = "uniway.google-oauth-attempt.v1"
 
 
@@ -41,6 +42,10 @@ class GoogleOAuthConfigurationError(GoogleOAuthError):
 
 class GoogleOAuthValidationError(GoogleOAuthError):
     code = "invalid"
+
+
+class GoogleOAuthProviderUnavailable(GoogleOAuthError):
+    code = "failed"
 
 
 class GoogleOAuthAccountConflict(GoogleOAuthError):
@@ -70,7 +75,15 @@ def _pkce_challenge(verifier: str) -> str:
 def _configured_frontend_url() -> str:
     target = settings.GOOGLE_OAUTH_FRONTEND_URL
     parsed = urlparse(target)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or parsed.path.rstrip("/") != "/login"
+    ):
         raise GoogleOAuthConfigurationError
     origin = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
     allowed = {value.rstrip("/") for value in settings.CORS_ALLOWED_ORIGINS}
@@ -92,9 +105,19 @@ def require_google_oauth_configuration() -> None:
         raise GoogleOAuthConfigurationError
     _configured_frontend_url()
     parsed_redirect = urlparse(settings.GOOGLE_REDIRECT_URI)
-    if parsed_redirect.scheme not in {"http", "https"} or not parsed_redirect.netloc:
+    if (
+        parsed_redirect.scheme not in {"http", "https"}
+        or not parsed_redirect.netloc
+        or parsed_redirect.username
+        or parsed_redirect.password
+        or parsed_redirect.query
+        or parsed_redirect.fragment
+        or parsed_redirect.path != GOOGLE_CALLBACK_PATH
+    ):
         raise GoogleOAuthConfigurationError
     if not settings.DEBUG and parsed_redirect.scheme != "https":
+        raise GoogleOAuthConfigurationError
+    if not settings.DEBUG and parsed_redirect.hostname not in settings.ALLOWED_HOSTS:
         raise GoogleOAuthConfigurationError
 
 
@@ -198,7 +221,13 @@ def exchange_google_code(code: str, code_verifier: str) -> str:
         )
         response.raise_for_status()
         payload = response.json()
-    except (httpx.HTTPError, ValueError) as error:
+    except (httpx.TimeoutException, httpx.NetworkError) as error:
+        raise GoogleOAuthProviderUnavailable from error
+    except httpx.HTTPStatusError as error:
+        if error.response.status_code >= 500:
+            raise GoogleOAuthProviderUnavailable from error
+        raise GoogleOAuthValidationError from error
+    except ValueError as error:
         raise GoogleOAuthValidationError from error
     token = payload.get("id_token") if isinstance(payload, dict) else None
     if not isinstance(token, str) or not token:

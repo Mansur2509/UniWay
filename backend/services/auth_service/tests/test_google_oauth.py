@@ -3,10 +3,16 @@ from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from services.auth_service.google_oauth import (
+    GoogleOAuthConfigurationError,
+    GoogleOAuthProviderUnavailable,
+    require_google_oauth_configuration,
+)
 from services.auth_service.models import OAuthLoginAttempt, SocialIdentity
 
 User = get_user_model()
@@ -21,12 +27,16 @@ OAUTH_SETTINGS = {
     "GOOGLE_OAUTH_ATTEMPT_MAX_AGE_SECONDS": 600,
     "CORS_ALLOWED_ORIGINS": ["https://frontend.test"],
     "CSRF_TRUSTED_ORIGINS": ["https://frontend.test"],
+    "ALLOWED_HOSTS": ["api.test", "testserver"],
     "SECURE_COOKIES": False,
 }
 
 
 @override_settings(**OAUTH_SETTINGS)
 class GoogleOAuthFlowTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+
     def start_attempt(self):
         response = self.client.get("/api/auth/google/start/")
         self.assertEqual(response.status_code, status.HTTP_302_FOUND)
@@ -98,6 +108,7 @@ class GoogleOAuthFlowTests(APITestCase):
             ).exists()
         )
         self.assertEqual(user.student_profile.full_name, "New Student")
+        self.assertIsNone(user.student_profile.onboarding_completed_at)
 
     def test_existing_password_student_is_linked_by_verified_email(self):
         existing = User.objects.create_user(
@@ -210,6 +221,48 @@ class GoogleOAuthFlowTests(APITestCase):
 
         self.assertIn("oauth=invalid", response["Location"])
         exchange.assert_not_called()
+
+    def test_provider_unavailable_returns_generic_failure_without_session(self):
+        state, _nonce, _ = self.start_attempt()
+        with patch(
+            "services.auth_service.views.exchange_google_code",
+            side_effect=GoogleOAuthProviderUnavailable,
+        ):
+            response = self.client.get(
+                "/api/auth/google/callback/",
+                {"state": state, "code": "provider-code"},
+            )
+
+        self.assertEqual(response["Location"], "https://frontend.test/login?oauth=failed")
+        self.assertNotIn("uniway_refresh", response.cookies)
+
+    @override_settings(
+        DEBUG=False,
+        GOOGLE_REDIRECT_URI="https://attacker.example/api/auth/google/callback/",
+    )
+    def test_backend_callback_host_must_be_allowlisted(self):
+        response = self.client.get("/api/auth/google/start/")
+
+        self.assertEqual(response["Location"], "https://frontend.test/login?oauth=unavailable")
+        self.assertEqual(OAuthLoginAttempt.objects.count(), 0)
+
+    @override_settings(
+        GOOGLE_REDIRECT_URI="https://api.test/api/auth/google/callback/?next=https://attacker.example",
+    )
+    def test_backend_callback_rejects_query_based_redirect_injection(self):
+        response = self.client.get("/api/auth/google/start/")
+
+        self.assertEqual(response["Location"], "https://frontend.test/login?oauth=unavailable")
+        self.assertEqual(OAuthLoginAttempt.objects.count(), 0)
+
+    @override_settings(
+        GOOGLE_OAUTH_FRONTEND_URL="https://frontend.test/login?next=https://attacker.example",
+    )
+    def test_frontend_return_url_rejects_query_based_redirect_injection(self):
+        # An invalid fixed frontend URL cannot safely receive even the generic
+        # configuration error, so validate the guard without following it.
+        with self.assertRaises(GoogleOAuthConfigurationError):
+            require_google_oauth_configuration()
 
 
 @override_settings(
