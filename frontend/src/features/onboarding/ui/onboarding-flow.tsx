@@ -83,8 +83,6 @@ type OnboardingForm = {
   satTarget: string;
   ieltsDate: string;
   ieltsTarget: string;
-  apDate: string;
-  apTarget: string;
   apPlans: ApPlan[];
   otherExamName: string;
   otherExamDate: string;
@@ -149,8 +147,6 @@ const emptyForm: OnboardingForm = {
   satTarget: "",
   ieltsDate: "",
   ieltsTarget: "",
-  apDate: "",
-  apTarget: "",
   apPlans: [{ id: "ap-1", subject: "", date: "", target: "" }],
   otherExamName: "",
   otherExamDate: "",
@@ -249,8 +245,6 @@ function profileToForm(profile: StudentProfileDetails): OnboardingForm {
     satTarget: sat?.target_score ?? "",
     ieltsDate: ielts?.date ?? "",
     ieltsTarget: ielts?.target_score ?? "",
-    apDate: ap?.date ?? "",
-    apTarget: ap?.target_score ?? "",
     apPlans: apPlans.length
       ? apPlans
       : [{ id: "ap-1", subject: ap?.name === "AP" ? "" : ap?.name ?? "", date: ap?.date ?? "", target: ap?.target_score ?? "" }],
@@ -478,8 +472,6 @@ function hasAnyExamSignal(form: OnboardingForm) {
       form.satTarget.trim() ||
       form.ieltsDate ||
       form.ieltsTarget.trim() ||
-      form.apDate ||
-      form.apTarget.trim() ||
       form.apPlans.some((plan) => plan.subject.trim() || plan.date || plan.target.trim()) ||
       form.otherExamDate ||
       form.otherExamTarget.trim()
@@ -818,6 +810,7 @@ export function OnboardingFlow({ onCompleted }: { onCompleted?: () => void }) {
               aria-label={t("a11y.logout")}
               className="grid size-10 place-items-center border border-white/15 text-white/70 hover:bg-white/10 hover:text-white"
               onClick={() => unsavedGuard.requestLeave(() => logout())}
+              title={t("a11y.logout")}
               type="button"
             >
               <LogOut aria-hidden className="size-4" />
@@ -1210,16 +1203,7 @@ export function OnboardingFlow({ onCompleted }: { onCompleted?: () => void }) {
             hasActivities={Object.values(form.activities).some(
               (value) => toList(value).length > 0
             )}
-            hasExamPlan={Boolean(
-              form.satDate ||
-                form.ieltsDate ||
-                form.apDate ||
-                form.otherExamDate ||
-                form.satScore ||
-                form.ieltsScore ||
-                form.toeflScore ||
-                form.actScore
-            )}
+            hasExamPlan={hasAnyExamSignal(form)}
             majors={form.intendedMajors}
             onAddClass={(value) => {
               if (!toList(form.interestedClasses).includes(value)) {

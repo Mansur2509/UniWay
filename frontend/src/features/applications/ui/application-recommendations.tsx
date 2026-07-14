@@ -29,6 +29,7 @@ export function ApplicationRecommendationsPanel({ applicationId }: { application
   const [recommendations, setRecommendations] = useState<ApplicationRecommendationRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [actionError, setActionError] = useState(false);
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("");
 
@@ -42,19 +43,29 @@ export function ApplicationRecommendationsPanel({ applicationId }: { application
   }, [applicationId]);
 
   const handleStatusChange = async (id: number, status: RecommendationRequestStatus) => {
-    const updated = await updateApplicationRecommendationRequest(id, { status });
-    setRecommendations((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    setActionError(false);
+    try {
+      const updated = await updateApplicationRecommendationRequest(id, { status });
+      setRecommendations((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    } catch {
+      setActionError(true);
+    }
   };
 
   const handleAdd = async () => {
     if (!newName.trim()) return;
-    const created = await createApplicationRecommendationRequest(applicationId, {
-      recommender_name: newName.trim(),
-      recommender_role: newRole.trim()
-    });
-    setRecommendations((current) => [...current, created]);
-    setNewName("");
-    setNewRole("");
+    setActionError(false);
+    try {
+      const created = await createApplicationRecommendationRequest(applicationId, {
+        recommender_name: newName.trim(),
+        recommender_role: newRole.trim()
+      });
+      setRecommendations((current) => [...current, created]);
+      setNewName("");
+      setNewRole("");
+    } catch {
+      setActionError(true);
+    }
   };
 
   if (isLoading) {
@@ -108,6 +119,12 @@ export function ApplicationRecommendationsPanel({ applicationId }: { application
           ))}
         </ul>
       )}
+
+      {actionError ? (
+        <p className="mt-2 text-xs text-danger" role="alert">
+          {t("applications.states.actionError")}
+        </p>
+      ) : null}
 
       <div className="mt-3 flex flex-wrap items-end gap-2">
         <label className="block flex-1">

@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import type { ApplicationPriority, ApplicationRound } from "@/entities/application";
 import type { SavedUniversity, SavedUniversityLite } from "@/entities/university";
+import { ApiError, getApiErrorMessage } from "@/shared/api/client";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { useUnsavedChangesGuard } from "@/shared/lib/use-unsaved-changes-guard";
 import { Button } from "@/shared/ui/button";
@@ -15,6 +17,7 @@ const ROUNDS: ApplicationRound[] = [
   "early_decision",
   "early_action",
   "restrictive_early_action",
+  "single_choice_early_action",
   "regular_decision",
   "rolling",
   "scholarship",
@@ -37,7 +40,10 @@ export function ApplicationForm({
   onCancel,
   isShortlistLoading = false,
   shortlistLoadError = false,
-  isSubmitting
+  isSubmitting,
+  initialValues: initialValuesProp,
+  title,
+  submitLabel
 }: {
   shortlist: Array<SavedUniversity | SavedUniversityLite>;
   onSubmit: (values: ApplicationFormValues) => Promise<void>;
@@ -45,6 +51,9 @@ export function ApplicationForm({
   isShortlistLoading?: boolean;
   shortlistLoadError?: boolean;
   isSubmitting?: boolean;
+  initialValues?: Partial<ApplicationFormValues>;
+  title?: string;
+  submitLabel?: string;
 }) {
   const { t } = useI18n();
   const [initialValues] = useState<ApplicationFormValues>({
@@ -54,7 +63,8 @@ export function ApplicationForm({
     target_intake_year: null,
     personal_estimated_deadline: "",
     priority: "medium",
-    notes: ""
+    notes: "",
+    ...initialValuesProp
   });
   const [values, setValues] = useState<ApplicationFormValues>(initialValues);
   const [error, setError] = useState<string | null>(null);
@@ -83,8 +93,25 @@ export function ApplicationForm({
     try {
       await onSubmit(values);
       return true;
-    } catch {
-      setError(t("applications.form.duplicateError"));
+    } catch (submitError) {
+      if (submitError instanceof ApiError) {
+        if (submitError.errorCode === "timeout") {
+          setError(t("common.error.timeout"));
+        } else if (submitError.errorCode === "network") {
+          setError(t("common.error.network"));
+        } else if (
+          submitError.status === 400 &&
+          typeof submitError.data === "object" &&
+          submitError.data !== null &&
+          "university" in submitError.data
+        ) {
+          setError(t("applications.form.duplicateError"));
+        } else {
+          setError(getApiErrorMessage(submitError, t("common.error.generic")));
+        }
+      } else {
+        setError(t("common.error.generic"));
+      }
       return false;
     }
   }
@@ -99,7 +126,7 @@ export function ApplicationForm({
       <form className="space-y-3" onSubmit={(event) => void handleSubmit(event)}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold">{t("applications.form.createTitle")}</h2>
+            <h2 className="text-base font-semibold">{title ?? t("applications.form.createTitle")}</h2>
             <p className="mt-1 text-xs text-muted-foreground">
               {t("applications.form.closeHelp")}
             </p>
@@ -146,6 +173,13 @@ export function ApplicationForm({
           ) : isShortlistLoading ? (
             <p className="mt-1 text-xs text-muted-foreground">
               {t("applications.form.shortlistLoading")}
+            </p>
+          ) : shortlist.length === 0 ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("applications.form.shortlistEmpty")}{" "}
+              <Link className="font-semibold text-primary-hover underline" href="/universities">
+                {t("applications.form.shortlistEmptyAction")}
+              </Link>
             </p>
           ) : null}
         </label>
@@ -274,7 +308,7 @@ export function ApplicationForm({
         ) : null}
         <div className="flex gap-2">
           <Button disabled={isSubmitting} size="sm" type="submit">
-            {t("applications.form.create")}
+            {submitLabel ?? t("applications.form.create")}
           </Button>
           <Button
             disabled={isSubmitting}

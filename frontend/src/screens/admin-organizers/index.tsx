@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Flag, ShieldCheck, UserCog } from "lucide-react";
 
 import type {
   OrganizerModerationRow,
@@ -37,6 +38,7 @@ export function AdminOrganizersScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [actionErrorId, setActionErrorId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [reasonDraft, setReasonDraft] = useState("");
 
@@ -74,12 +76,15 @@ export function AdminOrganizersScreen() {
 
   async function updateStatus(row: OrganizerModerationRow, status: OrganizerModerationStatus) {
     setSavingId(row.id);
+    setActionErrorId(null);
     try {
       const updated = await updateOrganizerModerationRequest(row.id, {
         status,
         reason: reasonDraft.trim()
       });
       setOrganizers((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    } catch {
+      setActionErrorId(row.id);
     } finally {
       setSavingId(null);
     }
@@ -100,9 +105,17 @@ export function AdminOrganizersScreen() {
       <SectionTabs
         ariaLabel={t("adminModeration.tabs.ariaLabel")}
         items={[
-          { href: "/admin/moderation", label: t("adminModeration.tabs.universities") },
-          { href: "/admin/reports", label: t("adminModeration.tabs.reports") },
-          { href: "/admin/organizers", label: t("adminModeration.tabs.organizers") }
+          {
+            href: "/admin/moderation",
+            icon: ShieldCheck,
+            label: t("adminModeration.tabs.universities")
+          },
+          { href: "/admin/reports", icon: Flag, label: t("adminModeration.tabs.reports") },
+          {
+            href: "/admin/organizers",
+            icon: UserCog,
+            label: t("adminModeration.tabs.organizers")
+          }
         ]}
       />
 
@@ -159,6 +172,11 @@ export function AdminOrganizersScreen() {
                       value={reasonDraft}
                     />
                   </label>
+                  {actionErrorId === row.id ? (
+                    <p className="text-xs text-danger" role="alert">
+                      {t("adminOrganizers.states.actionError")}
+                    </p>
+                  ) : null}
                   <div className="flex flex-wrap justify-end gap-2">
                     {ORGANIZER_MODERATION_STATUSES.map((option) => (
                       <Button

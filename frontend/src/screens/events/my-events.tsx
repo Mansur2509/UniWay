@@ -76,6 +76,12 @@ export function MyEventsScreen() {
         </div>
       </section>
 
+      {isLoading && registrations.length > 0 ? (
+        <p className="text-xs font-semibold text-muted-foreground">
+          {t("common.filters.refreshing")}
+        </p>
+      ) : null}
+
       {isLoading && registrations.length === 0 ? (
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           <SkeletonCards count={6} />

@@ -130,6 +130,7 @@ export function EventsScreen() {
 
       <CollapsibleFilterPanel
         activeCount={activeFilterCount}
+        isRefreshing={isLoading && events.length > 0}
         onClear={clearFilters}
         resultCount={totalCount}
         storageKey="uniway.filters.events"

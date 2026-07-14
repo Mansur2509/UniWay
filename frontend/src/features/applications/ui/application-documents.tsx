@@ -29,6 +29,7 @@ export function ApplicationDocumentsPanel({ applicationId }: { applicationId: nu
   const [documents, setDocuments] = useState<ApplicationDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [actionError, setActionError] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newType, setNewType] = useState<ApplicationDocumentType>("other");
 
@@ -42,18 +43,28 @@ export function ApplicationDocumentsPanel({ applicationId }: { applicationId: nu
   }, [applicationId]);
 
   const handleStatusChange = async (id: number, status: ApplicationDocumentStatus) => {
-    const updated = await updateApplicationDocumentRequest(id, { status });
-    setDocuments((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    setActionError(false);
+    try {
+      const updated = await updateApplicationDocumentRequest(id, { status });
+      setDocuments((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    } catch {
+      setActionError(true);
+    }
   };
 
   const handleAdd = async () => {
     if (!newTitle.trim()) return;
-    const created = await createApplicationDocumentRequest(applicationId, {
-      document_type: newType,
-      title: newTitle.trim()
-    });
-    setDocuments((current) => [...current, created]);
-    setNewTitle("");
+    setActionError(false);
+    try {
+      const created = await createApplicationDocumentRequest(applicationId, {
+        document_type: newType,
+        title: newTitle.trim()
+      });
+      setDocuments((current) => [...current, created]);
+      setNewTitle("");
+    } catch {
+      setActionError(true);
+    }
   };
 
   if (isLoading) {
@@ -97,6 +108,12 @@ export function ApplicationDocumentsPanel({ applicationId }: { applicationId: nu
           ))}
         </ul>
       )}
+
+      {actionError ? (
+        <p className="mt-2 text-xs text-danger" role="alert">
+          {t("applications.states.actionError")}
+        </p>
+      ) : null}
 
       <div className="mt-3 flex flex-wrap items-end gap-2">
         <label className="block">

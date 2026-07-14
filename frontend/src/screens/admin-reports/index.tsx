@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Flag, ShieldCheck, UserCog } from "lucide-react";
 
 import type { ReportStatus, ReportTargetType, UserReport } from "@/entities/admin-moderation";
 import { REPORT_STATUSES, REPORT_TARGET_TYPES } from "@/entities/admin-moderation";
@@ -33,6 +34,7 @@ export function AdminReportsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [actionErrorId, setActionErrorId] = useState<number | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<ReportStatus | "">("");
   const [targetTypeFilter, setTargetTypeFilter] = useState<ReportTargetType | "">("");
@@ -77,9 +79,12 @@ export function AdminReportsScreen() {
 
   async function updateStatus(report: UserReport, nextStatus: ReportStatus) {
     setSavingId(report.id);
+    setActionErrorId(null);
     try {
       const updated = await updateAdminReportRequest(report.id, { status: nextStatus });
       setReports((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    } catch {
+      setActionErrorId(report.id);
     } finally {
       setSavingId(null);
     }
@@ -103,9 +108,17 @@ export function AdminReportsScreen() {
       <SectionTabs
         ariaLabel={t("adminModeration.tabs.ariaLabel")}
         items={[
-          { href: "/admin/moderation", label: t("adminModeration.tabs.universities") },
-          { href: "/admin/reports", label: t("adminModeration.tabs.reports") },
-          { href: "/admin/organizers", label: t("adminModeration.tabs.organizers") }
+          {
+            href: "/admin/moderation",
+            icon: ShieldCheck,
+            label: t("adminModeration.tabs.universities")
+          },
+          { href: "/admin/reports", icon: Flag, label: t("adminModeration.tabs.reports") },
+          {
+            href: "/admin/organizers",
+            icon: UserCog,
+            label: t("adminModeration.tabs.organizers")
+          }
         ]}
       />
 
@@ -212,6 +225,11 @@ export function AdminReportsScreen() {
                   ))}
                 </select>
               </div>
+              {actionErrorId === report.id ? (
+                <p className="mt-2 text-xs text-danger" role="alert">
+                  {t("adminReports.states.actionError")}
+                </p>
+              ) : null}
             </Card>
           ))}
           {totalPages > 1 ? (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Flag, ShieldCheck, UserCog } from "lucide-react";
 
 import type {
   ModerationIssueType,
@@ -43,6 +44,7 @@ export function AdminModerationScreen() {
   const [hasError, setHasError] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [actionErrorId, setActionErrorId] = useState<number | null>(null);
   const [draftStatus, setDraftStatus] = useState<ModerationStatus>("verified");
   const [draftIssueType, setDraftIssueType] = useState<ModerationIssueType>("admin_note");
   const [draftDescription, setDraftDescription] = useState("");
@@ -83,6 +85,7 @@ export function AdminModerationScreen() {
 
   async function submitAction(record: UniversityModerationRecord) {
     setSavingId(record.university);
+    setActionErrorId(null);
     try {
       await updateUniversityModerationRequest(record.university, {
         status: draftStatus,
@@ -91,6 +94,8 @@ export function AdminModerationScreen() {
       });
       setExpandedId(null);
       await loadQueue();
+    } catch {
+      setActionErrorId(record.university);
     } finally {
       setSavingId(null);
     }
@@ -111,9 +116,17 @@ export function AdminModerationScreen() {
       <SectionTabs
         ariaLabel={t("adminModeration.tabs.ariaLabel")}
         items={[
-          { href: "/admin/moderation", label: t("adminModeration.tabs.universities") },
-          { href: "/admin/reports", label: t("adminModeration.tabs.reports") },
-          { href: "/admin/organizers", label: t("adminModeration.tabs.organizers") }
+          {
+            href: "/admin/moderation",
+            icon: ShieldCheck,
+            label: t("adminModeration.tabs.universities")
+          },
+          { href: "/admin/reports", icon: Flag, label: t("adminModeration.tabs.reports") },
+          {
+            href: "/admin/organizers",
+            icon: UserCog,
+            label: t("adminModeration.tabs.organizers")
+          }
         ]}
       />
 
@@ -211,6 +224,11 @@ export function AdminModerationScreen() {
                       value={draftDescription}
                     />
                   </label>
+                  {actionErrorId === record.university ? (
+                    <p className="text-xs text-danger" role="alert">
+                      {t("adminModeration.states.actionError")}
+                    </p>
+                  ) : null}
                   <div className="flex justify-end gap-2">
                     <Button
                       disabled={savingId === record.university}

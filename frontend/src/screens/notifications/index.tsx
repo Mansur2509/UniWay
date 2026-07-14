@@ -1,9 +1,34 @@
 "use client";
 
 import Link from "next/link";
+import {
+  Archive,
+  BellRing,
+  BookOpenCheck,
+  CalendarCheck,
+  CalendarClock,
+  Check,
+  CheckCheck,
+  ExternalLink,
+  FileText,
+  Inbox,
+  ListChecks,
+  LoaderCircle,
+  RefreshCw,
+  Settings2,
+  ShieldCheck,
+  Sparkles,
+  TriangleAlert,
+  type LucideIcon
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
-import type { Notification, NotificationPreference, NotificationStatus } from "@/entities/notification";
+import type {
+  Notification,
+  NotificationPreference,
+  NotificationStatus,
+  NotificationType
+} from "@/entities/notification";
 import {
   getNotificationPreferencesRequest,
   getNotificationsRequest,
@@ -16,6 +41,7 @@ import { formatDateTime } from "@/shared/lib/date-time";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
+import { AppIcon } from "@/shared/ui/icon";
 
 const STATUS_FILTERS: Array<NotificationStatus | "all"> = ["all", "unread", "read", "archived"];
 
@@ -39,6 +65,19 @@ const PREFERENCE_FIELDS: Array<{
   { key: "organizer_events_enabled", labelKey: "notifications.preferences.organizerEvents" }
 ];
 
+const NOTIFICATION_ICONS: Record<NotificationType, LucideIcon> = {
+  deadline_upcoming: CalendarClock,
+  exam_date_upcoming: BookOpenCheck,
+  roadmap_task_due_soon: ListChecks,
+  recommendation_missing: Sparkles,
+  essay_missing: FileText,
+  essay_review_completed: FileText,
+  event_registration_confirmed: CalendarCheck,
+  event_starting_soon: CalendarClock,
+  organizer_event_approved: ShieldCheck,
+  organizer_event_rejected: ShieldCheck
+};
+
 export function NotificationsScreen() {
   const { locale, t } = useI18n();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -46,8 +85,12 @@ export function NotificationsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
+  const [actionError, setActionError] = useState(false);
+
   const [preferences, setPreferences] = useState<NotificationPreference | null>(null);
-  const [isSavingPreference, setIsSavingPreference] = useState(false);
+  const [preferencesError, setPreferencesError] = useState(false);
+  const [savingPreferenceKey, setSavingPreferenceKey] = useState<string | null>(null);
+  const [preferenceActionError, setPreferenceActionError] = useState(false);
 
   const loadNotifications = useCallback(async () => {
     setIsLoading(true);
@@ -68,50 +111,74 @@ export function NotificationsScreen() {
     void loadNotifications();
   }, [loadNotifications]);
 
-  useEffect(() => {
+  const loadPreferences = useCallback(() => {
+    setPreferencesError(false);
     getNotificationPreferencesRequest()
       .then(setPreferences)
-      .catch(() => undefined);
+      .catch(() => setPreferencesError(true));
   }, []);
 
+  useEffect(() => {
+    loadPreferences();
+  }, [loadPreferences]);
+
   const updateStatus = async (notification: Notification, nextStatus: NotificationStatus) => {
-    const updated = await updateNotificationStatusRequest(notification.id, nextStatus);
-    setNotifications((current) =>
-      statusFilter === "all"
-        ? current.map((item) => (item.id === updated.id ? updated : item))
-        : current.filter((item) => item.id !== updated.id)
-    );
+    setActionError(false);
+    try {
+      const updated = await updateNotificationStatusRequest(notification.id, nextStatus);
+      setNotifications((current) =>
+        statusFilter === "all"
+          ? current.map((item) => (item.id === updated.id ? updated : item))
+          : current.filter((item) => item.id !== updated.id)
+      );
+    } catch {
+      setActionError(true);
+    }
   };
 
   const handleMarkAllRead = async () => {
-    await markAllNotificationsReadRequest();
-    // Patch local state instead of refetching the whole list -- the mutation
-    // is fully predictable (every unread item becomes read), so there's
-    // nothing a fresh GET would tell us that we don't already know.
-    setNotifications((current) =>
-      statusFilter === "unread"
-        ? []
-        : current.map((item) => (item.status === "unread" ? { ...item, status: "read" } : item))
-    );
+    setActionError(false);
+    try {
+      await markAllNotificationsReadRequest();
+      // Patch local state instead of refetching the whole list -- the mutation
+      // is fully predictable (every unread item becomes read), so there's
+      // nothing a fresh GET would tell us that we don't already know.
+      setNotifications((current) =>
+        statusFilter === "unread"
+          ? []
+          : current.map((item) => (item.status === "unread" ? { ...item, status: "read" } : item))
+      );
+    } catch {
+      setActionError(true);
+    }
   };
 
   const togglePreference = async (key: keyof Omit<NotificationPreference, "updated_at">) => {
     if (!preferences) return;
-    setIsSavingPreference(true);
+    setPreferenceActionError(false);
+    setSavingPreferenceKey(key);
+    const previous = preferences;
+    setPreferences({ ...preferences, [key]: !preferences[key] });
     try {
-      const updated = await updateNotificationPreferencesRequest({ [key]: !preferences[key] });
+      const updated = await updateNotificationPreferencesRequest({ [key]: !previous[key] });
       setPreferences(updated);
+    } catch {
+      setPreferences(previous);
+      setPreferenceActionError(true);
     } finally {
-      setIsSavingPreference(false);
+      setSavingPreferenceKey(null);
     }
   };
 
   return (
     <div className="space-y-6">
       <section className="rounded-sm border bg-card p-6 shadow-card sm:p-9">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
-          {t("notifications.page.eyebrow")}
-        </p>
+        <div className="flex items-center gap-2 text-primary-hover">
+          <AppIcon icon={BellRing} size="md" />
+          <p className="text-xs font-bold uppercase tracking-[0.18em]">
+            {t("notifications.page.eyebrow")}
+          </p>
+        </div>
         <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{t("notifications.page.title")}</h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
           {t("notifications.page.description")}
@@ -135,27 +202,43 @@ export function NotificationsScreen() {
           </div>
           {statusFilter !== "archived" && notifications.some((item) => item.status === "unread") ? (
             <Button onClick={() => void handleMarkAllRead()} size="sm" type="button" variant="ghost">
+              <AppIcon className="mr-2" icon={CheckCheck} />
               {t("notifications.page.markAllRead")}
             </Button>
           ) : null}
         </div>
 
+        {actionError ? (
+          <p className="mb-3 flex items-center gap-2 text-sm text-danger" role="alert">
+            <AppIcon icon={TriangleAlert} />
+            {t("notifications.page.actionError")}
+          </p>
+        ) : null}
+
         {isLoading ? (
           <Card>
-            <p className="text-sm text-muted-foreground">{t("notifications.page.loading")}</p>
+            <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+              <AppIcon className="animate-spin motion-reduce:animate-none" icon={LoaderCircle} />
+              {t("notifications.page.loading")}
+            </p>
           </Card>
         ) : hasError ? (
           <Card>
-            <p className="text-sm text-danger" role="alert">
+            <p className="flex items-center gap-2 text-sm text-danger" role="alert">
+              <AppIcon icon={TriangleAlert} />
               {t("notifications.page.loadError")}
             </p>
             <Button className="mt-4" onClick={() => void loadNotifications()} type="button">
+              <AppIcon className="mr-2" icon={RefreshCw} />
               {t("essays.actions.retry")}
             </Button>
           </Card>
         ) : notifications.length === 0 ? (
           <Card>
-            <p className="text-sm text-muted-foreground">{t("notifications.page.empty")}</p>
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <AppIcon icon={Inbox} />
+              {t("notifications.page.empty")}
+            </p>
           </Card>
         ) : (
           <div className="space-y-3">
@@ -164,6 +247,9 @@ export function NotificationsScreen() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
+                      <span className="grid size-8 place-items-center rounded-sm border bg-surface text-muted-foreground">
+                        <AppIcon icon={NOTIFICATION_ICONS[notification.notification_type]} />
+                      </span>
                       <span
                         className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${PRIORITY_STYLES[notification.priority]}`}
                       >
@@ -184,7 +270,10 @@ export function NotificationsScreen() {
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {notification.action_url ? (
                       <Button asChild size="sm" variant="secondary">
-                        <Link href={notification.action_url}>{t("notifications.page.open")}</Link>
+                        <Link href={notification.action_url}>
+                          <AppIcon className="mr-2" icon={ExternalLink} />
+                          {t("notifications.page.open")}
+                        </Link>
                       </Button>
                     ) : null}
                     {notification.status !== "read" ? (
@@ -194,6 +283,7 @@ export function NotificationsScreen() {
                         type="button"
                         variant="ghost"
                       >
+                        <AppIcon className="mr-2" icon={Check} />
                         {t("notifications.page.markRead")}
                       </Button>
                     ) : null}
@@ -204,6 +294,7 @@ export function NotificationsScreen() {
                         type="button"
                         variant="ghost"
                       >
+                        <AppIcon className="mr-2" icon={Archive} />
                         {t("notifications.page.archive")}
                       </Button>
                     ) : null}
@@ -216,25 +307,46 @@ export function NotificationsScreen() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">{t("notifications.preferences.title")}</h2>
+        <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
+          <AppIcon icon={Settings2} size="md" />
+          {t("notifications.preferences.title")}
+        </h2>
         <Card className="p-4">
-          {preferences ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {PREFERENCE_FIELDS.map(({ key, labelKey }) => (
-                <label
-                  className="flex items-center justify-between gap-3 rounded-sm border bg-surface px-3 py-2.5"
-                  key={key}
-                >
-                  <span className="text-sm">{t(labelKey)}</span>
-                  <input
-                    checked={preferences[key]}
-                    disabled={isSavingPreference}
-                    onChange={() => void togglePreference(key)}
-                    type="checkbox"
-                  />
-                </label>
-              ))}
+          {preferencesError ? (
+            <div className="flex items-center justify-between gap-3 rounded-sm border border-danger/35 bg-danger/10 p-3">
+              <p className="flex items-center gap-2 text-sm text-danger" role="alert">
+                <AppIcon icon={TriangleAlert} />
+                {t("notifications.preferences.loadError")}
+              </p>
+              <Button onClick={loadPreferences} size="sm" type="button" variant="ghost">
+                <AppIcon className="mr-2" icon={RefreshCw} />
+                {t("essays.actions.retry")}
+              </Button>
             </div>
+          ) : preferences ? (
+            <>
+              {preferenceActionError ? (
+                <p className="mb-3 text-sm text-danger" role="alert">
+                  {t("notifications.preferences.saveError")}
+                </p>
+              ) : null}
+              <div className="grid gap-3 sm:grid-cols-2">
+                {PREFERENCE_FIELDS.map(({ key, labelKey }) => (
+                  <label
+                    className="flex items-center justify-between gap-3 rounded-sm border bg-surface px-3 py-2.5"
+                    key={key}
+                  >
+                    <span className="text-sm">{t(labelKey)}</span>
+                    <input
+                      checked={preferences[key]}
+                      disabled={savingPreferenceKey === key}
+                      onChange={() => void togglePreference(key)}
+                      type="checkbox"
+                    />
+                  </label>
+                ))}
+              </div>
+            </>
           ) : (
             <p className="text-sm text-muted-foreground">{t("notifications.preferences.loading")}</p>
           )}

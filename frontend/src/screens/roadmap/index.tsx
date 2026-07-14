@@ -93,6 +93,7 @@ export function RoadmapScreen() {
   const [filters, setFilters] = useState(emptyFilters);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<RoadmapTask | null>(null);
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [pendingTaskId, setPendingTaskId] = useState<number | null>(null);
   const [actionError, setActionError] = useState(false);
   const [isRefreshingSuggestions, setIsRefreshingSuggestions] = useState(false);
@@ -254,28 +255,33 @@ export function RoadmapScreen() {
   }
 
   async function handleFormSubmit(values: RoadmapTaskFormValues) {
-    if (editingTask) {
-      const isManual = editingTask.source_type === "manual";
-      const updated = await updateRoadmapTaskRequest(editingTask.id, {
-        title: values.title,
-        description: values.description,
-        priority: values.priority,
-        due_date: values.due_date || null,
-        ...(isManual ? { category: values.category } : {})
-      });
-      updateTaskInPlan(updated);
-    } else {
-      const created = await createRoadmapTaskRequest({
-        title: values.title,
-        description: values.description,
-        category: values.category,
-        priority: values.priority,
-        due_date: values.due_date || null
-      });
-      setPlan((current) => (current ? { ...current, tasks: [...current.tasks, created] } : current));
+    setIsSubmittingForm(true);
+    try {
+      if (editingTask) {
+        const isManual = editingTask.source_type === "manual";
+        const updated = await updateRoadmapTaskRequest(editingTask.id, {
+          title: values.title,
+          description: values.description,
+          priority: values.priority,
+          due_date: values.due_date || null,
+          ...(isManual ? { category: values.category } : {})
+        });
+        updateTaskInPlan(updated);
+      } else {
+        const created = await createRoadmapTaskRequest({
+          title: values.title,
+          description: values.description,
+          category: values.category,
+          priority: values.priority,
+          due_date: values.due_date || null
+        });
+        setPlan((current) => (current ? { ...current, tasks: [...current.tasks, created] } : current));
+      }
+      setIsFormOpen(false);
+      setEditingTask(null);
+    } finally {
+      setIsSubmittingForm(false);
     }
-    setIsFormOpen(false);
-    setEditingTask(null);
   }
 
   async function handleDelete(task: RoadmapTask) {
@@ -571,7 +577,7 @@ export function RoadmapScreen() {
 
       {isFormOpen ? (
         <RoadmapTaskForm
-          isSubmitting={false}
+          isSubmitting={isSubmittingForm}
           onCancel={() => {
             setIsFormOpen(false);
             setEditingTask(null);

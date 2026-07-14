@@ -169,6 +169,8 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
   );
   const [isStartingApplication, setIsStartingApplication] = useState(false);
   const [isRefreshingSuggestions, setIsRefreshingSuggestions] = useState(false);
+  const [isAddingToRoadmap, setIsAddingToRoadmap] = useState(false);
+  const [hasPartialError, setHasPartialError] = useState(false);
   const [isRefreshingFit, setIsRefreshingFit] = useState(false);
   const [fitRefreshTimedOut, setFitRefreshTimedOut] = useState(false);
   const [fitRefreshReason, setFitRefreshReason] = useState<
@@ -309,23 +311,32 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
   }
 
   async function handleAddToRoadmap() {
-    const response = await generateRoadmapRequest();
-    if (university) {
-      getRoadmapTasksRequest({ linked_university: String(university.id) })
-        .then((result) => setRoadmapTasks(result.results))
-        .catch(() => undefined);
+    setIsAddingToRoadmap(true);
+    setHasPartialError(false);
+    try {
+      const response = await generateRoadmapRequest();
+      if (university) {
+        const result = await getRoadmapTasksRequest({ linked_university: String(university.id) });
+        setRoadmapTasks(result.results);
+      }
+      return response;
+    } catch {
+      setHasPartialError(true);
+      return undefined;
+    } finally {
+      setIsAddingToRoadmap(false);
     }
-    return response;
   }
 
   async function handleRefreshSuggestions() {
     if (!university) return;
     setIsRefreshingSuggestions(true);
+    setHasPartialError(false);
     try {
       const response = await generateSuggestionsRequest();
       setSuggestions(response.suggestions.filter((item) => item.linked_university === university.id));
     } catch {
-      // Keep the page usable; suggestions can be refreshed again.
+      setHasPartialError(true);
     } finally {
       setIsRefreshingSuggestions(false);
     }
@@ -339,7 +350,7 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
       const response = await getRoadmapTasksRequest({ linked_university: String(university.id) });
       setRoadmapTasks(response.results);
     } catch {
-      // The route already exposes retry through the refresh action.
+      setHasPartialError(true);
     }
   }
 
@@ -348,7 +359,7 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
       await dismissSuggestionRequest(suggestion.id);
       setSuggestions((current) => current.filter((item) => item.id !== suggestion.id));
     } catch {
-      // Non-blocking; keep the suggestion visible if dismissal fails.
+      setHasPartialError(true);
     }
   }
 
@@ -1180,14 +1191,32 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
                   ))}
                 </ul>
               )}
-              <Button className="mt-4" onClick={() => void handleAddToRoadmap()} size="sm" type="button">
-                {t("universities.roadmapTab.addMissingRequirements")}
+              <Button
+                className="mt-4"
+                disabled={isAddingToRoadmap}
+                onClick={() => void handleAddToRoadmap()}
+                size="sm"
+                type="button"
+              >
+                {isAddingToRoadmap
+                  ? t("roadmap.actions.generating")
+                  : t("universities.roadmapTab.addMissingRequirements")}
               </Button>
+              {hasPartialError ? (
+                <p className="mt-2 text-xs text-danger" role="alert">
+                  {t("universities.states.actionError")}
+                </p>
+              ) : null}
             </Card>
           ) : null}
         </div>
 
         <aside className="space-y-5">
+          {hasPartialError ? (
+            <p className="text-xs text-danger" role="alert">
+              {t("universities.states.actionError")}
+            </p>
+          ) : null}
           <SuggestionPanel
             description={t("universities.suggestions.description")}
             isRefreshing={isRefreshingSuggestions}

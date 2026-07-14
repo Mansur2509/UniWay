@@ -112,6 +112,7 @@ export function EssaysScreen() {
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEssay, setEditingEssay] = useState<EssayWorkspace | null>(null);
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [selectedEssayId, setSelectedEssayId] = useState<number | null>(null);
   const [draftText, setDraftText] = useState("");
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -323,27 +324,32 @@ export function EssaysScreen() {
   }, [currentPage, totalEssayPages]);
 
   async function handleFormSubmit(values: EssayFormValues) {
-    const payload = {
-      title: values.title,
-      essay_type: values.essay_type,
-      university: values.university,
-      prompt_text: values.prompt_text,
-      word_limit: values.word_limit ? Number(values.word_limit) : null,
-      due_date: values.due_date || null,
-      source_url: values.source_url,
-      notes: values.notes,
-      priority: values.priority
-    };
-    if (editingEssay) {
-      const updated = await updateEssayRequest(editingEssay.id, payload);
-      updateEssayInList(updated);
-    } else {
-      const created = await createEssayRequest(payload);
-      setEssays((current) => [created, ...current]);
-      setSelectedEssayId(created.id);
+    setIsSubmittingForm(true);
+    try {
+      const payload = {
+        title: values.title,
+        essay_type: values.essay_type,
+        university: values.university,
+        prompt_text: values.prompt_text,
+        word_limit: values.word_limit ? Number(values.word_limit) : null,
+        due_date: values.due_date || null,
+        source_url: values.source_url,
+        notes: values.notes,
+        priority: values.priority
+      };
+      if (editingEssay) {
+        const updated = await updateEssayRequest(editingEssay.id, payload);
+        updateEssayInList(updated);
+      } else {
+        const created = await createEssayRequest(payload);
+        setEssays((current) => [created, ...current]);
+        setSelectedEssayId(created.id);
+      }
+      setIsFormOpen(false);
+      setEditingEssay(null);
+    } finally {
+      setIsSubmittingForm(false);
     }
-    setIsFormOpen(false);
-    setEditingEssay(null);
   }
 
   async function handleSaveDraft() {
@@ -651,6 +657,7 @@ export function EssaysScreen() {
         <EssayForm
           essay={editingEssay}
           isShortlistLoading={isShortlistLoading}
+          isSubmitting={isSubmittingForm}
           onCancel={() => {
             setIsFormOpen(false);
             setEditingEssay(null);

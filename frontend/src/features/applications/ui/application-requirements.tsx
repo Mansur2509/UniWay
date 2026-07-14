@@ -42,6 +42,7 @@ export function ApplicationRequirementsPanel({ applicationId }: { applicationId:
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [actionError, setActionError] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newType, setNewType] = useState<RequirementType>("other");
 
@@ -72,18 +73,28 @@ export function ApplicationRequirementsPanel({ applicationId }: { applicationId:
   };
 
   const handleStatusChange = async (requirementId: number, status: RequirementStatus) => {
-    const updated = await updateApplicationRequirementRequest(requirementId, { status });
-    setRequirements((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    setActionError(false);
+    try {
+      const updated = await updateApplicationRequirementRequest(requirementId, { status });
+      setRequirements((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    } catch {
+      setActionError(true);
+    }
   };
 
   const handleAdd = async () => {
     if (!newTitle.trim()) return;
-    const created = await createApplicationRequirementRequest(applicationId, {
-      requirement_type: newType,
-      title: newTitle.trim()
-    });
-    setRequirements((current) => [...current, created]);
-    setNewTitle("");
+    setActionError(false);
+    try {
+      const created = await createApplicationRequirementRequest(applicationId, {
+        requirement_type: newType,
+        title: newTitle.trim()
+      });
+      setRequirements((current) => [...current, created]);
+      setNewTitle("");
+    } catch {
+      setActionError(true);
+    }
   };
 
   if (isLoading) {
@@ -150,6 +161,12 @@ export function ApplicationRequirementsPanel({ applicationId }: { applicationId:
           ))}
         </ul>
       )}
+
+      {actionError ? (
+        <p className="mt-2 text-xs text-danger" role="alert">
+          {t("applications.states.actionError")}
+        </p>
+      ) : null}
 
       <div className="mt-3 flex flex-wrap items-end gap-2">
         <label className="block">

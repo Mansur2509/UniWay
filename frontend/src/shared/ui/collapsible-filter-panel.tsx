@@ -18,6 +18,7 @@ type CollapsibleFilterPanelProps = {
   className?: string;
   defaultOpen?: boolean;
   resultCount?: number;
+  isRefreshing?: boolean;
 };
 
 export function CollapsibleFilterPanel({
@@ -27,7 +28,8 @@ export function CollapsibleFilterPanel({
   storageKey,
   className,
   defaultOpen = false,
-  resultCount
+  resultCount,
+  isRefreshing = false
 }: CollapsibleFilterPanelProps) {
   const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -81,6 +83,7 @@ export function CollapsibleFilterPanel({
           {resultCount !== undefined ? (
             <span className="text-xs font-semibold text-muted-foreground">
               {t("common.filters.resultCount", { count: resultCount })}
+              {isRefreshing ? ` · ${t("common.filters.refreshing")}` : ""}
             </span>
           ) : null}
         </div>
