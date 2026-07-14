@@ -10,6 +10,10 @@ class ApplicationTrackerItem(models.Model):
         EARLY_DECISION = "early_decision", "Early decision"
         EARLY_ACTION = "early_action", "Early action"
         RESTRICTIVE_EARLY_ACTION = "restrictive_early_action", "Restrictive early action"
+        SINGLE_CHOICE_EARLY_ACTION = (
+            "single_choice_early_action",
+            "Single-choice early action",
+        )
         REGULAR_DECISION = "regular_decision", "Regular decision"
         ROLLING = "rolling", "Rolling"
         SCHOLARSHIP = "scholarship", "Scholarship"

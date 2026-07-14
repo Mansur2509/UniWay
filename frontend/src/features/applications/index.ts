@@ -14,6 +14,7 @@ export {
   getApplicationRequirementsRequest,
   getApplicationsRequest,
   getApplicationTimelineRequest,
+  restoreApplicationRequest,
   updateApplicationDocumentRequest,
   updateApplicationMilestoneRequest,
   updateApplicationRecommendationRequest,

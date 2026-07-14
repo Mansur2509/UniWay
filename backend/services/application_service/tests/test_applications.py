@@ -181,6 +181,71 @@ class ApplicationTrackerApiTests(APITestCase):
         )
         self.assertEqual(recreated.status_code, status.HTTP_201_CREATED, recreated.data)
 
+    def test_restore_reactivates_archived_application(self):
+        self.client.force_authenticate(self.user1)
+        created = self.client.post(
+            "/api/applications/", {"university": self.university.id}, format="json"
+        )
+        application_id = created.data["id"]
+        self.client.delete(f"/api/applications/{application_id}/")
+
+        response = self.client.post(f"/api/applications/{application_id}/restore/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertIsNone(response.data["archived_at"])
+        stored = ApplicationTrackerItem.objects.get(pk=application_id)
+        self.assertIsNone(stored.archived_at)
+        active_list = self.client.get("/api/applications/")
+        self.assertEqual(len(active_list.data["results"]), 1)
+
+    def test_cannot_restore_another_users_application(self):
+        self.client.force_authenticate(self.user1)
+        created = self.client.post(
+            "/api/applications/", {"university": self.university.id}, format="json"
+        )
+        application_id = created.data["id"]
+        self.client.delete(f"/api/applications/{application_id}/")
+
+        self.client.force_authenticate(self.user2)
+        response = self.client.post(f"/api/applications/{application_id}/restore/")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        stored = ApplicationTrackerItem.objects.get(pk=application_id)
+        self.assertIsNotNone(stored.archived_at)
+
+    def test_restore_nonexistent_application_returns_404(self):
+        self.client.force_authenticate(self.user1)
+        response = self.client.post("/api/applications/999999/restore/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_restore_rejected_when_duplicate_active_target_exists(self):
+        self.client.force_authenticate(self.user1)
+        created = self.client.post(
+            "/api/applications/", {"university": self.university.id}, format="json"
+        )
+        application_id = created.data["id"]
+        self.client.delete(f"/api/applications/{application_id}/")
+        self.client.post("/api/applications/", {"university": self.university.id}, format="json")
+
+        response = self.client.post(f"/api/applications/{application_id}/restore/")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        stored = ApplicationTrackerItem.objects.get(pk=application_id)
+        self.assertIsNotNone(stored.archived_at)
+
+    def test_restore_requires_authentication(self):
+        self.client.force_authenticate(self.user1)
+        created = self.client.post(
+            "/api/applications/", {"university": self.university.id}, format="json"
+        )
+        application_id = created.data["id"]
+        self.client.delete(f"/api/applications/{application_id}/")
+
+        self.client.force_authenticate(None)
+        response = self.client.post(f"/api/applications/{application_id}/restore/")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
     def test_list_query_count_does_not_grow_per_application(self):
         # PERFORMANCE-011 PART 4: guards the select_related/prefetch_related
         # on ApplicationTrackerViewSet.get_queryset -- without it, milestones

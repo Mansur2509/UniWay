@@ -11,6 +11,7 @@ import {
   GraduationCap,
   Map,
   Sparkles,
+  Target,
   type LucideIcon
 } from "lucide-react";
 import Link from "next/link";
@@ -399,6 +400,42 @@ export function DashboardScreen() {
           )
         )[0] ?? null,
     [applications]
+  );
+
+  const prospectiveTargets = useMemo(
+    () =>
+      applications.filter(
+        (application) => application.status === "researching" || application.status === "shortlisted"
+      ),
+    [applications]
+  );
+
+  const nearestVerifiedProspectiveDeadline = useMemo(
+    () =>
+      prospectiveTargets
+        .filter(
+          (target) =>
+            target.official_deadline.status === "verified" && target.official_deadline.date
+        )
+        .sort((left, right) =>
+          (left.official_deadline.date ?? "").localeCompare(right.official_deadline.date ?? "")
+        )[0] ?? null,
+    [prospectiveTargets]
+  );
+
+  const staleProspectiveCount = useMemo(
+    () =>
+      prospectiveTargets.filter(
+        (target) =>
+          target.official_deadline.status === "outdated" ||
+          target.official_deadline.status === "requires_review"
+      ).length,
+    [prospectiveTargets]
+  );
+
+  const missingProgramProspectiveCount = useMemo(
+    () => prospectiveTargets.filter((target) => !target.target_program_name).length,
+    [prospectiveTargets]
   );
 
   // Active applications (still being worked on) that have no user or verified
@@ -1010,6 +1047,73 @@ export function DashboardScreen() {
               <Button asChild className="mt-3" size="sm" variant="ghost">
                 <Link href="/recommendations">{t("dashboard.recommendationsWidget.open")}</Link>
               </Button>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:divide-x">
+            <div>
+              <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+                <Target aria-hidden className="size-3.5 text-accent" />
+                {t("dashboard.prospectiveWidget.title")}
+              </p>
+              {prospectiveTargets.length === 0 ? (
+                <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                  <p>{t("dashboard.prospectiveWidget.empty")}</p>
+                  <p>{t("dashboard.prospectiveWidget.emptyAction")}</p>
+                </div>
+              ) : (
+                <>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    {t("dashboard.prospectiveWidget.count", { count: prospectiveTargets.length })}
+                  </p>
+                  {nearestVerifiedProspectiveDeadline?.official_deadline.date ? (
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      {t("dashboard.prospectiveWidget.nearestVerified", {
+                        university: nearestVerifiedProspectiveDeadline.university_name,
+                        date: formatDate(
+                          nearestVerifiedProspectiveDeadline.official_deadline.date,
+                          locale
+                        )
+                      })}
+                    </p>
+                  ) : null}
+                </>
+              )}
+              <Button asChild className="mt-3" size="sm" variant="ghost">
+                <Link href="/prospective-universities">{t("dashboard.prospectiveWidget.open")}</Link>
+              </Button>
+            </div>
+
+            <div className="sm:pl-4">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+                {t("dashboard.prospectiveWidget.warnings.title")}
+              </p>
+              {staleProspectiveCount === 0 && missingProgramProspectiveCount === 0 ? (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {t("dashboard.prospectiveWidget.warnings.empty")}
+                </p>
+              ) : (
+                <ul className="mt-3 space-y-1.5 text-xs">
+                  {staleProspectiveCount > 0 ? (
+                    <li className="flex items-center gap-1.5 text-warning">
+                      <AlertTriangle aria-hidden className="size-3 shrink-0" />
+                      {t("dashboard.prospectiveWidget.warnings.stale", {
+                        count: staleProspectiveCount
+                      })}
+                    </li>
+                  ) : null}
+                  {missingProgramProspectiveCount > 0 ? (
+                    <li className="flex items-center gap-1.5 text-warning">
+                      <AlertTriangle aria-hidden className="size-3 shrink-0" />
+                      {t("dashboard.prospectiveWidget.warnings.missingProgram", {
+                        count: missingProgramProspectiveCount
+                      })}
+                    </li>
+                  ) : null}
+                </ul>
+              )}
             </div>
           </div>
         </Card>

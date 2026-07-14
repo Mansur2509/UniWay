@@ -2,6 +2,7 @@ export type ApplicationRound =
   | "early_decision"
   | "early_action"
   | "restrictive_early_action"
+  | "single_choice_early_action"
   | "regular_decision"
   | "rolling"
   | "scholarship"
@@ -386,3 +387,4 @@ export const DECISION_STATUSES: ApplicationStatus[] = [
 ];
 
 export { ApplicationCard } from "./ui/application-card";
+export { ProspectiveTargetCard } from "./ui/prospective-target-card";

@@ -19,6 +19,7 @@ type ApplicationListParams = {
   university?: string;
   page?: number;
   page_size?: number;
+  include_archived?: "true";
 };
 
 export async function getApplicationsRequest(filters: ApplicationListParams = {}) {
@@ -65,6 +66,13 @@ export function updateApplicationRequest(
 
 export function deleteApplicationRequest(id: number) {
   return apiRequest<void>(`/${id}/`, { base: "applications", method: "DELETE" });
+}
+
+export function restoreApplicationRequest(id: number) {
+  return apiRequest<ApplicationTrackerItem>(`/${id}/restore/`, {
+    base: "applications",
+    method: "POST"
+  });
 }
 
 export function createApplicationMilestoneRequest(

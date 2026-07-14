@@ -1,5 +1,5 @@
-import { ApplicationsScreen } from "@/screens/applications";
+import { ProspectiveUniversitiesScreen } from "@/screens/prospective-universities";
 
 export default function Page() {
-  return <ApplicationsScreen />;
+  return <ProspectiveUniversitiesScreen />;
 }
