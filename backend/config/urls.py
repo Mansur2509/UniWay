@@ -7,7 +7,10 @@ from services.event_service.views import EventViewSet
 from services.exam_content_service.views import (
     ExamViewSet,
     OfficialExamDateViewSet,
+    PracticeSessionViewSet,
+    QuestionBookmarkViewSet,
     QuestionViewSet,
+    SkillMasteryListView,
 )
 from services.profile_assessment_service.views import (
     LatestProfileAssessmentView,
@@ -26,6 +29,9 @@ router.register("universities", UniversityViewSet, basename="university")
 router.register("exams", ExamViewSet, basename="exam")
 router.register("exam-dates", OfficialExamDateViewSet, basename="exam-date")
 router.register("questions", QuestionViewSet, basename="question")
+router.register("practice-sessions", PracticeSessionViewSet, basename="practice-session")
+router.register("skill-mastery", SkillMasteryListView, basename="skill-mastery")
+router.register("question-bookmarks", QuestionBookmarkViewSet, basename="question-bookmark")
 router.register("profiles", ProfileViewSet, basename="profile")
 router.register("subscriptions", SubscriptionViewSet, basename="subscription")
 router.register("roadmaps/tasks", RoadmapTaskViewSet, basename="roadmap-task-v1")

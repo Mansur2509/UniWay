@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
@@ -24,15 +25,56 @@ class ExamSection(models.Model):
         ]
 
 
+class Skill(models.Model):
+    """POST-V1-021 Phase 7: a gradeable sub-topic within an exam section
+    (e.g. "Linear equations" within SAT Math), used for mastery tracking."""
+
+    section = models.ForeignKey(ExamSection, on_delete=models.CASCADE, related_name="skills")
+    name = models.CharField(max_length=120)
+    slug = models.SlugField(max_length=140)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("section", "slug"), name="unique_section_skill_slug")
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Question(models.Model):
     class Origin(models.TextChoices):
         ORIGINAL = "original", "Original UniWay content"
         LICENSED = "licensed", "Licensed content"
+        PUBLIC_DOMAIN = "public_domain", "Public domain content"
+
+    class ReviewStatus(models.TextChoices):
+        """Internal content-QA workflow, distinct from `is_published` (the
+        student-visibility gate): every question starts DRAFT and must be
+        explicitly promoted by a human reviewer before it can ever be
+        published, regardless of who authored it."""
+
+        DRAFT = "draft", "Draft"
+        REVIEWED = "reviewed", "Reviewed"
+        PUBLISHED = "published", "Published"
+        ARCHIVED = "archived", "Archived"
+
+    class Difficulty(models.TextChoices):
+        EASY = "easy", "Easy"
+        MEDIUM = "medium", "Medium"
+        HARD = "hard", "Hard"
 
     section = models.ForeignKey(ExamSection, on_delete=models.CASCADE, related_name="questions")
+    skill = models.ForeignKey(
+        Skill, on_delete=models.SET_NULL, null=True, blank=True, related_name="questions"
+    )
     prompt = models.TextField()
     origin = models.CharField(max_length=20, choices=Origin.choices, default=Origin.ORIGINAL)
     provenance_note = models.CharField(max_length=240, default="Original UniWay demonstration content")
+    review_status = models.CharField(
+        max_length=20, choices=ReviewStatus.choices, default=ReviewStatus.DRAFT, db_index=True
+    )
+    difficulty = models.CharField(max_length=10, choices=Difficulty.choices, default=Difficulty.MEDIUM)
     is_published = models.BooleanField(default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -138,3 +180,72 @@ class OfficialExamDate(models.Model):
 
     def __str__(self) -> str:
         return f"{self.exam_type} {self.name} ({self.test_date or self.exam_year or 'unpublished'})"
+
+
+class PracticeSession(models.Model):
+    """POST-V1-021 Phase 7: one practice attempt. Always scoped to
+    `request.user` -- never shared or cross-user-visible."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="practice_sessions"
+    )
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name="practice_sessions")
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    is_timed = models.BooleanField(default=False)
+    time_limit_seconds = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=("user", "started_at"))]
+
+
+class PracticeAnswer(models.Model):
+    session = models.ForeignKey(PracticeSession, on_delete=models.CASCADE, related_name="answers")
+    question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name="+")
+    chosen_choice = models.ForeignKey(
+        AnswerChoice, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    is_correct = models.BooleanField()
+    answered_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("session", "question"), name="unique_answer_per_question")
+        ]
+
+
+class SkillMastery(models.Model):
+    """Simple, transparent correct/attempt ratio only -- no black-box
+    scoring, matching this codebase's existing no-fake-predictions ethos."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="skill_masteries"
+    )
+    skill = models.ForeignKey(Skill, on_delete=models.CASCADE, related_name="masteries")
+    correct_count = models.PositiveIntegerField(default=0)
+    attempt_count = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("user", "skill"), name="unique_mastery_per_user_skill")
+        ]
+
+    @property
+    def accuracy_percent(self) -> float | None:
+        if self.attempt_count == 0:
+            return None
+        return round(self.correct_count / self.attempt_count * 100, 1)
+
+
+class QuestionBookmark(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="question_bookmarks"
+    )
+    question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name="bookmarked_by")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("user", "question"), name="unique_bookmark_per_user_question")
+        ]

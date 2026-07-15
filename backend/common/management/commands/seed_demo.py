@@ -19,6 +19,7 @@ from services.exam_content_service.models import (
     ExamSection,
     Explanation,
     Question,
+    Skill,
 )
 from services.subscription_service.models import Plan, Subscription, UsageLimit
 from services.university_service.models import (
@@ -566,7 +567,11 @@ class Command(BaseCommand):
         )
 
     def seed_question(self):
-        exam, _ = Exam.objects.update_or_create(
+        """POST-V1-021 Phase 7: a small, original, multi-subject starter set
+        -- explicitly not a claim of a full SAT/AP question bank. Every
+        question here is written for UniWay, not copied from any test-prep
+        source, and is tagged with a Skill for mastery tracking."""
+        sat_exam, _ = Exam.objects.update_or_create(
             slug="sat-demo",
             defaults={
                 "name": "SAT-style Demo",
@@ -574,19 +579,30 @@ class Command(BaseCommand):
                 "is_published": True,
             },
         )
-        section, _ = ExamSection.objects.get_or_create(
-            exam=exam,
+        math_section, _ = ExamSection.objects.get_or_create(
+            exam=sat_exam,
             slug="math",
             defaults={"name": "Math"},
         )
+        arithmetic_skill, _ = Skill.objects.get_or_create(
+            section=math_section, slug="arithmetic", defaults={"name": "Arithmetic"}
+        )
         question, _ = Question.objects.get_or_create(
-            section=section,
+            section=math_section,
             prompt="A study group reads 18 pages each day for 5 days. How many pages do they read in total?",
             defaults={
+                "skill": arithmetic_skill,
                 "origin": Question.Origin.ORIGINAL,
                 "provenance_note": "Original UniWay arithmetic demonstration question.",
+                "review_status": Question.ReviewStatus.PUBLISHED,
+                "difficulty": Question.Difficulty.EASY,
                 "is_published": True,
             },
+        )
+        Question.objects.filter(pk=question.pk).update(
+            skill=arithmetic_skill,
+            review_status=Question.ReviewStatus.PUBLISHED,
+            difficulty=Question.Difficulty.EASY,
         )
         choices = (("A", "23", False), ("B", "72", False), ("C", "90", True), ("D", "108", False))
         for label, text, is_correct in choices:
@@ -598,4 +614,112 @@ class Command(BaseCommand):
         Explanation.objects.update_or_create(
             question=question,
             defaults={"text": "Multiply the daily pages by the number of days: 18 × 5 = 90."},
+        )
+
+        rw_section, _ = ExamSection.objects.get_or_create(
+            exam=sat_exam,
+            slug="reading-writing",
+            defaults={"name": "Reading and Writing"},
+        )
+        grammar_skill, _ = Skill.objects.get_or_create(
+            section=rw_section, slug="sentence-structure", defaults={"name": "Sentence structure"}
+        )
+        rw_question, _ = Question.objects.get_or_create(
+            section=rw_section,
+            prompt=(
+                "Choose the option that best combines the two sentences: "
+                '"The museum extended its hours for the exhibit. Attendance had far exceeded projections."'
+            ),
+            defaults={
+                "skill": grammar_skill,
+                "origin": Question.Origin.ORIGINAL,
+                "provenance_note": "Original UniWay sentence-combination demonstration question.",
+                "review_status": Question.ReviewStatus.PUBLISHED,
+                "difficulty": Question.Difficulty.MEDIUM,
+                "is_published": True,
+            },
+        )
+        Question.objects.filter(pk=rw_question.pk).update(
+            skill=grammar_skill,
+            review_status=Question.ReviewStatus.PUBLISHED,
+            difficulty=Question.Difficulty.MEDIUM,
+        )
+        rw_choices = (
+            ("A", "The museum extended its hours for the exhibit, but attendance had far exceeded projections.", False),
+            ("B", "The museum extended its hours for the exhibit because attendance had far exceeded projections.", True),
+            ("C", "The museum extended its hours for the exhibit, so attendance had far exceeded projections.", False),
+            ("D", "The museum extended its hours for the exhibit; the exhibit had projections.", False),
+        )
+        for label, text, is_correct in rw_choices:
+            AnswerChoice.objects.update_or_create(
+                question=rw_question,
+                label=label,
+                defaults={"text": text, "is_correct": is_correct},
+            )
+        Explanation.objects.update_or_create(
+            question=rw_question,
+            defaults={
+                "text": (
+                    "\"Because\" correctly shows that high attendance was the reason "
+                    "for the extended hours, without changing the original meaning."
+                )
+            },
+        )
+
+        stats_exam, _ = Exam.objects.update_or_create(
+            slug="ap-statistics-demo",
+            defaults={
+                "name": "AP Statistics-style Demo",
+                "description": "Original demonstration content aligned to general public skill categories.",
+                "is_published": True,
+            },
+        )
+        stats_section, _ = ExamSection.objects.get_or_create(
+            exam=stats_exam,
+            slug="descriptive-statistics",
+            defaults={"name": "Descriptive statistics"},
+        )
+        mean_median_skill, _ = Skill.objects.get_or_create(
+            section=stats_section, slug="mean-and-median", defaults={"name": "Mean and median"}
+        )
+        stats_question, _ = Question.objects.get_or_create(
+            section=stats_section,
+            prompt=(
+                "A set of 5 quiz scores is 60, 62, 63, 65, 90. Which measure of center best "
+                "describes the typical score, given the outlier?"
+            ),
+            defaults={
+                "skill": mean_median_skill,
+                "origin": Question.Origin.ORIGINAL,
+                "provenance_note": "Original UniWay descriptive-statistics demonstration question.",
+                "review_status": Question.ReviewStatus.PUBLISHED,
+                "difficulty": Question.Difficulty.MEDIUM,
+                "is_published": True,
+            },
+        )
+        Question.objects.filter(pk=stats_question.pk).update(
+            skill=mean_median_skill,
+            review_status=Question.ReviewStatus.PUBLISHED,
+            difficulty=Question.Difficulty.MEDIUM,
+        )
+        stats_choices = (
+            ("A", "The mean, because it uses every value in the set", False),
+            ("B", "The median, because it is not pulled upward by the score of 90", True),
+            ("C", "The mean and median are equally appropriate here", False),
+            ("D", "Neither measure is appropriate for this data set", False),
+        )
+        for label, text, is_correct in stats_choices:
+            AnswerChoice.objects.update_or_create(
+                question=stats_question,
+                label=label,
+                defaults={"text": text, "is_correct": is_correct},
+            )
+        Explanation.objects.update_or_create(
+            question=stats_question,
+            defaults={
+                "text": (
+                    "The mean (68) is pulled upward by the outlier of 90, while the median "
+                    "(63) better reflects where most of the scores actually fall."
+                )
+            },
         )

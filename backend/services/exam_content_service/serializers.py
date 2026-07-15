@@ -1,7 +1,19 @@
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import AnswerChoice, Exam, ExamSection, Explanation, OfficialExamDate, Question
+from .models import (
+    AnswerChoice,
+    Exam,
+    ExamSection,
+    Explanation,
+    OfficialExamDate,
+    PracticeAnswer,
+    PracticeSession,
+    Question,
+    QuestionBookmark,
+    Skill,
+    SkillMastery,
+)
 
 
 class AnswerChoiceSerializer(serializers.ModelSerializer):
@@ -80,3 +92,43 @@ class OfficialExamDateSerializer(serializers.ModelSerializer):
         if obj.test_date is None or obj.test_date < timezone.localdate():
             return None
         return (obj.test_date - timezone.localdate()).days
+
+
+class SkillSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Skill
+        fields = ("id", "name", "slug")
+
+
+class PracticeSessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PracticeSession
+        fields = ("id", "exam", "started_at", "completed_at", "is_timed", "time_limit_seconds")
+        read_only_fields = ("id", "started_at", "completed_at")
+
+
+class PracticeAnswerSubmitSerializer(serializers.Serializer):
+    question_id = serializers.IntegerField()
+    choice_id = serializers.IntegerField()
+
+
+class PracticeAnswerResultSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PracticeAnswer
+        fields = ("id", "question", "chosen_choice", "is_correct", "answered_at")
+
+
+class SkillMasterySerializer(serializers.ModelSerializer):
+    skill_name = serializers.CharField(source="skill.name", read_only=True)
+    accuracy_percent = serializers.FloatField(read_only=True)
+
+    class Meta:
+        model = SkillMastery
+        fields = ("id", "skill", "skill_name", "correct_count", "attempt_count", "accuracy_percent")
+
+
+class QuestionBookmarkSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = QuestionBookmark
+        fields = ("id", "question", "created_at")
+        read_only_fields = ("id", "created_at")
