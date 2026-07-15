@@ -34,6 +34,7 @@ import { createApplicationRequest, getApplicationsRequest } from "@/features/app
 import { getEssaysRequest } from "@/features/essays";
 import { getProfileItemsRequest, getProfileRequest } from "@/features/profile";
 import { generateRoadmapRequest, getRoadmapTasksRequest } from "@/features/roadmap";
+import { ReportButton } from "@/features/reports";
 import {
   addSuggestionToRoadmapRequest,
   dismissSuggestionRequest,
@@ -50,6 +51,7 @@ import {
 } from "@/features/universities";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { formatDate } from "@/shared/lib/date-time";
+import { useSlowLoad } from "@/shared/lib/use-slow-load";
 import { AIStatusBadge } from "@/shared/ui/ai-status-badge";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -156,6 +158,7 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
   const [fit, setFit] = useState<UniversityFitAnalysis | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const isSlow = useSlowLoad(isLoading);
   const [isFitLoading, setIsFitLoading] = useState(true);
   const [hasFitError, setHasFitError] = useState(false);
   const [isShortlistPending, setIsShortlistPending] = useState(false);
@@ -366,7 +369,14 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
   if (isLoading) {
     return (
       <Card>
-        <p className="text-sm text-muted-foreground">{t("universities.states.loadingDetail")}</p>
+        <p className="text-sm text-muted-foreground" role="status">
+          {t("universities.states.loadingDetail")}
+        </p>
+        {isSlow ? (
+          <p className="mt-2 text-xs leading-5 text-muted-foreground" role="status">
+            {t("common.wakingUp")}
+          </p>
+        ) : null}
       </Card>
     );
   }
@@ -610,6 +620,9 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
               {t("universities.actions.startApplication")}
             </Button>
           )}
+        </div>
+        <div className="mt-2">
+          <ReportButton targetId={university.id} targetType="university" />
         </div>
       </section>
 

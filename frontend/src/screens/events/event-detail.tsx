@@ -14,6 +14,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import type { EventDetails, EventFormField } from "@/entities/event";
 import { useAuth } from "@/features/auth/model/auth-context";
+import { ReportButton } from "@/features/reports";
 import {
   cancelEventRegistrationRequest,
   getEventRequest,
@@ -130,6 +131,9 @@ export function EventDetailScreen({ slug }: { slug: string }) {
         <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
           {event.short_description}
         </p>
+        <div className="mt-4">
+          <ReportButton targetId={event.id} targetType="event" />
+        </div>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
