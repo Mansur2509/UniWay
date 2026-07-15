@@ -62,14 +62,24 @@ end.
 
 ## 4. Start command
 
-- [ ] The production start command runs migrations then gunicorn, and does
-      **not** call `seed_demo`:
+- [ ] The production start command (configured directly in the Render
+      dashboard, not in this repo's `Dockerfile` — the `Dockerfile`'s `CMD` is
+      bare `gunicorn` with no migrate/seed step) runs migrations, provisions
+      the canonical demo account, then gunicorn:
       ```
-      python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+      python manage.py migrate --noinput && python manage.py ensure_demo_accounts && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
       ```
-- [ ] `seed_demo` only appears in local `compose.yaml` (Docker Compose dev
-      topology) — confirm it has not been copied into the Render dashboard's
-      start/build command.
+      `ensure_demo_accounts` is idempotent and safe to run on every deploy: it
+      only creates/deduplicates the one canonical public student demo account
+      and never elevates privileges or touches real user data. This was
+      confirmed against production on 2026-07-15 after the start command was
+      updated to add the `ensure_demo_accounts` step (previously the demo
+      account existed only if `seed_demo` had been run manually, which had
+      drifted out of sync with production and left demo login broken).
+- [ ] `seed_demo` (full demo dataset, gated behind `--with-demo-data`) is not
+      part of the production start command and only appears in local
+      `compose.yaml` (Docker Compose dev topology) — confirm it has not been
+      copied into the Render dashboard's start/build command.
 
 ## 5. Pre-deploy checks
 

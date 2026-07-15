@@ -86,9 +86,11 @@ options 1 + 2 are the interim solution.
 
 ## Web-service startup must stay light
 
-Render starts the web service with `migrate --noinput && seed_demo && gunicorn …`
-and kills the deploy if gunicorn does not open its port within the port-scan
-window. Nothing heavy may run before gunicorn binds:
+Render starts the web service with
+`migrate --noinput && ensure_demo_accounts && gunicorn …` (configured in the
+Render dashboard, not in this repo — confirmed against production on
+2026-07-15) and kills the deploy if gunicorn does not open its port within the
+port-scan window. Nothing heavy may run before gunicorn binds:
 
 - **Migrations** must be schema-only / tiny. A data migration that did the XLSX
   university import was reverted to a no-op for exactly this reason
