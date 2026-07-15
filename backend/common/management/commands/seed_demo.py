@@ -5,6 +5,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from common.admin_bootstrap import KNOWN_ADMIN_EMAILS, promote_known_admins
+from common.demo_accounts import DEMO_PASSWORD
 from services.event_service.models import (
     Event,
     EventCategory,
@@ -32,11 +33,9 @@ from services.user_profile_service.services import ensure_profile_records
 
 User = get_user_model()
 
-DEMO_PASSWORD = "UniWay-Demo-842!"  # nosec B105 - public student sample account only
-
-# `KNOWN_ADMIN_EMAILS` is re-exported from common.admin_bootstrap for callers that
-# still import it from here.
-__all__ = ["Command", "KNOWN_ADMIN_EMAILS"]
+# `KNOWN_ADMIN_EMAILS` and `DEMO_PASSWORD` are re-exported from common.admin_bootstrap
+# / common.demo_accounts for callers that still import them from here.
+__all__ = ["Command", "KNOWN_ADMIN_EMAILS", "DEMO_PASSWORD"]
 
 
 class Command(BaseCommand):
