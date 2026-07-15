@@ -48,6 +48,9 @@ INSTALLED_APPS = [
     "services.research_service",
     "services.activity_service",
     "services.feedback_service",
+    "services.telegram_service",
+    "services.institution_service",
+    "services.mentor_service",
 ]
 
 MIDDLEWARE = [
@@ -224,6 +227,12 @@ REST_FRAMEWORK = {
         "event_submission": "60/hour",
         "event_moderation": "120/hour",
         "university_import": "20/hour",
+        "telegram_link_token": "10/hour",
+        "telegram_webhook": "120/minute",
+        "telegram_mini_app_session": "30/hour",
+        "billing_checkout": "20/hour",
+        "billing_webhook": "120/minute",
+        "billing_cancel": "10/hour",
     },
 }
 if not DEBUG:
@@ -251,6 +260,19 @@ OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/ap
 OPENROUTER_DEFAULT_MODEL = os.getenv("OPENROUTER_DEFAULT_MODEL", "")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+# Telegram Bot / Mini App foundation (POST-V1-021 Phase 5). Empty by default:
+# every telegram_service endpoint checks TELEGRAM_BOT_TOKEN presence and
+# returns a clear "not configured" response instead of attempting a live
+# call when it is unset -- see services/telegram_service/services.py.
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+
+# Billing/entitlement architecture (POST-V1-021 Phase 9). Sandbox-only: no
+# live payment provider is integrated, so this secret signs/verifies only
+# the sandbox webhook simulator, never a real provider delivery. Empty by
+# default -- an unset secret means verify_webhook_signature() always fails
+# closed (see services/subscription_service/billing.py).
+BILLING_WEBHOOK_SECRET = os.getenv("BILLING_WEBHOOK_SECRET", "")
 AI_PROFILE_ASSESSMENT_MODEL = os.getenv(
     "AI_PROFILE_ASSESSMENT_MODEL",
     "gemini-1.5-flash",

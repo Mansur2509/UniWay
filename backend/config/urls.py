@@ -80,6 +80,10 @@ urlpatterns = [
     path("api/v1/analytics/", include("services.activity_service.urls")),
     path("api/v1/admin/analytics/", include("services.activity_service.admin_urls")),
     path("api/v1/notifications/", include("services.notification_service.urls")),
+    path("api/v1/telegram/", include("services.telegram_service.urls")),
+    path("api/v1/institutions/", include("services.institution_service.urls")),
+    path("api/v1/mentors/", include("services.mentor_service.urls")),
+    path("api/v1/billing/", include("services.subscription_service.urls")),
     path("api/v1/", include(router.urls)),
     path("api-auth/", include("rest_framework.urls")),
 ]
