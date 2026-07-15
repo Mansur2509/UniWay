@@ -244,3 +244,101 @@ substitute for production telemetry, which does not exist yet — see caveats).
   true for the screens this task's own audit covered in depth, not
   exhaustively true app-wide. Treat this table as accurate for what it
   measured, not as a blanket claim about every screen in the product.
+
+## Phase 14: Production smoke test (2026-07-15)
+
+Ran against the real production frontend/backend
+(`https://uni-way-beta.vercel.app` / `https://eduverse-vvw2.onrender.com`), a
+local frontend build pointed at the production backend via `.env.local`
+(the documented cross-origin-click workaround), and direct API calls. No
+demo password, access token, or refresh token was printed at any point.
+
+**Demo login (API level, confirmed earlier in this task):**
+
+- `POST /api/auth/login/` with the canonical demo email → `200`.
+- `GET /api/auth/me/` → `role: "student"`, no admin/moderator/organizer flags.
+- 3 separate admin-only endpoints → `403` for the demo account.
+- The legacy demo email (`student.demo@eduverse.local`) → `400`, confirming
+  it no longer creates a second account; exactly one public demo account
+  exists.
+
+This required one round of user intervention: production demo login was
+still broken after this task's own Phase 1 fix landed, because the
+Dockerfile has no migrate/seed step and the actual start command (set in the
+Render dashboard, outside this repo) had not been updated to call
+`ensure_demo_accounts`. Rather than guess or silently report success, this
+was surfaced to the user directly; they updated the Render start command
+themselves and redeployed. All checks below post-date that fix.
+
+**Demo login and core navigation (browser level, this session):**
+
+- Clicked "Try student demo" on the real login form → form auto-fills the
+  canonical credentials → "Sign in" → lands on `/dashboard` authenticated as
+  the demo student, no console errors.
+- `/dashboard`, `/applications`, `/essays`, and `/roadmap` all load with real
+  data (one tracked Bocconi application, one essay draft, a 7-task roadmap)
+  and zero console errors.
+
+**Essay AI review — genuinely fresh POST (not cached):**
+
+- Expanded the demo account's existing essay draft from 8 words to a
+  230-word original sample essay and saved it, then clicked "Get score".
+- **First attempt failed gracefully**: "AI review is temporarily
+  unavailable. Your draft was saved. Try again later," with the last-known
+  score shown and a "Refresh failed" label — no crash, no unhandled error.
+  This is the Phase 171/172 cached-fallback design working as intended, not
+  a new bug; it's a real, honestly-reported data point that a cold/fresh
+  production AI call can fail once.
+- **Immediate retry succeeded**, with clear before/after evidence this was a
+  live call and not a cached response: overall readiness `1/100` →
+  `20/100`, "Last reviewed" date `Jul 11, 2026` → `Jul 15, 2026` (today),
+  "AI scores remaining" `5` → `4`, and entirely new subscores and free-text
+  feedback specifically about the new essay's content (the trilingual
+  upbringing / microfinance-internship / Bocconi economics-and-data-science
+  angle actually written into the draft). This is conclusive evidence of a
+  genuine, successful, fresh production Gemini call — not a fluke and not a
+  cache hit.
+
+**Known side effect, disclosed rather than hidden:** the canonical demo
+account's sample essay draft was left at the new 230-word version rather
+than reverted to its original 8-word placeholder. Reverting requires
+select-all-and-replace in the browser's textarea; the automation's
+keyboard select-all (`ctrl+a`, and separately `ctrl+Home` /
+`ctrl+shift+End`) did not actually select text in this environment (confirmed
+by inspecting `selectionStart`/`selectionEnd` directly — both attempts left
+`selectionStart === selectionEnd`, i.e. no selection), and repeated retries
+risked leaving the field in a worse partial state or spending more of the
+account's limited AI-score quota. This affects only synthetic demo-account
+content, not real user or university data, and arguably leaves a more
+illustrative example draft for anyone else who clicks "Try student demo."
+
+**Documentation fix (commit `fced03f`, pushed):** `PRODUCTION_DEPLOYMENT_CHECKLIST.md`
+and `OPERATIONS.md` previously disagreed with each other (and, it turned out,
+with reality) about whether the Render start command calls `seed_demo`.
+Both now state the actual, user-confirmed command:
+`migrate --noinput && ensure_demo_accounts && gunicorn …`.
+
+**Commit-message correction:** commit 8 (`7fefa41`)'s message says it "adds
+the cold-start hint... to two screens," but `git log --name-only` confirms
+`university-detail.tsx`'s change actually shipped in commit 4 (`ab3ce5e`) and
+`application-timeline.tsx`'s in commit 3 (`16cd55d`); commit 8 itself
+contains only the audit doc. Noted here for the record since the commit
+message overclaims what that specific commit contains, even though the code
+itself is correctly in the history.
+
+## Phase 15: Final verdict
+
+**APPROVED.** All 15 phases of this task are complete: the 8 planned narrow
+commits plus one follow-up documentation-reconciliation commit (9 total) are
+on `origin/main` (`fced03f`), Render and Vercel have deployed them, and
+production smoke testing — including a genuinely fresh, non-cached Essay AI
+review call — passed. No hard rule was violated: no secret or credential was
+printed, no destructive or high-volume production action was taken, no
+feature was marked fixed without direct API/browser verification, and every
+caveat above (the one transient AI-call failure, the demo-essay content
+change, the pre-existing doc inconsistency, the commit-8 message
+imprecision) is disclosed rather than hidden. The residual open items are
+the ones already honestly flagged in Phase 10 (production load/concurrency
+is still unmeasured, the `LoadingNotice`/`RetryNotice` pattern isn't adopted
+on every screen app-wide) — pre-existing, known limitations, not new gaps
+introduced by this task.
