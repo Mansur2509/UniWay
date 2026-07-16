@@ -61,6 +61,9 @@ export const env = {
   feedbackApiBaseUrl:
     process.env.NEXT_PUBLIC_FEEDBACK_API_BASE_URL ??
     `${new URL(apiBaseUrl).origin}/api/feedback`,
+  organizerApplicationsApiBaseUrl:
+    process.env.NEXT_PUBLIC_ORGANIZER_APPLICATIONS_API_BASE_URL ??
+    `${new URL(apiBaseUrl).origin}/api/organizer-applications`,
   adminFeedbackApiBaseUrl:
     process.env.NEXT_PUBLIC_ADMIN_FEEDBACK_API_BASE_URL ??
     `${new URL(apiBaseUrl).origin}/api/admin/feedback`,

@@ -62,6 +62,7 @@ type ApiOptions = Omit<RequestInit, "body"> & {
     | "universityImport"
     | "feedback"
     | "adminFeedback"
+    | "organizerApplications"
     | "universityModeration"
     | "reports"
     | "adminReports"
@@ -337,7 +338,9 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
                           ? env.feedbackApiBaseUrl
                           : base === "adminFeedback"
                             ? env.adminFeedbackApiBaseUrl
-                            : base === "universityModeration"
+                            : base === "organizerApplications"
+                              ? env.organizerApplicationsApiBaseUrl
+                              : base === "universityModeration"
                               ? env.universityModerationApiBaseUrl
                               : base === "reports"
                                 ? env.reportsApiBaseUrl

@@ -20,6 +20,9 @@ class AnalyticsEvent(models.Model):
         )
         UNIVERSITY_VIEWED = "university_viewed", "University viewed"
         UNIVERSITY_SHORTLISTED = "university_shortlisted", "University shortlisted"
+        UNIVERSITY_PINNED = "university_pinned", "University pinned"
+        UNIVERSITY_EXCLUDED = "university_excluded", "University excluded"
+        RECOMMENDATION_IMPRESSION = "recommendation_impression", "Recommendation impression"
         ONBOARDING_STARTED = "onboarding_started", "Onboarding started"
         ONBOARDING_COMPLETED = "onboarding_completed", "Onboarding completed"
         APPLICATION_CREATED = "application_created", "Application created"
@@ -34,6 +37,14 @@ class AnalyticsEvent(models.Model):
         ORGANIZER_EVENT_CREATED = "organizer_event_created", "Organizer event created"
         REPORT_SUBMITTED = "report_submitted", "Report submitted"
         DEMO_LOGIN_USED = "demo_login_used", "Demo login used"
+        ORGANIZER_APPLICATION_SUBMITTED = (
+            "organizer_application_submitted",
+            "Organizer application submitted",
+        )
+        ORGANIZER_INTEREST_AT_REGISTRATION = (
+            "organizer_interest_at_registration",
+            "Organizer interest at registration",
+        )
         NOTIFICATION_READ = "notification_read", "Notification read"
         NOTIFICATION_ARCHIVED = "notification_archived", "Notification archived"
         ADMIN_MODERATION_ACTION = "admin_moderation_action", "Admin moderation action"

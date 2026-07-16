@@ -8,6 +8,7 @@ from rest_framework.test import APIClient, APITestCase
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from services.activity_service.models import AnalyticsEvent
 from services.auth_service.models import SocialIdentity
 from services.subscription_service.models import Plan, Subscription
 from services.user_profile_service.models import StudentProfile, UserPreference
@@ -48,6 +49,31 @@ class AuthApiTests(APITestCase):
         self.assertEqual(user.student_profile.full_name, self.register_payload["full_name"])
         self.assertEqual(user.subscription.plan, Plan.FREE)
         self.assertTrue(UserPreference.objects.filter(user=user).exists())
+
+    def test_register_without_organizer_interest_does_not_fire_that_event(self):
+        self.register()
+        user = User.objects.get(email=self.register_payload["email"])
+        self.assertFalse(
+            AnalyticsEvent.objects.filter(
+                user=user, event_type=AnalyticsEvent.EventType.ORGANIZER_INTEREST_AT_REGISTRATION
+            ).exists()
+        )
+
+    def test_register_with_organizer_interest_fires_analytics_event_only(self):
+        # Deliberately no OrganizerApplication is created here -- registration
+        # doesn't collect telegram/description/motivation, so this is a
+        # lightweight signal only, not a submission (see RegisterSerializer).
+        payload = {**self.register_payload, "wants_organizer_role": True}
+        response = self.client.post(reverse("auth:register"), payload, format="json")
+
+        self.assertEqual(response.status_code, 201, response.json())
+        user = User.objects.get(email=self.register_payload["email"])
+        self.assertTrue(
+            AnalyticsEvent.objects.filter(
+                user=user, event_type=AnalyticsEvent.EventType.ORGANIZER_INTEREST_AT_REGISTRATION
+            ).exists()
+        )
+        self.assertFalse(user.organizer_applications.exists())
 
     def test_login_returns_jwt_tokens(self):
         self.register()

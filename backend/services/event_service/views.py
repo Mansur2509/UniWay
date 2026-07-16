@@ -3,7 +3,7 @@ import csv
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -27,6 +27,7 @@ from .models import (
     EventNotification,
     EventRegistration,
     EventTicket,
+    OrganizerApplication,
     OrganizerModeration,
     ParticipationRecord,
 )
@@ -38,6 +39,8 @@ from .serializers import (
     EventRegistrationSerializer,
     EventRejectionSerializer,
     EventSerializer,
+    OrganizerApplicationCreateSerializer,
+    OrganizerApplicationStatusSerializer,
     OrganizerEventSerializer,
     OrganizerModerationActionSerializer,
     OrganizerModerationSerializer,
@@ -782,3 +785,42 @@ class AdminOrganizerModerationActionView(generics.GenericAPIView):
             metadata={"status": data["status"]},
         )
         return Response(OrganizerModerationSerializer(organizer).data)
+
+
+class OrganizerApplicationCreateView(generics.CreateAPIView):
+    """Student-facing submission endpoint for "become an organizer"."""
+
+    serializer_class = OrganizerApplicationCreateSerializer
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle, ScopedIPRateThrottle]
+    throttle_scope = "organizer_application_submit"
+
+    def perform_create(self, serializer):
+        application = serializer.save(applicant=self.request.user)
+        track_event(
+            user=self.request.user,
+            event_type=AnalyticsEvent.EventType.ORGANIZER_APPLICATION_SUBMITTED,
+            entity_type="organizer_application",
+            entity_id=application.id,
+        )
+
+
+class OrganizerApplicationMineView(generics.RetrieveAPIView):
+    """The requesting student's most recent application, if any.
+
+    Lets the Settings UI show "already applied / status" instead of the
+    form once a submission exists, without a separate list endpoint.
+    """
+
+    serializer_class = OrganizerApplicationStatusSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        application = (
+            OrganizerApplication.objects.filter(applicant=self.request.user)
+            .order_by("-created_at")
+            .first()
+        )
+        if application is None:
+            raise Http404
+        return application

@@ -473,3 +473,55 @@ class OrganizerModeration(models.Model):
 
     def __str__(self) -> str:
         return f"{self.organizer_id} organizer moderation ({self.status})"
+
+
+class OrganizerApplication(models.Model):
+    """A student's self-service application to become an event organizer.
+
+    Deliberately separate from `OrganizerModeration` (which tracks standing
+    for an account that already has the organizer role): this is the
+    pre-role-change request itself, reviewed by staff via the Django admin.
+    A student may have at most one PENDING application at a time (enforced
+    below); once decided, they can apply again if rejected.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    applicant = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="organizer_applications"
+    )
+    first_name = models.CharField(max_length=120)
+    last_name = models.CharField(max_length=120)
+    email = models.EmailField()
+    telegram_username = models.CharField(max_length=33)
+    description = models.TextField(max_length=1000)
+    project_link = models.URLField(blank=True, validators=[validate_http_url])
+    motivation = models.TextField(max_length=500)
+    experience = models.TextField(max_length=500, blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="organizer_application_reviews",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["applicant"],
+                condition=Q(status="pending"),
+                name="unique_pending_organizer_application_per_user",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"OrganizerApplication(applicant={self.applicant_id}, {self.status})"

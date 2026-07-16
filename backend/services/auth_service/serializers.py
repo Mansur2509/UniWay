@@ -102,6 +102,12 @@ class RegisterSerializer(serializers.Serializer):
     full_name = serializers.CharField(max_length=180)
     password = serializers.CharField(write_only=True, min_length=8, trim_whitespace=False)
     password_confirm = serializers.CharField(write_only=True, trim_whitespace=False)
+    # Not persisted on the user/profile: a lightweight top-of-funnel signal
+    # only. A "yes" here doesn't grant the organizer role or create an
+    # OrganizerApplication (registration doesn't collect the fields that
+    # model requires) -- it just tells the frontend to prompt the student to
+    # complete the real application in Settings right after signing up.
+    wants_organizer_role = serializers.BooleanField(write_only=True, required=False, default=False)
 
     def validate_email(self, value):
         normalized_email = User.objects.normalize_email(value).lower()
@@ -119,6 +125,7 @@ class RegisterSerializer(serializers.Serializer):
 
     @transaction.atomic
     def create(self, validated_data):
+        validated_data.pop("wants_organizer_role", None)
         email = validated_data["email"]
         user = User.objects.create_user(
             username=email,

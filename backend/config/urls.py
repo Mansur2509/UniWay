@@ -47,6 +47,7 @@ urlpatterns = [
     path("api/suggestions/", include("services.suggestions_service.urls")),
     path("api/profile/assessment/", include("services.profile_assessment_service.urls")),
     path("api/organizer/", include("services.event_service.organizer_urls")),
+    path("api/organizer-applications/", include("services.event_service.organizer_applications_urls")),
     path("api/admin/events/", include("services.event_service.moderation_urls")),
     path("api/admin/users/", include("services.profile_assessment_service.admin_urls")),
     path("api/admin/university-import/", include("services.university_service.import_urls")),

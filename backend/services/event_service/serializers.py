@@ -13,6 +13,7 @@ from .models import (
     EventSource,
     EventSubmission,
     EventTicket,
+    OrganizerApplication,
     OrganizerModeration,
     ParticipationRecord,
 )
@@ -652,3 +653,69 @@ class OrganizerModerationSerializer(serializers.Serializer):
 class OrganizerModerationActionSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=OrganizerModeration.Status.choices)
     reason = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class OrganizerApplicationCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrganizerApplication
+        fields = (
+            "id",
+            "first_name",
+            "last_name",
+            "email",
+            "telegram_username",
+            "description",
+            "project_link",
+            "motivation",
+            "experience",
+            "status",
+            "created_at",
+        )
+        read_only_fields = ("id", "status", "created_at")
+
+    def validate_telegram_username(self, value: str) -> str:
+        cleaned = value.strip().lstrip("@")
+        if not cleaned:
+            raise serializers.ValidationError("Telegram username is required.")
+        return cleaned
+
+    def validate_first_name(self, value: str) -> str:
+        if not value.strip():
+            raise serializers.ValidationError("First name is required.")
+        return value.strip()
+
+    def validate_last_name(self, value: str) -> str:
+        if not value.strip():
+            raise serializers.ValidationError("Last name is required.")
+        return value.strip()
+
+    def validate_description(self, value: str) -> str:
+        if not value.strip():
+            raise serializers.ValidationError("Description is required.")
+        return value.strip()
+
+    def validate_motivation(self, value: str) -> str:
+        if not value.strip():
+            raise serializers.ValidationError("This field is required.")
+        return value.strip()
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        # One live request at a time: a pending application already covers
+        # the intent, so a second submission before it's decided would just
+        # create noise for whoever reviews these.
+        if user is not None and OrganizerApplication.objects.filter(
+            applicant=user, status=OrganizerApplication.Status.PENDING
+        ).exists():
+            raise serializers.ValidationError(
+                "You already have a pending organizer application."
+            )
+        return attrs
+
+
+class OrganizerApplicationStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrganizerApplication
+        fields = ("id", "status", "created_at", "reviewed_at")
+        read_only_fields = fields

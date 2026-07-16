@@ -223,6 +223,7 @@ REST_FRAMEWORK = {
         "auth_oauth": "30/hour",
         "feedback_submit": "10/hour",
         "report_submit": "20/hour",
+        "organizer_application_submit": "5/hour",
         "event_registration": "30/hour",
         "event_submission": "60/hour",
         "event_moderation": "120/hour",

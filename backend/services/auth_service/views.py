@@ -48,6 +48,8 @@ class RegisterView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         track_event(user=user, event_type=AnalyticsEvent.EventType.USER_REGISTERED)
+        if serializer.validated_data.get("wants_organizer_role"):
+            track_event(user=user, event_type=AnalyticsEvent.EventType.ORGANIZER_INTEREST_AT_REGISTRATION)
         tokens = token_pair_for_user(user)
         response = Response(
             {

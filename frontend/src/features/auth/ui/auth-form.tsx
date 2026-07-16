@@ -35,15 +35,6 @@ type AuthFormProps = {
   showModeLink?: boolean;
 };
 
-const DEMO_PASSWORD = "UniWay-Demo-842!";
-const DEMO_ACCOUNTS = [
-  {
-    email: "student.demo@uniway.local",
-    labelKey: "auth.demo.student",
-    role: "student"
-  }
-] satisfies Array<{ email: string; labelKey: TranslationKey; role: string }>;
-
 export function AuthForm({
   mode,
   onAuthenticated,
@@ -57,6 +48,7 @@ export function AuthForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [wantsOrganizerRole, setWantsOrganizerRole] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +57,6 @@ export function AuthForm({
     tone: "info" | "warning" | "error";
   } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [pendingDemoRole, setPendingDemoRole] = useState<string | null>(null);
   const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false);
   const [isGoogleOAuthEnabled, setIsGoogleOAuthEnabled] = useState(false);
   const isRegister = mode === "register";
@@ -92,6 +83,7 @@ export function AuthForm({
     setPasswordConfirm("");
     setShowPassword(false);
     setShowPasswordConfirm(false);
+    setWantsOrganizerRole(false);
     setError(null);
     setOauthNotice(null);
   }, [mode]);
@@ -192,7 +184,8 @@ export function AuthForm({
           email,
           full_name: fullName,
           password,
-          password_confirm: passwordConfirm
+          password_confirm: passwordConfirm,
+          wants_organizer_role: wantsOrganizerRole
         });
       } else {
         await login({ email, password });
@@ -201,27 +194,6 @@ export function AuthForm({
     } catch (submitError) {
       setError(localizedSubmitError(submitError));
     } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  async function handleDemoLogin(account: (typeof DEMO_ACCOUNTS)[number]) {
-    if (isSubmitting) return;
-    setEmail(account.email);
-    setPassword(DEMO_PASSWORD);
-    setPasswordConfirm("");
-    setError(null);
-    setOauthNotice(null);
-    setPendingDemoRole(account.role);
-    setIsSubmitting(true);
-
-    try {
-      await login({ email: account.email, password: DEMO_PASSWORD });
-      completeAuth();
-    } catch (submitError) {
-      setError(localizedSubmitError(submitError, "login"));
-    } finally {
-      setPendingDemoRole(null);
       setIsSubmitting(false);
     }
   }
@@ -364,6 +336,18 @@ export function AuthForm({
           </div>
         ) : null}
 
+        {isRegister ? (
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              checked={wantsOrganizerRole}
+              className="mt-0.5"
+              onChange={(event) => setWantsOrganizerRole(event.target.checked)}
+              type="checkbox"
+            />
+            <span>{t("auth.wantsOrganizerRole")}</span>
+          </label>
+        ) : null}
+
         {error ? (
           <p
             className="flex items-start gap-2 rounded-sm border border-danger/35 bg-danger/10 p-3 text-sm text-danger"
@@ -410,39 +394,6 @@ export function AuthForm({
       <p className="mt-2 text-xs leading-5 text-muted-foreground" id="google-oauth-unavailable-note">
         {isGoogleOAuthEnabled ? t("auth.google.securityNote") : t("auth.google.unavailable")}
       </p>
-
-      <div className="mt-5 border-t pt-5">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
-          {t("auth.demo.title")}
-        </p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          {t("auth.demo.description")}
-        </p>
-        <div className="mt-3 grid gap-2">
-          {DEMO_ACCOUNTS.map((account) => (
-            <Button
-              disabled={isSubmitting}
-              key={account.email}
-              onClick={() => void handleDemoLogin(account)}
-              size="sm"
-              type="button"
-              variant="secondary"
-            >
-              <AppIcon
-                className={cn(
-                  "mr-2",
-                  pendingDemoRole === account.role && "animate-spin motion-reduce:animate-none"
-                )}
-                icon={pendingDemoRole === account.role ? LoaderCircle : UserRound}
-              />
-              {pendingDemoRole === account.role ? t("auth.pleaseWait") : t(account.labelKey)}
-            </Button>
-          ))}
-        </div>
-        <p className="mt-3 rounded-sm border border-warning/30 bg-warning/10 p-2 text-xs leading-5 text-warning">
-          {t("auth.demo.warning")}
-        </p>
-      </div>
 
       {showModeLink ? (
         <p className="mt-5 text-center text-sm text-muted-foreground">

@@ -12,6 +12,7 @@ from .models import (
     EventSource,
     EventSubmission,
     EventTicket,
+    OrganizerApplication,
     ParticipationRecord,
     SavedEvent,
 )
@@ -94,3 +95,18 @@ class EventNotificationAdmin(admin.ModelAdmin):
     list_filter = ("notification_type", "channel", "status")
     search_fields = ("event__title", "recipient__email")
     readonly_fields = ("payload", "created_at")
+
+
+@admin.register(OrganizerApplication)
+class OrganizerApplicationAdmin(admin.ModelAdmin):
+    list_display = (
+        "applicant",
+        "first_name",
+        "last_name",
+        "email",
+        "status",
+        "created_at",
+    )
+    list_filter = ("status",)
+    search_fields = ("applicant__email", "first_name", "last_name", "email", "telegram_username")
+    readonly_fields = ("applicant", "created_at", "updated_at")

@@ -9,6 +9,7 @@ import {
   getNotificationPreferencesRequest,
   updateNotificationPreferencesRequest
 } from "@/features/notifications";
+import { OrganizerApplicationCard } from "@/features/organizer-application";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { fieldClassName } from "@/shared/ui/field";
 import { AppIcon } from "@/shared/ui/icon";
@@ -248,6 +249,16 @@ export function SettingsScreen() {
           </Button>
         </div>
       </Card>
+
+      {user?.role === "student" ? (
+        <Card className="p-4">
+          <SectionHeading
+            description={t("settings.organizerApplication.sectionDescription")}
+            title={t("settings.organizerApplication.sectionTitle")}
+          />
+          <OrganizerApplicationCard />
+        </Card>
+      ) : null}
 
       <Card className="p-4">
         <SectionHeading

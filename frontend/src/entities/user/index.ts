@@ -40,6 +40,7 @@ export type LoginInput = {
 export type RegisterInput = LoginInput & {
   full_name: string;
   password_confirm: string;
+  wants_organizer_role?: boolean;
 };
 
 export type UpdateCurrentUserInput = {
