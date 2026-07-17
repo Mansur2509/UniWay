@@ -13,6 +13,7 @@ from services.application_service.models import ApplicationTrackerItem
 from services.essay_service.ai_scoring import (
     EssayScoringValidationError,
     build_scoring_payload,
+    classify_error_code,
     compute_context_hash,
     compute_essay_text_hash,
     validate_and_normalize_output,
@@ -704,6 +705,10 @@ class EssayWorkspaceApiTests(APITestCase):
     AI_ESSAY_BASIC_MONTHLY_LIMIT=1,
     AI_ESSAY_PREMIUM_MONTHLY_LIMIT=1,
     AI_ESSAY_PRO_MONTHLY_LIMIT=1,
+    # Zeroed so tests that exercise a retry/repair pass don't pay a real
+    # sleep; backoff timing itself is covered by a dedicated test below.
+    AI_ESSAY_RETRY_BACKOFF_SECONDS=0,
+    AI_ESSAY_REPAIR_RETRY_BACKOFF_SECONDS=0,
 )
 class AIEssayScoringTests(APITestCase):
     def setUp(self):
@@ -1187,12 +1192,117 @@ class AIEssayScoringTests(APITestCase):
 
         response = self._score_with_client(essay, client)
 
-        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        # UNIWAY-ESSAY-CHECKER-503-HOTFIX-024: a provider-side rate limit now
+        # maps to 429 (not the flat 503 every ai_unavailable case used to get)
+        # so the client can tell "busy, back off" apart from "unavailable".
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
         self.assertEqual(response.data["reason"], "ai_unavailable")
         self.assertEqual(response.data["ai_error_kind"], "rate_limited")
         # A provider rate-limit is a 4xx, not a transient 5xx/timeout -- never
         # worth spending a second call on the identical request.
         self.assertEqual(client.calls, 1)
+        self.assertEqual(response.data["error_code"], "AI_PROVIDER_RATE_LIMITED")
+
+    def test_provider_timeout_is_classified_distinctly_with_504(self):
+        # UNIWAY-ESSAY-CHECKER-503-HOTFIX-024: a Gemini call that times out
+        # (TimeoutError, no HTTP status at all) must be told apart from a
+        # generic provider failure so the client can show "it was just slow,
+        # retry now" instead of a generic unavailable message, and so
+        # monitoring doesn't conflate the two very different failure modes.
+        essay = self._essay()
+        error = AIProviderError(
+            "Gemini essay scoring request timed out.",
+            error_body="timeout while calling Gemini",
+            cause_class="TimeoutError",
+        )
+        client = FakeFlakyEssayScoringClient(error, fail_times=99)
+
+        response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_504_GATEWAY_TIMEOUT)
+        self.assertEqual(response.data["reason"], "ai_unavailable")
+        self.assertEqual(response.data["ai_error_kind"], "timeout")
+        self.assertEqual(response.data["error_code"], "AI_PROVIDER_TIMEOUT")
+        # A timeout has no status code at all, so it IS retried once (same as
+        # any other transient failure).
+        self.assertEqual(client.calls, 2)
+
+    def test_validation_failed_maps_to_essay_review_failed_error_code(self):
+        essay = self._essay()
+        client = FakeValidationFlakyEssayScoringClient(
+            bad_output={"overall_essay_readiness": 70}, fail_times=99
+        )
+
+        response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.data["reason"], "validation_failed")
+        self.assertEqual(response.data["error_code"], "ESSAY_REVIEW_FAILED")
+
+    def test_classify_error_code_returns_none_for_non_error_reasons(self):
+        for reason in ("scored", "cached", "quota_exceeded", "review_already_running"):
+            self.assertIsNone(classify_error_code(reason=reason, ai_error_kind=None))
+
+    @override_settings(AI_ESSAY_RETRY_BACKOFF_SECONDS=0, AI_ESSAY_REPAIR_RETRY_BACKOFF_SECONDS=0)
+    def test_retry_backoff_setting_of_zero_does_not_sleep(self):
+        # Regression guard for the settings-driven backoff itself (separate
+        # from the class-level override above, which every other test in
+        # this class also relies on): confirms a real code path reads
+        # AI_ESSAY_RETRY_BACKOFF_SECONDS from settings rather than a frozen
+        # module constant.
+        essay = self._essay()
+        error = AIProviderError(
+            "Gemini essay scoring request failed.", status_code=503, cause_class="HTTPError"
+        )
+        client = FakeFlakyEssayScoringClient(error, fail_times=99)
+
+        with patch("services.essay_service.ai_scoring.time.sleep") as mock_sleep:
+            response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        mock_sleep.assert_called_once_with(0)
+
+    @override_settings(
+        AI_ESSAY_RETRY_BACKOFF_SECONDS=1, AI_ESSAY_REVIEW_MAX_WALL_SECONDS=5, AI_ESSAY_TIMEOUT_SECONDS=5
+    )
+    def test_exhausted_wall_clock_budget_skips_retry_without_calling_provider_again(self):
+        # UNIWAY-ESSAY-CHECKER-503-HOTFIX-024: total budget equals the
+        # per-call ceiling, so there is enough budget for exactly one call but
+        # not a second (which would need budget >= ceiling + backoff) -- the
+        # retry must be skipped entirely rather than risking a call that
+        # could run past the (real, infra-level) Gunicorn worker timeout.
+        essay = self._essay()
+        error = AIProviderError(
+            "Gemini essay scoring request failed.", status_code=503, cause_class="HTTPError"
+        )
+        client = FakeFlakyEssayScoringClient(error, fail_times=99)
+
+        response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.data["reason"], "ai_unavailable")
+        self.assertEqual(response.data["ai_error_kind"], "provider_unavailable")
+        # Only the first call happened -- the retry was skipped for lack of
+        # budget, not attempted and then failed.
+        self.assertEqual(client.calls, 1)
+        self.assertEqual(AIEssayScoreReport.objects.count(), 0)
+
+    @override_settings(AI_ESSAY_REVIEW_MAX_WALL_SECONDS=1, AI_ESSAY_TIMEOUT_SECONDS=30)
+    def test_no_budget_for_even_one_call_returns_timeout_without_calling_provider(self):
+        # An extreme but valid configuration (or a request that spent most of
+        # its budget elsewhere, e.g. waiting on the review lock) where even
+        # the very first call can't safely fit -- must fail closed rather
+        # than start a call already doomed to be killed by the infra timeout.
+        essay = self._essay()
+        client = FakeEssayScoringClient()
+
+        response = self._score_with_client(essay, client)
+
+        self.assertEqual(response.status_code, status.HTTP_504_GATEWAY_TIMEOUT)
+        self.assertEqual(response.data["reason"], "ai_unavailable")
+        self.assertEqual(response.data["ai_error_kind"], "timeout")
+        self.assertEqual(client.calls, 0)
+        self.assertEqual(AIEssayScoreReport.objects.count(), 0)
 
     def test_review_already_running_is_rejected_with_409_and_does_not_call_provider(self):
         essay = self._essay()

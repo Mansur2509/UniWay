@@ -154,7 +154,37 @@ class AiErrorKind:
 
     NOT_CONFIGURED = "not_configured"
     RATE_LIMITED = "rate_limited"
+    TIMEOUT = "timeout"
     PROVIDER_UNAVAILABLE = "provider_unavailable"
+
+
+class ErrorCode:
+    """Stable top-level machine-readable codes for the essay-scoring response,
+    named to match ops/monitoring conventions independent of the more granular
+    `reason`/`ai_error_kind` fields kept for backward compatibility."""
+
+    AI_PROVIDER_TIMEOUT = "AI_PROVIDER_TIMEOUT"
+    AI_PROVIDER_RATE_LIMITED = "AI_PROVIDER_RATE_LIMITED"
+    AI_PROVIDER_UNAVAILABLE = "AI_PROVIDER_UNAVAILABLE"
+    ESSAY_REVIEW_FAILED = "ESSAY_REVIEW_FAILED"
+
+
+def classify_error_code(*, reason: str, ai_error_kind: str | None) -> str | None:
+    """Maps a scoring result's `reason`/`ai_error_kind` to one stable top-level
+    `error_code`. Returns None for non-error outcomes (scored/cached/quota_exceeded/
+    review_already_running/missing_essay_text/essay_too_long), which already have
+    their own clear, specific `reason` and don't need a generic AI-failure code.
+    """
+
+    if reason == "ai_unavailable":
+        if ai_error_kind == AiErrorKind.RATE_LIMITED:
+            return ErrorCode.AI_PROVIDER_RATE_LIMITED
+        if ai_error_kind == AiErrorKind.TIMEOUT:
+            return ErrorCode.AI_PROVIDER_TIMEOUT
+        return ErrorCode.AI_PROVIDER_UNAVAILABLE
+    if reason == "validation_failed":
+        return ErrorCode.ESSAY_REVIEW_FAILED
+    return None
 
 
 # A single essay review call chains up to 2 provider attempts (1 retry) for
@@ -733,23 +763,60 @@ def _log_provider_error(error: AIProviderError, *, model_name: str, essay_id: in
 def _classify_provider_error(error: AIProviderError) -> str:
     """Map a final (non-retried-further) provider error to a small, stable,
     frontend-safe category. Never based on raw provider text -- only the
-    exception type and the numeric status code already captured on it."""
+    exception type, wrapped-cause class, and numeric status code already
+    captured on it."""
     if isinstance(error, AIProviderUnavailable):
         return AiErrorKind.NOT_CONFIGURED
+    if error.cause_class == "TimeoutError":
+        return AiErrorKind.TIMEOUT
     if error.status_code == 429:
         return AiErrorKind.RATE_LIMITED
     return AiErrorKind.PROVIDER_UNAVAILABLE
 
 
+# Deliberately short and fixed (not a growing backoff sequence): each retry
+# pair below only ever attempts a single retry, so there is nothing to step up
+# within a pair. The step-up happens *across* the two possible pairs in one
+# request (initial-score retry vs. validation-repair retry) so a request that
+# needed both isn't spending extra wall-clock time low-value it didn't need.
+# Read from settings (not a plain module constant) so tests can zero them out
+# with @override_settings instead of paying a real sleep on every retry test.
+def _initial_retry_backoff_seconds() -> float:
+    return settings.AI_ESSAY_RETRY_BACKOFF_SECONDS
+
+
+def _repair_retry_backoff_seconds() -> float:
+    return settings.AI_ESSAY_REPAIR_RETRY_BACKOFF_SECONDS
+
+
 def _call_gemini_with_retry(
-    client: GeminiEssayScoringClient, *, system_prompt: str, user_prompt: str, model_name: str, essay_id: int
+    client: GeminiEssayScoringClient,
+    *,
+    system_prompt: str,
+    user_prompt: str,
+    model_name: str,
+    essay_id: int,
+    deadline: float,
+    backoff_seconds: float,
 ) -> tuple[dict | None, str | None]:
     """One provider call, with exactly one retry on a transient error (see
     `_is_retryable_provider_error`). Returns `(raw JSON dict, None)` on
     success, or `(None, AiErrorKind)` if the provider is unavailable after
     the retry (or the first error wasn't retryable at all).
+
+    `deadline` is a `time.monotonic()` cutoff shared across every provider
+    call attempted for one `score_essay` request (initial + retry + repair +
+    repair-retry): if fewer than `AI_ESSAY_TIMEOUT_SECONDS` remain before it,
+    a call that could still time out is never started. This bounds the total
+    wall-clock time of the AI-calling section to roughly
+    `AI_ESSAY_REVIEW_MAX_WALL_SECONDS`, comfortably inside the Gunicorn worker
+    timeout, regardless of how many of the up-to-4 provider calls end up
+    happening -- see AI_ESSAY_REVIEW_MAX_WALL_SECONDS's setting comment for
+    the full worst-case math this protects against.
     """
 
+    if deadline - time.monotonic() < settings.AI_ESSAY_TIMEOUT_SECONDS:
+        return None, AiErrorKind.TIMEOUT
     try:
         return client.score_essay(
             system_prompt=system_prompt, user_prompt=user_prompt, response_schema=ESSAY_SCORE_RESPONSE_SCHEMA
@@ -759,6 +826,9 @@ def _call_gemini_with_retry(
             _log_provider_error(first_error, model_name=model_name, essay_id=essay_id, attempt="1_final")
             return None, _classify_provider_error(first_error)
         _log_provider_error(first_error, model_name=model_name, essay_id=essay_id, attempt="1_retrying")
+        if deadline - time.monotonic() < settings.AI_ESSAY_TIMEOUT_SECONDS + backoff_seconds:
+            return None, _classify_provider_error(first_error)
+        time.sleep(backoff_seconds)
         try:
             return client.score_essay(
                 system_prompt=system_prompt, user_prompt=user_prompt, response_schema=ESSAY_SCORE_RESPONSE_SCHEMA
@@ -857,6 +927,7 @@ def score_essay(essay: EssayWorkspace, *, user) -> dict:
         cache_hit=result["cached"],
         duration_ms=duration_ms,
         essay_id=essay.id,
+        user_id=user.id,
         estimated_prompt_tokens=_estimate_tokens(essay.draft_text or ""),
     )
     return result
@@ -966,12 +1037,19 @@ def _score_essay_impl(essay: EssayWorkspace, *, user) -> dict:
             "ai_error_kind": None,
         }
 
+    # Shared across every provider call attempted below (up to 4: initial +
+    # retry + repair + repair-retry) so the *total* AI-calling section for
+    # this request can never legitimately run longer than
+    # AI_ESSAY_REVIEW_MAX_WALL_SECONDS, regardless of how many of those calls
+    # end up happening -- see that setting's comment for why this matters.
+    deadline = time.monotonic() + settings.AI_ESSAY_REVIEW_MAX_WALL_SECONDS
+
     try:
         client = GeminiEssayScoringClient()
         user_prompt = build_user_prompt(payload)
         raw_output, error_kind = _call_gemini_with_retry(
             client, system_prompt=ESSAY_SCORING_SYSTEM_PROMPT, user_prompt=user_prompt, model_name=model_name,
-            essay_id=essay.id,
+            essay_id=essay.id, deadline=deadline, backoff_seconds=_initial_retry_backoff_seconds(),
         )
         if raw_output is None:
             return {
@@ -1006,7 +1084,7 @@ def _score_essay_impl(essay: EssayWorkspace, *, user) -> dict:
             repair_prompt = _build_repair_prompt(user_prompt, error=first_validation_error)
             repair_output, repair_error_kind = _call_gemini_with_retry(
                 client, system_prompt=ESSAY_SCORING_SYSTEM_PROMPT, user_prompt=repair_prompt, model_name=model_name,
-                essay_id=essay.id,
+                essay_id=essay.id, deadline=deadline, backoff_seconds=_repair_retry_backoff_seconds(),
             )
             if repair_output is None:
                 return {

@@ -317,6 +317,26 @@ AI_PROFILE_ASSESSMENT_DAILY_LIMIT = int(
 AI_ESSAY_SCORING_ENABLED = os.getenv("AI_ESSAY_SCORING_ENABLED", "false").lower() == "true"
 AI_ESSAY_MODEL = os.getenv("AI_ESSAY_MODEL", "gemini-flash-latest")
 AI_ESSAY_TIMEOUT_SECONDS = int(os.getenv("AI_ESSAY_TIMEOUT_SECONDS", "30"))
+# Hard ceiling on the total wall-clock time `score_essay` may spend calling
+# Gemini across up to 4 sequential attempts (initial + retry + validation-
+# repair + repair-retry), each bounded by AI_ESSAY_TIMEOUT_SECONDS above. Left
+# unbounded, that worst case is ~4*30s=120s -- longer than Gunicorn's own
+# worker timeout in production (the Render dashboard's start command has no
+# explicit --timeout, so Gunicorn's 30s default applies), which kills the
+# worker mid-request before the app can return its own structured error
+# response, and the client sees a raw, contentless 503 instead. This setting
+# bounds the section to a safe fraction of that so a slow/flaky provider call
+# degrades to a clean `ai_unavailable` response instead of an infra-level
+# kill. Must stay comfortably below whatever Gunicorn --timeout is actually
+# configured with in production (see backend/Dockerfile and
+# docs/PRODUCTION_DEPLOYMENT_CHECKLIST.md).
+AI_ESSAY_REVIEW_MAX_WALL_SECONDS = int(os.getenv("AI_ESSAY_REVIEW_MAX_WALL_SECONDS", "80"))
+# Short, fixed backoff before the single retry in each of the two possible
+# retry pairs (initial-score retry, validation-repair retry) -- see
+# ai_scoring.py's _call_gemini_with_retry. Deliberately small so it barely
+# dents the AI_ESSAY_REVIEW_MAX_WALL_SECONDS budget above.
+AI_ESSAY_RETRY_BACKOFF_SECONDS = float(os.getenv("AI_ESSAY_RETRY_BACKOFF_SECONDS", "1"))
+AI_ESSAY_REPAIR_RETRY_BACKOFF_SECONDS = float(os.getenv("AI_ESSAY_REPAIR_RETRY_BACKOFF_SECONDS", "2"))
 AI_ESSAY_MAX_OUTPUT_TOKENS = int(os.getenv("AI_ESSAY_MAX_OUTPUT_TOKENS", "2500"))
 AI_ESSAY_TEMPERATURE = float(os.getenv("AI_ESSAY_TEMPERATURE", "0"))
 AI_ESSAY_DAILY_FREE_LIMIT = int(os.getenv("AI_ESSAY_DAILY_FREE_LIMIT", "1"))

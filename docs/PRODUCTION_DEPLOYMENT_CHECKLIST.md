@@ -67,8 +67,21 @@ end.
       bare `gunicorn` with no migrate/seed step) runs migrations, provisions
       the canonical demo account, then gunicorn:
       ```
-      python manage.py migrate --noinput && python manage.py ensure_demo_accounts && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+      python manage.py migrate --noinput && python manage.py ensure_demo_accounts && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --timeout 120 --graceful-timeout 30
       ```
+      **`--timeout 120` is required**, not optional: without an explicit
+      `--timeout`, Gunicorn falls back to its default of 30 seconds. A fresh
+      Essay Checker AI review can legitimately take up to
+      `AI_ESSAY_REVIEW_MAX_WALL_SECONDS` (80s by default, see
+      `backend/config/settings.py`) across its internal retry/repair passes.
+      Any request that runs past Gunicorn's timeout gets its worker killed
+      mid-request, before the app can return its own structured JSON error —
+      the client sees a raw, contentless 503 instead. This was confirmed as
+      the root cause of the "Essay Checker returns 503" production reports
+      investigated on 2026-07-17 (task UNIWAY-ESSAY-CHECKER-503-HOTFIX-024):
+      the live start command had no `--timeout` at all. Verify the Render
+      dashboard's actual start command includes `--timeout 120` (matching
+      `backend/Dockerfile`'s CMD) after every review of this checklist.
       `ensure_demo_accounts` is idempotent and safe to run on every deploy: it
       only creates/deduplicates the one canonical public student demo account
       and never elevates privileges or touches real user data. This was

@@ -11,6 +11,7 @@ from services.activity_service.services import track_event
 from services.notification_service.models import Notification
 from services.notification_service.services import create_notification
 
+from .ai_scoring import AiErrorKind, classify_error_code
 from .ai_scoring import score_essay as run_essay_scoring
 from .feedback_engine import generate_feedback
 from .models import EssayFeedback, EssayRevisionTask, EssayWorkspace
@@ -45,6 +46,22 @@ AI_SCORE_REASON_STATUS = {
     # hadn't actually finished) -- 409 Conflict, not a failure of this request.
     "review_already_running": status.HTTP_409_CONFLICT,
 }
+
+# Refines the flat "ai_unavailable" -> 503 mapping above using the more
+# granular `ai_error_kind` the scoring service already computes, so a
+# provider-side rate limit (retry shortly) and a provider-side timeout (retry
+# now, it was just slow) don't both look like a generic 503 to callers that
+# check the numeric status.
+AI_UNAVAILABLE_KIND_STATUS = {
+    AiErrorKind.RATE_LIMITED: status.HTTP_429_TOO_MANY_REQUESTS,
+    AiErrorKind.TIMEOUT: status.HTTP_504_GATEWAY_TIMEOUT,
+}
+
+
+def _ai_score_response_status(reason: str, ai_error_kind: str | None) -> int:
+    if reason == "ai_unavailable" and ai_error_kind in AI_UNAVAILABLE_KIND_STATUS:
+        return AI_UNAVAILABLE_KIND_STATUS[ai_error_kind]
+    return AI_SCORE_REASON_STATUS[reason]
 
 
 class EssayWorkspaceViewSet(viewsets.ModelViewSet):
@@ -192,9 +209,10 @@ class EssayWorkspaceViewSet(viewsets.ModelViewSet):
                 "next_available_at": result["next_available_at"],
                 "validation_code": result["validation_code"],
                 "ai_error_kind": result["ai_error_kind"],
+                "error_code": classify_error_code(reason=result["reason"], ai_error_kind=result["ai_error_kind"]),
                 "score": AIEssayScoreReportSerializer(report).data if report else None,
             },
-            status=AI_SCORE_REASON_STATUS[result["reason"]],
+            status=_ai_score_response_status(result["reason"], result["ai_error_kind"]),
         )
 
     @action(detail=True, methods=["get"], url_path="scores")
