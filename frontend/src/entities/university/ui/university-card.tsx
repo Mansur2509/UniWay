@@ -1,15 +1,41 @@
 "use client";
 
-import { Building2, MapPin, Star } from "lucide-react";
+import { Award, Building2, CalendarClock, GraduationCap, MapPin, Star, Trophy } from "lucide-react";
 import Link from "next/link";
 
 import { formatTuitionAmount, type UniversityDetails } from "@/entities/university";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
+import { formatDate } from "@/shared/lib/date-time";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 
 import { StatValue } from "./stat-value";
+
+// No campus photography is sourced for university cards -- there is no
+// licensed/verified image field on the University model, and hotlinking
+// unverified stock photos would risk misrepresenting a real institution (see
+// docs/UNIVERSITY_DATA_PROHIBITIONS.md). Instead each card gets a designed
+// header band, its hue picked deterministically from the university's own
+// name so the catalog reads as visually varied without implying any of these
+// colors are official branding. A small fixed palette (not an arbitrary hash
+// to a full hue wheel) keeps the result restrained rather than confetti-like.
+const HEADER_BAND_CLASSES = [
+  "from-navy to-navy/70",
+  "from-primary/90 to-primary/60",
+  "from-info to-info/70",
+  "from-recommendation to-recommendation/70",
+  "from-accent to-accent/70",
+  "from-success to-success/70"
+];
+
+function headerBandClass(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+  }
+  return HEADER_BAND_CLASSES[Math.abs(hash) % HEADER_BAND_CLASSES.length];
+}
 
 export function UniversityCard({
   university,
@@ -26,10 +52,23 @@ export function UniversityCard({
   onToggleShortlist: (university: UniversityDetails) => void;
   isShortlistPending?: boolean;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
 
   return (
-    <Card className="flex h-full min-w-0 flex-col transition hover:border-primary/45">
+    <Card className="flex h-full min-w-0 flex-col overflow-hidden" interactive>
+      <div
+        className={`-mx-4 -mt-4 mb-3 flex h-14 shrink-0 items-center justify-between bg-gradient-to-br px-4 ${headerBandClass(university.name)}`}
+      >
+        <GraduationCap aria-hidden className="size-6 text-navy-foreground/90" strokeWidth={1.5} />
+        {university.global_rank ? (
+          <span
+            aria-label={t("universities.badges.globalRank", { rank: university.global_rank })}
+            className="flex items-center gap-1 rounded-sm bg-navy-foreground/15 px-2 py-1 text-xs font-semibold text-navy-foreground"
+          >
+            <Trophy aria-hidden className="size-3.5" />#{university.global_rank}
+          </span>
+        ) : null}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         {university.institution_type ? (
           <Badge>
@@ -76,6 +115,23 @@ export function UniversityCard({
           {[university.city, university.country].filter(Boolean).join(", ")}
         </span>
       </p>
+
+      {university.scholarship_available || university.application_deadline ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {university.scholarship_available ? (
+            <span className="inline-flex items-center gap-1.5 rounded-sm border border-success/30 bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
+              <Award aria-hidden className="size-3.5" />
+              {t("universities.fields.scholarshipAvailable")}
+            </span>
+          ) : null}
+          {university.application_deadline ? (
+            <span className="inline-flex items-center gap-1.5 rounded-sm border border-accent/35 bg-accent/10 px-2.5 py-1 text-xs font-semibold text-accent">
+              <CalendarClock aria-hidden className="size-3.5" />
+              {formatDate(university.application_deadline, locale)}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
         <div>

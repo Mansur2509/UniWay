@@ -1,7 +1,20 @@
 "use client";
 
-import { CalendarDays, MapPin, Monitor, Users } from "lucide-react";
+import {
+  CalendarDays,
+  GraduationCap,
+  MapPin,
+  Mic,
+  Monitor,
+  PartyPopper,
+  ShieldCheck,
+  Trophy,
+  Users,
+  type LucideIcon
+} from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
 
 import type { EventDetails } from "@/entities/event";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
@@ -11,6 +24,22 @@ import { Card } from "@/shared/ui/card";
 
 function priceLabelKey(event: EventDetails): TranslationKey {
   return `events.price.${event.price_type}` as TranslationKey;
+}
+
+// Category-keyed icon + gradient fallback for events without an
+// organizer-provided cover image (cover_image_url is real, uploadable data --
+// this is only the fallback when that field is empty, never a substitute for
+// a real photo). Falls back to a generic calendar glyph for unlisted slugs.
+const CATEGORY_VISUALS: Record<string, { icon: LucideIcon; classes: string }> = {
+  workshop: { icon: GraduationCap, classes: "from-info to-info/60" },
+  fair: { icon: PartyPopper, classes: "from-accent to-accent/60" },
+  webinar: { icon: Mic, classes: "from-recommendation to-recommendation/60" },
+  competition: { icon: Trophy, classes: "from-warning to-warning/60" },
+  info_session: { icon: ShieldCheck, classes: "from-success to-success/60" }
+};
+
+function categoryVisual(slug: string) {
+  return CATEGORY_VISUALS[slug] ?? { icon: CalendarDays, classes: "from-navy to-navy/70" };
 }
 
 function isDemoEvent(event: EventDetails) {
@@ -32,9 +61,31 @@ export function EventCard({ event }: { event: EventDetails }) {
   const registrationKey = event.registration_status
     ? (`events.registration.status.${event.registration_status}` as TranslationKey)
     : null;
+  const [coverFailed, setCoverFailed] = useState(false);
+  const showCover = Boolean(event.cover_image_url) && !coverFailed;
+  const visual = categoryVisual(event.category.slug);
 
   return (
-    <Card className="flex h-full flex-col transition hover:border-primary/45">
+    <Card className="flex h-full flex-col overflow-hidden" interactive>
+      <div className="-mx-4 -mt-4 mb-3 h-28 shrink-0 overflow-hidden">
+        {showCover ? (
+          <Image
+            alt=""
+            className="size-full object-cover transition-transform duration-slow ease-academic hover:scale-105"
+            height={224}
+            onError={() => setCoverFailed(true)}
+            src={event.cover_image_url}
+            unoptimized
+            width={640}
+          />
+        ) : (
+          <div
+            className={`grid size-full place-items-center bg-gradient-to-br ${visual.classes}`}
+          >
+            <visual.icon aria-hidden className="size-8 text-navy-foreground/85" strokeWidth={1.5} />
+          </div>
+        )}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{event.category.name}</Badge>
         <span className="rounded-sm border bg-surface px-2.5 py-1 text-xs font-semibold text-muted-foreground">

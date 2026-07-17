@@ -544,6 +544,7 @@ export const ru = {
   "universities.fields.tuition": "Стоимость обучения",
   "universities.fields.applicationDeadline": "Срок подачи заявки",
   "universities.fields.scholarshipAvailable": "Есть стипендия",
+  "universities.badges.globalRank": "Мировой рейтинг №{{rank}}",
   "universities.fields.institutionType": "Тип учреждения",
   "universities.fields.qsRanking": "Рейтинг QS World University",
   "universities.fields.essayRequirements": "Требования к эссе",

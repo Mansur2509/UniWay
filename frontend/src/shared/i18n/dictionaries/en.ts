@@ -678,6 +678,7 @@ export const en = {
   "universities.fields.tuition": "Tuition",
   "universities.fields.applicationDeadline": "Application deadline",
   "universities.fields.scholarshipAvailable": "Scholarship available",
+  "universities.badges.globalRank": "Global rank #{{rank}}",
   "universities.fields.institutionType": "Institution type",
   "universities.fields.qsRanking": "QS World University Ranking",
   "universities.fields.essayRequirements": "Essay requirements",

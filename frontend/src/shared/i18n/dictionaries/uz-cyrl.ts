@@ -544,6 +544,7 @@ export const uzCyrl = {
   "universities.fields.tuition": "Ўқиш нархи",
   "universities.fields.applicationDeadline": "Ариза топшириш муддати",
   "universities.fields.scholarshipAvailable": "Стипендия мавжуд",
+  "universities.badges.globalRank": "Жаҳон рейтинги №{{rank}}",
   "universities.fields.institutionType": "Муассаса тури",
   "universities.fields.qsRanking": "QS World University рейтинги",
   "universities.fields.essayRequirements": "Иншо талаблари",

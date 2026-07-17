@@ -544,6 +544,7 @@ export const uzLatn = {
   "universities.fields.tuition": "O’qish narxi",
   "universities.fields.applicationDeadline": "Ariza topshirish muddati",
   "universities.fields.scholarshipAvailable": "Stipendiya mavjud",
+  "universities.badges.globalRank": "Jahon reytingi №{{rank}}",
   "universities.fields.institutionType": "Muassasa turi",
   "universities.fields.qsRanking": "QS World University reytingi",
   "universities.fields.essayRequirements": "Insho talablari",
