@@ -7,6 +7,7 @@ import {
   CalendarClock,
   CalendarDays,
   CircleDollarSign,
+  ClipboardList,
   FilePenLine,
   GraduationCap,
   Map,
@@ -518,6 +519,65 @@ export function DashboardScreen() {
   ];
   const nextWorkflowStep = workflowSteps.find((step) => !step.isDone) ?? workflowSteps[0];
 
+  const coreTools: Array<{
+    key: string;
+    href: string;
+    icon: LucideIcon;
+    titleKey: TranslationKey;
+    descriptionKey: TranslationKey;
+    actionKey: TranslationKey;
+    status: string;
+  }> = [
+    {
+      key: "essays",
+      href: "/essays",
+      icon: FilePenLine,
+      titleKey: "dashboard.coreTools.essay.title",
+      descriptionKey: "dashboard.coreTools.essay.description",
+      actionKey: "dashboard.coreTools.essay.action",
+      status:
+        essays.length > 0
+          ? t("dashboard.coreTools.essay.count", { count: essays.length })
+          : t("dashboard.coreTools.essay.countEmpty")
+    },
+    {
+      key: "universities",
+      href: "/universities",
+      icon: GraduationCap,
+      titleKey: "dashboard.coreTools.universities.title",
+      descriptionKey: "dashboard.coreTools.universities.description",
+      actionKey: "dashboard.coreTools.universities.action",
+      status:
+        topRecommendations.length > 0
+          ? t("dashboard.coreTools.universities.count", { count: topRecommendations.length })
+          : t("dashboard.coreTools.universities.countEmpty")
+    },
+    {
+      key: "events",
+      href: "/events",
+      icon: Map,
+      titleKey: "dashboard.coreTools.events.title",
+      descriptionKey: "dashboard.coreTools.events.description",
+      actionKey: "dashboard.coreTools.events.action",
+      status:
+        registrations.length > 0
+          ? t("dashboard.coreTools.events.count", { count: registrations.length })
+          : t("dashboard.coreTools.events.countEmpty")
+    },
+    {
+      key: "applications",
+      href: "/applications",
+      icon: ClipboardList,
+      titleKey: "dashboard.coreTools.applications.title",
+      descriptionKey: "dashboard.coreTools.applications.description",
+      actionKey: "dashboard.coreTools.applications.action",
+      status:
+        applications.length > 0
+          ? t("dashboard.coreTools.applications.count", { count: applications.length })
+          : t("dashboard.coreTools.applications.countEmpty")
+    }
+  ];
+
   return (
     <div className="space-y-3">
       <section className="overflow-hidden rounded-sm border bg-card shadow-card">
@@ -591,6 +651,36 @@ export function DashboardScreen() {
               })}
             </ol>
           </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="dashboard-core-tools-heading">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-primary-hover" id="dashboard-core-tools-heading">
+            {t("dashboard.coreTools.title")}
+          </h2>
+          <p className="text-xs text-muted-foreground">{t("dashboard.coreTools.description")}</p>
+        </div>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {coreTools.map((tool) => (
+            <Card className="flex flex-col gap-2 p-4" key={tool.key}>
+              <div className="flex items-center gap-2">
+                <span className="grid size-9 shrink-0 place-items-center rounded-sm border border-primary/25 bg-primary/10 text-primary-hover">
+                  <tool.icon aria-hidden className="size-4" strokeWidth={1.75} />
+                </span>
+                <h3 className="font-semibold">{t(tool.titleKey)}</h3>
+              </div>
+              <p className="flex-1 text-xs leading-5 text-muted-foreground">
+                {t(tool.descriptionKey)}
+              </p>
+              <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                {tool.status}
+              </p>
+              <Button asChild className="w-full" size="sm">
+                <Link href={tool.href}>{t(tool.actionKey)}</Link>
+              </Button>
+            </Card>
+          ))}
         </div>
       </section>
 
