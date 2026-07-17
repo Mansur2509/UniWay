@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, ExternalLink, RefreshCw } from "lucide-react";
+import { CalendarClock, ExternalLink, GraduationCap, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { OfficialExamDate } from "@/entities/exam";
@@ -34,8 +34,12 @@ const NOTIFICATION_OPTIONS = [60, 30, 14, 7, 1];
 
 function ExamDateRow({ item }: { item: OfficialExamDate }) {
   const { locale, t } = useI18n();
+  const statusBorderClass =
+    item.date_status === "verified" ? "border-l-success" : "border-l-warning";
   return (
-    <li className="rounded-sm border bg-surface px-3 py-2 text-sm">
+    <li
+      className={`rounded-sm border border-l-2 bg-surface px-3 py-2 text-sm ${statusBorderClass}`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-semibold">{item.name}</p>
@@ -626,7 +630,9 @@ export function ExamsScreen() {
       <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <CalendarClock aria-hidden className="size-5 text-accent" />
+            <span className="grid size-8 shrink-0 place-items-center rounded-sm border border-info/30 bg-info/10 text-info">
+              <CalendarClock aria-hidden className="size-4" />
+            </span>
             <h2 className="text-lg font-semibold">{t("exams.sat.title")}</h2>
           </div>
           {satDates.length === 0 ? (
@@ -643,7 +649,9 @@ export function ExamsScreen() {
 
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <CalendarClock aria-hidden className="size-5 text-accent" />
+            <span className="grid size-8 shrink-0 place-items-center rounded-sm border border-recommendation/30 bg-recommendation/10 text-recommendation">
+              <GraduationCap aria-hidden className="size-4" />
+            </span>
             <h2 className="text-lg font-semibold">{t("exams.ap.title")}</h2>
           </div>
           {apExamDates.length === 0 ? (

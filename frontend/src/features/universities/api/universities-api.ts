@@ -3,6 +3,7 @@ import type { ApplicationStrategyResponse } from "@/entities/strategy";
 import type {
   SavedUniversity,
   SavedUniversityLite,
+  StudyDestination,
   UniversityDetails,
   UniversityFilterOptions,
   UniversityFilters,
@@ -22,6 +23,8 @@ export const UNIVERSITY_CATALOG_TIMEOUT_MS = 60_000;
 // past what the server itself considers fresh (PERFORMANCE-012 PART 1).
 const FILTER_OPTIONS_CACHE_TTL_MS = 300_000;
 const FILTER_OPTIONS_CACHE_KEY = "universities:filter-options";
+const DESTINATIONS_CACHE_TTL_MS = 300_000;
+const DESTINATIONS_CACHE_KEY = "universities:destinations";
 
 type PaginationParams = {
   page?: number;
@@ -81,6 +84,18 @@ export function getUniversityFilterOptionsRequest() {
         timeoutMs: UNIVERSITY_CATALOG_TIMEOUT_MS
       }),
     FILTER_OPTIONS_CACHE_TTL_MS
+  );
+}
+
+export function getStudyDestinationsRequest() {
+  return getOrFetch(
+    DESTINATIONS_CACHE_KEY,
+    () =>
+      apiRequest<{ results: StudyDestination[] }>("/universities/destinations/", {
+        base: "api",
+        timeoutMs: UNIVERSITY_CATALOG_TIMEOUT_MS
+      }),
+    DESTINATIONS_CACHE_TTL_MS
   );
 }
 

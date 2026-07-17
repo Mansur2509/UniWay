@@ -86,6 +86,7 @@ import { Card } from "@/shared/ui/card";
 import { fieldClassName } from "@/shared/ui/field";
 import { HelpTooltip } from "@/shared/ui/help-tooltip";
 import { AppIcon } from "@/shared/ui/icon";
+import { ProgressRing } from "@/shared/ui/progress-ring";
 import { UnsavedChangesDialog } from "@/shared/ui/unsaved-changes-dialog";
 
 type ProfileFormState = {
@@ -900,44 +901,30 @@ export function ProfileScreen() {
             {t("profile.description")}
           </p>
         </div>
-        <div className="border bg-elevated/55 p-4">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold">{t("profile.completion.title")}</h2>
-              <p className="mt-1 text-xs leading-4 text-muted-foreground">
-                {t("profile.completion.description")}
-              </p>
-            </div>
-            <span className="font-serif text-2xl font-semibold text-accent">
-              {completion.percentage}%
-            </span>
+        <div className="flex items-center gap-4 border bg-elevated/55 p-4">
+          <ProgressRing
+            label={t("a11y.profileCompletion", { percentage: completion.percentage })}
+            percentage={completion.percentage}
+            size={64}
+            tone={completion.percentage >= 100 ? "success" : "accent"}
+          />
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold">{t("profile.completion.title")}</h2>
+            <p className="mt-1 text-xs leading-4 text-muted-foreground">
+              {t("profile.completion.description")}
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {t("profile.completion.summary", {
+                completed: completion.completed_fields,
+                total: completion.total_fields
+              })}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {t("profile.completion.remaining", {
+                count: completion.missing_fields.length
+              })}
+            </p>
           </div>
-          <div
-            aria-label={t("a11y.profileCompletion", {
-              percentage: completion.percentage
-            })}
-            aria-valuemax={100}
-            aria-valuemin={0}
-            aria-valuenow={completion.percentage}
-            className="mt-3 h-2 overflow-hidden rounded-sm bg-muted"
-            role="progressbar"
-          >
-            <div
-              className="h-full bg-primary transition-[width]"
-              style={{ width: `${completion.percentage}%` }}
-            />
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            {t("profile.completion.summary", {
-              completed: completion.completed_fields,
-              total: completion.total_fields
-            })}
-          </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {t("profile.completion.remaining", {
-              count: completion.missing_fields.length
-            })}
-          </p>
         </div>
       </section>
 

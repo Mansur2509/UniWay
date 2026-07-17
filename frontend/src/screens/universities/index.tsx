@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 
 import {
+  StudyDestinationCard,
   UniversityCard,
+  type StudyDestination,
   type UniversityDetails,
   type UniversityFilterOptions,
   type UniversityFilters
@@ -14,7 +16,8 @@ import {
   getUniversitiesRequest,
   addToShortlistRequest,
   removeFromShortlistRequest,
-  getUniversityFilterOptionsRequest
+  getUniversityFilterOptionsRequest,
+  getStudyDestinationsRequest
 } from "@/features/universities";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { Button } from "@/shared/ui/button";
@@ -149,6 +152,8 @@ export function UniversitiesScreen() {
   const [shortlistOnly, setShortlistOnly] = useState(false);
   const [compareIds, setCompareIds] = useState<number[]>([]);
   const [pendingShortlistId, setPendingShortlistId] = useState<number | null>(null);
+  const [destinations, setDestinations] = useState<StudyDestination[]>([]);
+  const [destinationsLoading, setDestinationsLoading] = useState(true);
 
   const loadUniversities = useCallback(async () => {
     setIsLoading(true);
@@ -175,6 +180,13 @@ export function UniversitiesScreen() {
     getUniversityFilterOptionsRequest()
       .then(setFilterOptions)
       .catch(() => setFilterOptions(null));
+  }, []);
+
+  useEffect(() => {
+    getStudyDestinationsRequest()
+      .then((response) => setDestinations(response.results))
+      .catch(() => setDestinations([]))
+      .finally(() => setDestinationsLoading(false));
   }, []);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -288,6 +300,26 @@ export function UniversitiesScreen() {
           </div>
         </div>
       </section>
+
+      {destinationsLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <SkeletonCards count={4} />
+        </div>
+      ) : destinations.length > 0 ? (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-xl font-semibold">{t("universities.destinations.title")}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t("universities.destinations.subtitle")}
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {destinations.map((destination) => (
+              <StudyDestinationCard destination={destination} key={destination.country} />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <CollapsibleFilterPanel
         activeCount={activeFilterCount}

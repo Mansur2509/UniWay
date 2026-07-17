@@ -1,6 +1,7 @@
 export {
   getUniversitiesRequest,
   getUniversityFilterOptionsRequest,
+  getStudyDestinationsRequest,
   getUniversityRequest,
   getUniversityFitRequest,
   refreshUniversityFitRequest,

@@ -1,6 +1,16 @@
 "use client";
 
-import { CalendarPlus, Search, ShieldCheck, Tickets } from "lucide-react";
+import {
+  CalendarPlus,
+  Globe2,
+  Layers,
+  MapPin,
+  Monitor,
+  Search,
+  ShieldCheck,
+  Tickets,
+  Wallet
+} from "lucide-react";
 import Link from "next/link";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 
@@ -155,71 +165,101 @@ export function EventsScreen() {
           </label>
           <label className="block">
             <span className="text-sm font-semibold">{t("events.filters.category")}</span>
-            <input
-              className={fieldClassName}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, category: event.target.value }))
-              }
-              placeholder={t("events.filters.categoryPlaceholder")}
-              value={filters.category}
-            />
+            <div className="relative">
+              <Layers
+                aria-hidden
+                className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <input
+                className={`${fieldClassName} pl-10`}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, category: event.target.value }))
+                }
+                placeholder={t("events.filters.categoryPlaceholder")}
+                value={filters.category}
+              />
+            </div>
           </label>
           <label className="block">
             <span className="text-sm font-semibold">{t("events.filters.country")}</span>
-            <input
-              className={fieldClassName}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, country: event.target.value }))
-              }
-              placeholder={t("events.filters.countryPlaceholder")}
-              value={filters.country}
-            />
+            <div className="relative">
+              <Globe2
+                aria-hidden
+                className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <input
+                className={`${fieldClassName} pl-10`}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, country: event.target.value }))
+                }
+                placeholder={t("events.filters.countryPlaceholder")}
+                value={filters.country}
+              />
+            </div>
           </label>
           <label className="block">
             <span className="text-sm font-semibold">{t("events.filters.city")}</span>
-            <input
-              className={fieldClassName}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, city: event.target.value }))
-              }
-              placeholder={t("events.filters.cityPlaceholder")}
-              value={filters.city}
-            />
+            <div className="relative">
+              <MapPin
+                aria-hidden
+                className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <input
+                className={`${fieldClassName} pl-10`}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, city: event.target.value }))
+                }
+                placeholder={t("events.filters.cityPlaceholder")}
+                value={filters.city}
+              />
+            </div>
           </label>
           <label className="block">
             <span className="text-sm font-semibold">{t("events.filters.price")}</span>
-            <select
-              className={fieldClassName}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  price_type: event.target.value
-                }))
-              }
-              value={filters.price_type}
-            >
-              <option value="">{t("events.filters.all")}</option>
-              <option value="free">{t("events.filters.free")}</option>
-              <option value="paid">{t("events.filters.paid")}</option>
-            </select>
+            <div className="relative">
+              <Wallet
+                aria-hidden
+                className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <select
+                className={`${fieldClassName} pl-10`}
+                onChange={(event) =>
+                  setFilters((current) => ({
+                    ...current,
+                    price_type: event.target.value
+                  }))
+                }
+                value={filters.price_type}
+              >
+                <option value="">{t("events.filters.all")}</option>
+                <option value="free">{t("events.filters.free")}</option>
+                <option value="paid">{t("events.filters.paid")}</option>
+              </select>
+            </div>
           </label>
           <label className="block">
             <span className="text-sm font-semibold">{t("events.filters.format")}</span>
-            <select
-              className={fieldClassName}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  format: event.target.value
-                }))
-              }
-              value={filters.format}
-            >
-              <option value="">{t("events.filters.all")}</option>
-              <option value="online">{t("events.filters.online")}</option>
-              <option value="offline">{t("events.filters.offline")}</option>
-              <option value="hybrid">{t("events.filters.hybrid")}</option>
-            </select>
+            <div className="relative">
+              <Monitor
+                aria-hidden
+                className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <select
+                className={`${fieldClassName} pl-10`}
+                onChange={(event) =>
+                  setFilters((current) => ({
+                    ...current,
+                    format: event.target.value
+                  }))
+                }
+                value={filters.format}
+              >
+                <option value="">{t("events.filters.all")}</option>
+                <option value="online">{t("events.filters.online")}</option>
+                <option value="offline">{t("events.filters.offline")}</option>
+                <option value="hybrid">{t("events.filters.hybrid")}</option>
+              </select>
+            </div>
           </label>
           <div className="flex flex-wrap gap-3 md:col-span-2 xl:col-span-3">
             <Button type="submit">{t("events.actions.applyFilters")}</Button>

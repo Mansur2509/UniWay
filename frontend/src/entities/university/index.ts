@@ -271,6 +271,20 @@ export type UniversityFilterOptionSummary = {
   city: string;
 };
 
+// Real, server-computed per-country aggregates (see /universities/destinations/).
+// country_code/primary_language are null for any country missing from the
+// backend's small metadata map -- the UI must render gracefully without them,
+// never guessing a flag or language.
+export type StudyDestination = {
+  country: string;
+  country_code: string | null;
+  primary_language: string | null;
+  university_count: number;
+  min_tuition_usd: string | number | null;
+  max_tuition_usd: string | number | null;
+  has_scholarships: boolean;
+};
+
 export type UniversityFilterOptions = {
   countries: string[];
   cities: string[];
@@ -540,5 +554,6 @@ export function getFieldVerification(
 }
 
 export { UniversityCard } from "./ui/university-card";
+export { StudyDestinationCard } from "./ui/study-destination-card";
 export { StatValue } from "./ui/stat-value";
 export { VerifiedStat, VerificationBadge } from "./ui/verified-stat";

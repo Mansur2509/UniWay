@@ -29,7 +29,7 @@ export function EventMapPreview({ events }: { events: EventDetails[] }) {
   const onlineEvents = events.filter((event) => event.is_online);
 
   return (
-    <Card className="overflow-hidden p-0">
+    <Card animate="fade-up" className="overflow-hidden p-0">
       <div className="grid lg:grid-cols-[minmax(0,1fr)_19rem]">
         <div className="relative min-h-[22rem] overflow-hidden bg-navy">
           <div className="absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(255,255,255,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.12)_1px,transparent_1px)] [background-size:3rem_3rem]" />
@@ -50,10 +50,10 @@ export function EventMapPreview({ events }: { events: EventDetails[] }) {
               key={event.id}
               style={{ left: `${left}%`, top: `${top}%` }}
             >
-              <span className="grid size-7 place-items-center border border-white/25 bg-primary-button text-primary-foreground shadow-lg transition-transform group-hover:scale-110">
+              <span className="grid size-7 place-items-center rounded-full border border-white/25 bg-primary-button text-primary-foreground shadow-lg transition-transform duration-normal ease-academic group-hover:scale-125">
                 <MapPin aria-hidden className="size-4" />
               </span>
-              <span className="pointer-events-none absolute left-1/2 top-9 hidden w-48 -translate-x-1/2 border border-white/15 bg-navy px-3 py-2 text-xs font-semibold text-white shadow-lg group-hover:block">
+              <span className="pointer-events-none absolute left-1/2 top-9 w-48 -translate-x-1/2 translate-y-1 border border-white/15 bg-navy px-3 py-2 text-xs font-semibold text-white opacity-0 shadow-lg transition-[opacity,transform] duration-fast ease-academic group-hover:translate-y-0 group-hover:opacity-100">
                 {event.title}
               </span>
             </Link>
@@ -66,13 +66,13 @@ export function EventMapPreview({ events }: { events: EventDetails[] }) {
         </div>
         <div className="border-t bg-surface p-5 lg:border-l lg:border-t-0">
           <div className="flex items-center gap-2">
-            <Globe2 aria-hidden className="size-4 text-accent" />
+            <Globe2 aria-hidden className="size-4 text-info" />
             <h2 className="text-lg font-semibold">{t("events.filters.online")}</h2>
           </div>
           <div className="mt-4 space-y-3">
             {(onlineEvents.length ? onlineEvents : events).slice(0, 4).map((event) => (
               <Link
-                className="block border-l-2 border-primary pl-3"
+                className="block border-l-2 border-primary py-0.5 pl-3 transition-colors duration-fast ease-academic hover:border-accent"
                 href={`/events/${event.slug}`}
                 key={event.id}
               >
