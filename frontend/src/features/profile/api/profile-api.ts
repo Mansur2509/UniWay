@@ -109,8 +109,15 @@ interface ProfileItem {
   updated_at: string;
 }
 
+// These lists are always scoped to the requesting student's own entries
+// (never a shared/catalog dataset), so a generous page size just means every
+// entry is visible in the editor -- never a second page a student has to
+// know to ask for. 100 comfortably covers the "at least 30 activities"
+// requirement with headroom.
+const PROFILE_ITEMS_PAGE_SIZE = 100;
+
 export async function getProfileItemsRequest<T extends ProfileItem>(itemType: ItemType) {
-  const response = await apiRequest<unknown>(`/${itemType}/`, {
+  const response = await apiRequest<unknown>(`/${itemType}/?page_size=${PROFILE_ITEMS_PAGE_SIZE}`, {
     base: "profile"
   });
   return normalizePaginatedResponse<T>(response, `profile ${itemType}`);

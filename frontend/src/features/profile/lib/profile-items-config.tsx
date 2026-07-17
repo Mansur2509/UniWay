@@ -33,55 +33,55 @@ const activityCategoryOptions: ProfileItemField["options"] = [
 ];
 
 export const activityFields: ProfileItemField[] = [
-  { key: "title", label: "profile.activity.title" as TranslationKey, required: true, maxLength: 150 },
-  { key: "role", label: "profile.activity.role" as TranslationKey, maxLength: 150 },
-  { key: "organization", label: "profile.activity.organization" as TranslationKey, maxLength: 150 },
+  { key: "title", label: "profile.activity.title" as TranslationKey, required: true, maxLength: 200 },
+  { key: "role", label: "profile.activity.role" as TranslationKey, maxLength: 200 },
+  { key: "organization", label: "profile.activity.organization" as TranslationKey, maxLength: 200 },
   { key: "category", label: "profile.activity.category" as TranslationKey, type: "select", options: activityCategoryOptions },
   { key: "start_date", label: "profile.activity.startDate" as TranslationKey, type: "date" },
   { key: "end_date", label: "profile.activity.endDate" as TranslationKey, type: "date" },
   { key: "hours_per_week", label: "profile.activity.hoursPerWeek" as TranslationKey, type: "number" },
   { key: "weeks_per_year", label: "profile.activity.weeksPerYear" as TranslationKey, type: "number" },
   { key: "scale", label: "profile.activity.scale" as TranslationKey, type: "select", options: scaleOptions },
-  { key: "impact_number", label: "profile.activity.impactNumber" as TranslationKey, maxLength: 100, placeholder: "profile.activity.impactNumberPlaceholder" as TranslationKey },
-  { key: "description", label: "profile.activity.description" as TranslationKey, type: "textarea", maxLength: 1500 },
+  { key: "impact_number", label: "profile.activity.impactNumber" as TranslationKey, maxLength: 300, placeholder: "profile.activity.impactNumberPlaceholder" as TranslationKey },
+  { key: "description", label: "profile.activity.description" as TranslationKey, type: "textarea", maxLength: 5000 },
   { key: "proof_link", label: "proof_link" as TranslationKey, type: "url" },
 ];
 
 export const honorFields: ProfileItemField[] = [
-  { key: "title", label: "profile.honor.title" as TranslationKey, required: true, maxLength: 150 },
-  { key: "issuing_organization", label: "profile.honor.organization" as TranslationKey, maxLength: 150 },
+  { key: "title", label: "profile.honor.title" as TranslationKey, required: true, maxLength: 200 },
+  { key: "issuing_organization", label: "profile.honor.organization" as TranslationKey, maxLength: 200 },
   { key: "level", label: "profile.honor.level" as TranslationKey, maxLength: 100 },
   { key: "year", label: "profile.honor.year" as TranslationKey, type: "number" },
   { key: "result_rank", label: "profile.honor.rank" as TranslationKey, maxLength: 100, placeholder: "profile.honor.rankPlaceholder" as TranslationKey },
-  { key: "description", label: "profile.honor.description" as TranslationKey, type: "textarea", maxLength: 1500 },
+  { key: "description", label: "profile.honor.description" as TranslationKey, type: "textarea", maxLength: 3000 },
   { key: "proof_link", label: "proof_link" as TranslationKey, type: "url" },
 ];
 
 export const olympiadFields: ProfileItemField[] = [
-  { key: "name", label: "profile.olympiad.name" as TranslationKey, required: true, maxLength: 150 },
+  { key: "name", label: "profile.olympiad.name" as TranslationKey, required: true, maxLength: 200 },
   { key: "subject", label: "profile.olympiad.subject" as TranslationKey, maxLength: 100 },
   { key: "level", label: "profile.olympiad.level" as TranslationKey, maxLength: 100 },
   { key: "year", label: "profile.olympiad.year" as TranslationKey, type: "number" },
   { key: "result", label: "profile.olympiad.result" as TranslationKey, maxLength: 100 },
   { key: "rank_percentile", label: "profile.olympiad.rank" as TranslationKey, maxLength: 50 },
-  { key: "description", label: "profile.olympiad.description" as TranslationKey, type: "textarea", maxLength: 1500 },
+  { key: "description", label: "profile.olympiad.description" as TranslationKey, type: "textarea", maxLength: 3000 },
   { key: "proof_link", label: "proof_link" as TranslationKey, type: "url" },
 ];
 
 export const sportFields: ProfileItemField[] = [
-  { key: "sport_name", label: "profile.sport.name" as TranslationKey, required: true, maxLength: 150 },
+  { key: "sport_name", label: "profile.sport.name" as TranslationKey, required: true, maxLength: 200 },
   { key: "level", label: "profile.sport.level" as TranslationKey, maxLength: 100 },
   { key: "years_trained", label: "profile.sport.yearsTrained" as TranslationKey, maxLength: 100 },
-  { key: "peak_result", label: "profile.sport.peakResult" as TranslationKey, maxLength: 150 },
-  { key: "competition_name", label: "profile.sport.competition" as TranslationKey, maxLength: 150 },
-  { key: "description", label: "profile.sport.description" as TranslationKey, type: "textarea", maxLength: 1500 },
+  { key: "peak_result", label: "profile.sport.peakResult" as TranslationKey, maxLength: 200 },
+  { key: "competition_name", label: "profile.sport.competition" as TranslationKey, maxLength: 200 },
+  { key: "description", label: "profile.sport.description" as TranslationKey, type: "textarea", maxLength: 3000 },
   { key: "proof_link", label: "proof_link" as TranslationKey, type: "url" },
 ];
 
 export const researchFields: ProfileItemField[] = [
-  { key: "title", label: "profile.research.title" as TranslationKey, required: true, maxLength: 150 },
+  { key: "title", label: "profile.research.title" as TranslationKey, required: true, maxLength: 200 },
   { key: "field", label: "profile.research.field" as TranslationKey, maxLength: 150 },
-  { key: "research_question", label: "profile.research.question" as TranslationKey, type: "textarea", maxLength: 500 },
+  { key: "research_question", label: "profile.research.question" as TranslationKey, type: "textarea", maxLength: 800 },
   { key: "sample_size", label: "profile.research.sample" as TranslationKey, maxLength: 100 },
   { key: "countries_region", label: "profile.research.region" as TranslationKey, maxLength: 150 },
   { key: "methods_used", label: "profile.research.methods" as TranslationKey, maxLength: 150 },
@@ -93,7 +93,7 @@ export const researchFields: ProfileItemField[] = [
   ]},
   { key: "manuscript_link", label: "profile.research.manuscript" as TranslationKey, type: "url" },
   { key: "publication_status", label: "profile.research.publication" as TranslationKey, maxLength: 100 },
-  { key: "description", label: "profile.research.description" as TranslationKey, type: "textarea", maxLength: 1500, placeholder: "profile.research.descriptionPlaceholder" as TranslationKey },
+  { key: "description", label: "profile.research.description" as TranslationKey, type: "textarea", maxLength: 3000, placeholder: "profile.research.descriptionPlaceholder" as TranslationKey },
 ];
 
 export const essayFields: ProfileItemField[] = [
@@ -108,17 +108,17 @@ export const essayFields: ProfileItemField[] = [
   { key: "word_limit", label: "profile.essay.wordLimit" as TranslationKey, type: "number" },
   { key: "draft_status", label: "profile.essay.draftStatus" as TranslationKey, maxLength: 100 },
   { key: "last_reviewed_date", label: "profile.essay.reviewed" as TranslationKey, type: "date" },
-  { key: "notes", label: "profile.essay.notes" as TranslationKey, type: "textarea", maxLength: 1000 },
+  { key: "notes", label: "profile.essay.notes" as TranslationKey, type: "textarea", maxLength: 2000 },
 ];
 
 export const portfolioFields: ProfileItemField[] = [
-  { key: "title", label: "profile.portfolio.title" as TranslationKey, required: true, maxLength: 150 },
+  { key: "title", label: "profile.portfolio.title" as TranslationKey, required: true, maxLength: 200 },
   { key: "project_type", label: "profile.portfolio.type" as TranslationKey, maxLength: 100 },
   { key: "link", label: "profile.portfolio.link" as TranslationKey, type: "url" },
   { key: "tech_stack", label: "profile.portfolio.tech" as TranslationKey, maxLength: 150 },
-  { key: "users_impact", label: "profile.portfolio.impact" as TranslationKey, maxLength: 150 },
+  { key: "users_impact", label: "profile.portfolio.impact" as TranslationKey, maxLength: 200 },
   { key: "status", label: "profile.portfolio.status" as TranslationKey, maxLength: 100 },
-  { key: "description", label: "profile.portfolio.description" as TranslationKey, type: "textarea", maxLength: 1500 },
+  { key: "description", label: "profile.portfolio.description" as TranslationKey, type: "textarea", maxLength: 3000 },
 ];
 
 export const activityDisplay = (item: Activity) => (
@@ -173,17 +173,17 @@ export const portfolioDisplay = (item: PortfolioProject) => (
 );
 
 export const volunteerFields: ProfileItemField[] = [
-  { key: "title", label: "profile.volunteer.title" as TranslationKey, required: true, maxLength: 150 },
-  { key: "role", label: "profile.volunteer.role" as TranslationKey, maxLength: 150 },
-  { key: "organization", label: "profile.volunteer.organization" as TranslationKey, maxLength: 150 },
+  { key: "title", label: "profile.volunteer.title" as TranslationKey, required: true, maxLength: 200 },
+  { key: "role", label: "profile.volunteer.role" as TranslationKey, maxLength: 200 },
+  { key: "organization", label: "profile.volunteer.organization" as TranslationKey, maxLength: 200 },
   { key: "start_date", label: "profile.volunteer.startDate" as TranslationKey, type: "date" },
   { key: "end_date", label: "profile.volunteer.endDate" as TranslationKey, type: "date" },
   { key: "hours_per_week", label: "profile.volunteer.hoursPerWeek" as TranslationKey, type: "number" },
   { key: "weeks_per_year", label: "profile.volunteer.weeksPerYear" as TranslationKey, type: "number" },
   { key: "scale", label: "profile.volunteer.scale" as TranslationKey, type: "select", options: scaleOptions },
-  { key: "impact_number", label: "profile.volunteer.impactNumber" as TranslationKey, maxLength: 100, placeholder: "profile.volunteer.impactNumberPlaceholder" as TranslationKey },
-  { key: "beneficiaries", label: "profile.volunteer.beneficiaries" as TranslationKey, maxLength: 150 },
-  { key: "description", label: "profile.volunteer.description" as TranslationKey, type: "textarea", maxLength: 1500 },
+  { key: "impact_number", label: "profile.volunteer.impactNumber" as TranslationKey, maxLength: 300, placeholder: "profile.volunteer.impactNumberPlaceholder" as TranslationKey },
+  { key: "beneficiaries", label: "profile.volunteer.beneficiaries" as TranslationKey, maxLength: 200 },
+  { key: "description", label: "profile.volunteer.description" as TranslationKey, type: "textarea", maxLength: 5000 },
   { key: "proof_link", label: "proof_link" as TranslationKey, type: "url" },
 ];
 
@@ -199,7 +199,7 @@ export const recommenderFields: ProfileItemField[] = [
   ]},
   { key: "requested_date", label: "profile.recommender.requestedDate" as TranslationKey, type: "date" },
   { key: "submitted_date", label: "profile.recommender.submittedDate" as TranslationKey, type: "date" },
-  { key: "notes", label: "profile.recommender.notes" as TranslationKey, type: "textarea", maxLength: 1000 },
+  { key: "notes", label: "profile.recommender.notes" as TranslationKey, type: "textarea", maxLength: 2000 },
 ];
 
 export const volunteerDisplay = (item: Volunteer) => (

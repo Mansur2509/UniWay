@@ -171,6 +171,12 @@ class UserPreference(models.Model):
     mun_debate_interest = models.BooleanField(default=False)
     research_interest = models.BooleanField(default=False)
     finance_literacy_interest = models.BooleanField(default=False)
+
+    # Null = the first-login product tour has not been dismissed yet, so it
+    # is still shown automatically on dashboard entry. Set once, permanently,
+    # the first time the student dismisses it -- reopening it later from
+    # Settings never clears this (that's a manual, one-time replay only).
+    product_tour_dismissed_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
 
@@ -187,9 +193,9 @@ class Activity(models.Model):
         on_delete=models.CASCADE,
         related_name="profile_activities",
     )
-    title = models.CharField(max_length=150)
-    role = models.CharField(max_length=150, blank=True)
-    organization = models.CharField(max_length=150, blank=True)
+    title = models.CharField(max_length=200)
+    role = models.CharField(max_length=200, blank=True)
+    organization = models.CharField(max_length=200, blank=True)
     category = models.CharField(max_length=100, blank=True)
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
@@ -201,8 +207,8 @@ class Activity(models.Model):
     scale = models.CharField(
         max_length=20, choices=Scale.choices, default=Scale.SCHOOL, blank=True
     )
-    impact_number = models.CharField(max_length=100, blank=True)
-    description = models.TextField(max_length=1500, blank=True)
+    impact_number = models.CharField(max_length=300, blank=True)
+    description = models.TextField(max_length=5000, blank=True)
     proof_link = models.URLField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -217,12 +223,12 @@ class Honor(models.Model):
         on_delete=models.CASCADE,
         related_name="profile_honors",
     )
-    title = models.CharField(max_length=150)
-    issuing_organization = models.CharField(max_length=150, blank=True)
+    title = models.CharField(max_length=200)
+    issuing_organization = models.CharField(max_length=200, blank=True)
     level = models.CharField(max_length=100, blank=True)
     year = models.PositiveSmallIntegerField(null=True, blank=True)
     result_rank = models.CharField(max_length=100, blank=True)
-    description = models.TextField(max_length=1500, blank=True)
+    description = models.TextField(max_length=3000, blank=True)
     proof_link = models.URLField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -237,13 +243,13 @@ class Olympiad(models.Model):
         on_delete=models.CASCADE,
         related_name="profile_olympiads",
     )
-    name = models.CharField(max_length=150)
+    name = models.CharField(max_length=200)
     subject = models.CharField(max_length=100, blank=True)
     level = models.CharField(max_length=100, blank=True)
     year = models.PositiveSmallIntegerField(null=True, blank=True)
     result = models.CharField(max_length=100, blank=True)
     rank_percentile = models.CharField(max_length=50, blank=True)
-    description = models.TextField(max_length=1500, blank=True)
+    description = models.TextField(max_length=3000, blank=True)
     proof_link = models.URLField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -258,12 +264,12 @@ class Sport(models.Model):
         on_delete=models.CASCADE,
         related_name="profile_sports",
     )
-    sport_name = models.CharField(max_length=150)
+    sport_name = models.CharField(max_length=200)
     level = models.CharField(max_length=100, blank=True)
     years_trained = models.CharField(max_length=100, blank=True)
-    peak_result = models.CharField(max_length=150, blank=True)
-    competition_name = models.CharField(max_length=150, blank=True)
-    description = models.TextField(max_length=1500, blank=True)
+    peak_result = models.CharField(max_length=200, blank=True)
+    competition_name = models.CharField(max_length=200, blank=True)
+    description = models.TextField(max_length=3000, blank=True)
     proof_link = models.URLField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -284,9 +290,9 @@ class ResearchProject(models.Model):
         on_delete=models.CASCADE,
         related_name="profile_research_projects",
     )
-    title = models.CharField(max_length=150)
+    title = models.CharField(max_length=200)
     field = models.CharField(max_length=150, blank=True)
-    research_question = models.TextField(max_length=500, blank=True)
+    research_question = models.TextField(max_length=800, blank=True)
     sample_size = models.CharField(max_length=100, blank=True)
     countries_region = models.CharField(max_length=150, blank=True)
     methods_used = models.CharField(max_length=150, blank=True)
@@ -295,7 +301,7 @@ class ResearchProject(models.Model):
     )
     manuscript_link = models.URLField(blank=True)
     publication_status = models.CharField(max_length=100, blank=True)
-    description = models.TextField(max_length=1500, blank=True)
+    description = models.TextField(max_length=3000, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -323,7 +329,7 @@ class EssayDraft(models.Model):
     word_limit = models.PositiveSmallIntegerField(null=True, blank=True)
     draft_status = models.CharField(max_length=100, blank=True)
     last_reviewed_date = models.DateField(null=True, blank=True)
-    notes = models.TextField(max_length=1000, blank=True)
+    notes = models.TextField(max_length=2000, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -337,13 +343,13 @@ class PortfolioProject(models.Model):
         on_delete=models.CASCADE,
         related_name="profile_portfolio_projects",
     )
-    title = models.CharField(max_length=150)
+    title = models.CharField(max_length=200)
     project_type = models.CharField(max_length=100, blank=True)
     link = models.URLField(blank=True)
     tech_stack = models.CharField(max_length=150, blank=True)
-    users_impact = models.CharField(max_length=150, blank=True)
+    users_impact = models.CharField(max_length=200, blank=True)
     status = models.CharField(max_length=100, blank=True)
-    description = models.TextField(max_length=1500, blank=True)
+    description = models.TextField(max_length=3000, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -364,9 +370,9 @@ class Volunteer(models.Model):
         on_delete=models.CASCADE,
         related_name="profile_volunteering",
     )
-    title = models.CharField(max_length=150)
-    role = models.CharField(max_length=150, blank=True)
-    organization = models.CharField(max_length=150, blank=True)
+    title = models.CharField(max_length=200)
+    role = models.CharField(max_length=200, blank=True)
+    organization = models.CharField(max_length=200, blank=True)
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
     hours_per_week = models.DecimalField(
@@ -378,9 +384,9 @@ class Volunteer(models.Model):
     )
     # Free-text summary fields for informally-reported totals, e.g. "100+ hours"
     # or "led a team of 50+ volunteers" -- not every student tracks exact figures.
-    impact_number = models.CharField(max_length=100, blank=True)
-    beneficiaries = models.CharField(max_length=150, blank=True)
-    description = models.TextField(max_length=1500, blank=True)
+    impact_number = models.CharField(max_length=300, blank=True)
+    beneficiaries = models.CharField(max_length=200, blank=True)
+    description = models.TextField(max_length=5000, blank=True)
     proof_link = models.URLField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -409,7 +415,7 @@ class Recommender(models.Model):
     )
     requested_date = models.DateField(null=True, blank=True)
     submitted_date = models.DateField(null=True, blank=True)
-    notes = models.TextField(max_length=1000, blank=True)
+    notes = models.TextField(max_length=2000, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

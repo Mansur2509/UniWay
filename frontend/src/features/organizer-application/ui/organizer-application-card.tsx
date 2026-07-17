@@ -219,7 +219,7 @@ export function OrganizerApplicationCard() {
                 </span>
                 <textarea
                   className={`${fieldClassName} min-h-20 resize-y py-2 leading-5`}
-                  maxLength={1000}
+                  maxLength={2000}
                   onChange={(event) => setDescription(event.target.value)}
                   placeholder={t("settings.organizerApplication.descriptionPlaceholder")}
                   required
@@ -247,7 +247,7 @@ export function OrganizerApplicationCard() {
                 </span>
                 <textarea
                   className={`${fieldClassName} min-h-16 resize-y py-2 leading-5`}
-                  maxLength={500}
+                  maxLength={1000}
                   onChange={(event) => setMotivation(event.target.value)}
                   placeholder={t("settings.organizerApplication.motivationPlaceholder")}
                   required
@@ -260,7 +260,7 @@ export function OrganizerApplicationCard() {
                 </span>
                 <textarea
                   className={`${fieldClassName} min-h-16 resize-y py-2 leading-5`}
-                  maxLength={500}
+                  maxLength={1000}
                   onChange={(event) => setExperience(event.target.value)}
                   placeholder={t("settings.organizerApplication.experiencePlaceholder")}
                   value={experience}

@@ -218,6 +218,59 @@ class ProfileItemCRUDTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(response.data["description"], long_description)
 
+    def test_activity_description_allows_up_to_5000_characters(self):
+        """023: a serious multi-year project description must not be cut off
+        by a tiny arbitrary limit -- 5000 characters is the current ceiling."""
+        self.client.force_authenticate(user=self.user1)
+        long_description = "x" * 5000
+        response = self.client.post(
+            "/api/profile/activities/",
+            {"title": "Robotics Club", "description": long_description},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(len(response.data["description"]), 5000)
+
+    def test_activity_description_over_5000_characters_is_rejected(self):
+        self.client.force_authenticate(user=self.user1)
+        response = self.client.post(
+            "/api/profile/activities/",
+            {"title": "Robotics Club", "description": "x" * 5001},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_activity_title_organization_role_allow_200_characters(self):
+        self.client.force_authenticate(user=self.user1)
+        response = self.client.post(
+            "/api/profile/activities/",
+            {
+                "title": "T" * 200,
+                "role": "R" * 200,
+                "organization": "O" * 200,
+                "impact_number": "I" * 300,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(len(response.data["title"]), 200)
+        self.assertEqual(len(response.data["organization"]), 200)
+        self.assertEqual(len(response.data["impact_number"]), 300)
+
+    def test_student_can_create_and_list_at_least_30_activities(self):
+        """023: students describing a genuinely full extracurricular record
+        must be able to see and manage all of it, not just a first page."""
+        self.client.force_authenticate(user=self.user1)
+        for index in range(32):
+            Activity.objects.create(user=self.user1, title=f"Activity {index}")
+
+        response = self.client.get(
+            "/api/profile/activities/", {"page_size": 100}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 32)
+
     def test_create_recommender(self):
         """Test creating a recommender/counselor status entry"""
         self.client.force_authenticate(user=self.user1)

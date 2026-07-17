@@ -497,10 +497,10 @@ class OrganizerApplication(models.Model):
     last_name = models.CharField(max_length=120)
     email = models.EmailField()
     telegram_username = models.CharField(max_length=33)
-    description = models.TextField(max_length=1000)
+    description = models.TextField(max_length=2000)
     project_link = models.URLField(blank=True, validators=[validate_http_url])
-    motivation = models.TextField(max_length=500)
-    experience = models.TextField(max_length=500, blank=True)
+    motivation = models.TextField(max_length=1000)
+    experience = models.TextField(max_length=1000, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
     reviewed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
