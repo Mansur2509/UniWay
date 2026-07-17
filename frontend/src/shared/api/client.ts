@@ -410,6 +410,25 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
   }
 
   if (response.status === 401 && auth && retryOnUnauthorized) {
+    // Refresh tokens rotate (the backend blacklists the previous refresh
+    // cookie on every successful refresh). On a page that fires many
+    // parallel requests, it's common for several to hit 401 around the same
+    // moment but not perfectly simultaneously: if request A already
+    // triggered and completed a refresh by the time request B's 401 is
+    // handled, `authStorage`'s access token has already changed since B was
+    // sent. Calling refreshTokens() again here would use the now-rotated
+    // (already-blacklisted) cookie and fail, wrongly logging the user out of
+    // a perfectly valid session. So: if someone else already refreshed
+    // (current stored token differs from the one this request used), just
+    // retry with that newer token instead of refreshing a second time.
+    const latestTokens = authStorage.get();
+    if (latestTokens?.access && latestTokens.access !== tokens?.access) {
+      return apiRequest<T>(path, {
+        ...options,
+        retryOnUnauthorized: false
+      });
+    }
+
     refreshPromise ??= refreshTokens().finally(() => {
       refreshPromise = null;
     });
