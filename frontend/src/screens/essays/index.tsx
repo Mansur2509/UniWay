@@ -1078,7 +1078,14 @@ export function EssaysScreen() {
                       type="button"
                     >
                       <Sparkles aria-hidden className="mr-1.5 size-3.5" />
-                      {isScoringEssay ? t("essays.actions.scoring") : t("essays.actions.getScore")}
+                      {isScoringEssay
+                        ? t("essays.actions.scoring")
+                        : scoreRequestFailureCode ||
+                            (scoreNotice &&
+                              (scoreNotice.reason === "ai_unavailable" ||
+                                scoreNotice.reason === "validation_failed"))
+                          ? t("essays.actions.retryReview")
+                          : t("essays.actions.getScore")}
                     </Button>
                     <Button
                       onClick={() => void handleStatusChange("ready")}
@@ -1196,7 +1203,9 @@ export function EssaysScreen() {
                           : scoreNotice.reason === "ai_unavailable"
                             ? scoreNotice.aiErrorKind === "rate_limited"
                               ? t("essays.score.rateLimited")
-                              : t("essays.score.unavailable")
+                              : scoreNotice.aiErrorKind === "timeout"
+                                ? t("essays.score.timedOut")
+                                : t("essays.score.unavailable")
                             : scoreNotice.reason === "missing_essay_text"
                               ? t("essays.score.missingText")
                               : scoreNotice.reason === "essay_too_long"

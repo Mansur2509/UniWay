@@ -23,19 +23,22 @@ export const SESSION_CHECK_TIMEOUT_MS = 12_000;
 // Essay AI review calls Gemini through up to two independent retry pairs (an
 // initial generation attempt + 1 retry, and, if validation fails, one repair
 // prompt + 1 retry), each bounded by the backend's own per-call
-// AI_ESSAY_TIMEOUT_SECONDS=30 ceiling -- a documented worst case of 4 * 30s =
-// 120s. The backend additionally holds a single-flight lock around that whole
-// sequence per essay (REVIEW_LOCK_TIMEOUT_SECONDS=180s, see ai_scoring.py), so
-// a client-side abort here can never race a second backend attempt into
-// duplicate work -- the lock, and the cached report once one exists, make a
-// retry after this timeout safe and idempotent. 90s comfortably covers the
-// common case (a real Gemini call typically returns in a few seconds, so 90s
-// is only exercised when a retry or repair pass actually runs) while still
-// failing closed well before the full 120-180s backend ceiling. In the rare
-// case that also runs long, the user sees a timeout and can retry; the retry
-// finds the still-running (or by-then-cached) result instead of starting a
-// second, duplicate review.
-export const ESSAY_REVIEW_TIMEOUT_MS = 90_000;
+// AI_ESSAY_TIMEOUT_SECONDS=30 ceiling. The backend now also caps the *total*
+// time it will spend on this section at AI_ESSAY_REVIEW_MAX_WALL_SECONDS=80s
+// (see ai_scoring.py) so a slow/flaky provider degrades to a clean response
+// instead of running past Gunicorn's own worker timeout -- see
+// docs/PRODUCTION_DEPLOYMENT_CHECKLIST.md for the incident this fixed. The
+// backend additionally holds a single-flight lock around that whole sequence
+// per essay (REVIEW_LOCK_TIMEOUT_SECONDS=180s), so a client-side abort here
+// can never race a second backend attempt into duplicate work -- the lock,
+// and the cached report once one exists, make a retry after this timeout safe
+// and idempotent. 95s comfortably covers the backend's 80s ceiling plus
+// network/processing overhead (a real Gemini call typically returns in a few
+// seconds, so 95s is only exercised when a retry or repair pass actually
+// runs). In the rare case that also runs long, the user sees a timeout and
+// can retry; the retry finds the still-running (or by-then-cached) result
+// instead of starting a second, duplicate review.
+export const ESSAY_REVIEW_TIMEOUT_MS = 95_000;
 
 // A failed first request is also what *triggers* the Render wake-up. So for
 // safe, idempotent GET reads we automatically retry once on a timeout/network

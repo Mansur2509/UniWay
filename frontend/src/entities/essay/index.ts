@@ -211,7 +211,19 @@ export type AIEssayScoreReason =
   | "essay_too_long"
   | "review_already_running";
 
-export type AIEssayScoreErrorKind = "not_configured" | "rate_limited" | "provider_unavailable" | null;
+export type AIEssayScoreErrorKind =
+  | "not_configured"
+  | "rate_limited"
+  | "timeout"
+  | "provider_unavailable"
+  | null;
+
+export type AIEssayScoreErrorCode =
+  | "AI_PROVIDER_TIMEOUT"
+  | "AI_PROVIDER_RATE_LIMITED"
+  | "AI_PROVIDER_UNAVAILABLE"
+  | "ESSAY_REVIEW_FAILED"
+  | null;
 
 export type AIEssayScoreResponse = {
   reason: AIEssayScoreReason;
@@ -219,6 +231,7 @@ export type AIEssayScoreResponse = {
   quota_remaining: number | null;
   next_available_at: string | null;
   ai_error_kind: AIEssayScoreErrorKind;
+  error_code: AIEssayScoreErrorCode;
   score: AIEssayScoreReport | null;
 };
 
