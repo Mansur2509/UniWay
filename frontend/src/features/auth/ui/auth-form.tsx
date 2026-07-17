@@ -305,7 +305,14 @@ export function AuthForm({
             <span className="mt-1.5 block text-xs font-normal leading-5 text-muted-foreground">
               {t("auth.passwordHelp")}
             </span>
-          ) : null}
+          ) : (
+            <Link
+              className="mt-1.5 inline-block text-xs font-semibold text-primary-hover hover:underline"
+              href="/forgot-password"
+            >
+              {t("auth.forgotPasswordLink")}
+            </Link>
+          )}
         </div>
 
         {isRegister ? (

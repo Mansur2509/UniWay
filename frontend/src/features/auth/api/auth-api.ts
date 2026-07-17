@@ -56,3 +56,25 @@ export function getAuthConfigRequest() {
     auth: false
   });
 }
+
+export function requestPasswordResetRequest(email: string) {
+  return apiRequest<{ detail: string }>("/password-reset/request/", {
+    base: "auth",
+    auth: false,
+    method: "POST",
+    body: { email }
+  });
+}
+
+export function confirmPasswordResetRequest(input: {
+  token: string;
+  new_password: string;
+  new_password_confirm: string;
+}) {
+  return apiRequest<void>("/password-reset/confirm/", {
+    base: "auth",
+    auth: false,
+    method: "POST",
+    body: input
+  });
+}

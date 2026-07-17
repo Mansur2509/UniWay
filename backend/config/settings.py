@@ -192,6 +192,28 @@ GOOGLE_OAUTH_ENABLED = all(
     (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, GOOGLE_OAUTH_FRONTEND_URL)
 )
 
+# Password reset email delivery. No credentials are hardcoded: real SMTP/API
+# settings are provided only via environment variables in production. In
+# DEBUG (local/dev), mail defaults to Django's console backend, which prints
+# the reset email (including the link) to the server log instead of sending
+# it -- no external provider is required to exercise the flow locally.
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend"
+    if DEBUG
+    else "django.core.mail.backends.smtp.EmailBackend",
+)
+EMAIL_HOST = os.getenv("EMAIL_HOST", "")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "true").lower() == "true"
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "UniWay <no-reply@uniway.local>")
+PASSWORD_RESET_FRONTEND_URL = os.getenv(
+    "PASSWORD_RESET_FRONTEND_URL",
+    f"{CORS_ALLOWED_ORIGINS[0].rstrip('/')}/reset-password" if CORS_ALLOWED_ORIGINS else "",
+)
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -221,6 +243,8 @@ REST_FRAMEWORK = {
         "auth_register": "5/hour",
         "auth_refresh": "30/hour",
         "auth_oauth": "30/hour",
+        "password_reset_request": "5/hour",
+        "password_reset_confirm": "10/hour",
         "feedback_submit": "10/hour",
         "report_submit": "20/hour",
         "organizer_application_submit": "5/hour",

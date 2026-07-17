@@ -34,6 +34,25 @@ class OAuthLoginAttempt(models.Model):
         ordering = ("-created_at",)
 
 
+class PasswordResetToken(models.Model):
+    """Single-use server record for a password-reset token. Only a SHA-256
+    digest of the raw token is stored -- the raw value exists only in the
+    emailed link, mirroring OAuthLoginAttempt's state_digest pattern."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="password_reset_tokens",
+    )
+    token_digest = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField(db_index=True)
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+
 class SocialIdentity(models.Model):
     class Provider(models.TextChoices):
         GOOGLE = "google", "Google"

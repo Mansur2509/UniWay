@@ -8,6 +8,8 @@ from .views import (
     GoogleOAuthStartView,
     LoginView,
     LogoutView,
+    PasswordResetConfirmView,
+    PasswordResetRequestView,
     RegisterView,
 )
 
@@ -20,6 +22,8 @@ urlpatterns = [
     path("logout/", LogoutView.as_view(), name="logout"),
     path("me/", CurrentUserView.as_view(), name="me"),
     path("token/refresh/", AuthTokenRefreshView.as_view(), name="token-refresh"),
+    path("password-reset/request/", PasswordResetRequestView.as_view(), name="password-reset-request"),
+    path("password-reset/confirm/", PasswordResetConfirmView.as_view(), name="password-reset-confirm"),
     path("google/start/", GoogleOAuthStartView.as_view(), name="google-start"),
     path("google/callback/", GoogleOAuthCallbackView.as_view(), name="google-callback"),
 ]

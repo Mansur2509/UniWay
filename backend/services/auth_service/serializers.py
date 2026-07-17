@@ -1,5 +1,6 @@
 from django.contrib.auth import authenticate, get_user_model, password_validation
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
@@ -10,6 +11,12 @@ from services.subscription_service.models import Plan, Subscription
 from services.user_profile_service.models import StudentProfile, UserPreference
 
 from .cookies import refresh_token_from_request
+from .password_reset import (
+    PasswordResetError,
+    consume_password_reset_token,
+    get_valid_reset_user,
+    request_password_reset,
+)
 
 User = get_user_model()
 
@@ -57,6 +64,7 @@ class CurrentUserSerializer(serializers.Serializer):
     google_linked = serializers.BooleanField(read_only=True)
     profile = ProfileBasicSerializer(required=False)
     subscription = SubscriptionBasicSerializer(read_only=True)
+    product_tour_dismissed = serializers.BooleanField(required=False)
 
     def to_representation(self, instance):
         profile = StudentProfile.objects.filter(user=instance).first() or StudentProfile(
@@ -66,6 +74,7 @@ class CurrentUserSerializer(serializers.Serializer):
             user=instance,
             plan=Plan.FREE,
         )
+        preference = UserPreference.objects.filter(user=instance).first()
         return {
             "id": instance.id,
             "email": instance.email,
@@ -74,6 +83,9 @@ class CurrentUserSerializer(serializers.Serializer):
             "google_linked": instance.social_identities.filter(provider="google").exists(),
             "profile": ProfileBasicSerializer(profile).data,
             "subscription": SubscriptionBasicSerializer(subscription).data,
+            "product_tour_dismissed": bool(
+                preference and preference.product_tour_dismissed_at is not None
+            ),
         }
 
     @transaction.atomic
@@ -85,6 +97,16 @@ class CurrentUserSerializer(serializers.Serializer):
         for field, value in profile_data.items():
             setattr(profile, field, value)
         profile.save()
+
+        # Dismissal is one-way: once set, it is never cleared through this
+        # endpoint. Reopening the tour from Settings is a client-only replay
+        # and intentionally does not call this API.
+        if validated_data.get("product_tour_dismissed") is True:
+            preference, _ = UserPreference.objects.select_for_update().get_or_create(user=instance)
+            if preference.product_tour_dismissed_at is None:
+                preference.product_tour_dismissed_at = timezone.now()
+                preference.save(update_fields=["product_tour_dismissed_at"])
+
         return instance
 
 
@@ -177,6 +199,42 @@ class LogoutSerializer(serializers.Serializer):
             token.blacklist()
         except TokenError as error:
             raise serializers.ValidationError({"refresh": "Invalid or expired refresh token."}) from error
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=254)
+
+    def save(self, **kwargs):
+        request_password_reset(self.validated_data["email"])
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    token = serializers.CharField(write_only=True, max_length=256)
+    new_password = serializers.CharField(write_only=True, min_length=8, trim_whitespace=False)
+    new_password_confirm = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["new_password_confirm"]:
+            raise serializers.ValidationError(
+                {"new_password_confirm": "Passwords do not match."}  # nosec B105
+            )
+        try:
+            user = get_valid_reset_user(attrs["token"])
+        except PasswordResetError as error:
+            raise serializers.ValidationError({"code": error.code}) from error
+        password_validation.validate_password(attrs["new_password"], user=user)
+        return attrs
+
+    def save(self, **kwargs):
+        # The check in validate() above is for fast, friendly error
+        # messages only; this call re-checks under a row lock and is the
+        # single authoritative point where the token is actually consumed.
+        try:
+            consume_password_reset_token(
+                self.validated_data["token"], self.validated_data["new_password"]
+            )
+        except PasswordResetError as error:
+            raise serializers.ValidationError({"code": error.code}) from error
 
 
 class ActiveUserTokenRefreshSerializer(TokenRefreshSerializer):

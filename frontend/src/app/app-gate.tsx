@@ -10,16 +10,24 @@ import { getProfileCompletionRequest } from "@/features/profile";
 import { useI18n } from "@/shared/i18n";
 import { notifyAuthInvalid } from "@/shared/lib/auth-storage";
 import { useSlowLoad } from "@/shared/lib/use-slow-load";
+import { BrandMark } from "@/shared/ui/brand-mark";
 import { Button } from "@/shared/ui/button";
 import { LanguageSwitcher } from "@/shared/ui/language-switcher";
 import { SupportLink } from "@/shared/ui/support-link";
 import { AppShell } from "@/widgets/app-shell";
 
 import { AuthForm } from "@/features/auth/ui/auth-form";
+import { ForgotPasswordForm } from "@/features/auth/ui/forgot-password-form";
+import { ResetPasswordForm } from "@/features/auth/ui/reset-password-form";
 
 type AuthMode = "login" | "register";
 type OnboardingGateStatus = "checking" | "incomplete" | "complete" | "offline";
-const AUTH_ROUTE_PATHS = new Set(["/login", "/register"]);
+const AUTH_ROUTE_PATHS = new Set([
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password"
+]);
 
 function AcademicBrand() {
   const { t } = useI18n();
@@ -27,9 +35,7 @@ function AcademicBrand() {
   return (
     <section className="flex min-h-[18rem] flex-col justify-between border-b border-white/15 bg-navy px-6 py-8 text-navy-foreground lg:min-h-screen lg:border-b-0 lg:border-r lg:px-12 lg:py-12">
       <div className="flex items-center gap-3">
-        <span className="grid size-11 place-items-center rounded-sm border border-white/25 bg-primary font-serif text-2xl font-bold">
-          U
-        </span>
+        <BrandMark className="size-11 shrink-0 overflow-hidden rounded-sm" />
         <div>
           <p className="font-serif text-2xl font-semibold tracking-tight">UniWay</p>
           <p className="text-xs uppercase tracking-[0.18em] text-white/65">
@@ -89,9 +95,7 @@ function FullScreenStatus({
   return (
     <main className="grid min-h-screen place-items-center bg-background px-6">
       <div className="w-full max-w-lg border border-border bg-card p-8 text-center shadow-card">
-        <span className="mx-auto grid size-12 place-items-center rounded-sm bg-navy font-serif text-2xl font-bold text-navy-foreground">
-          U
-        </span>
+        <BrandMark className="mx-auto block size-12 overflow-hidden rounded-sm" />
         <h1 className="mt-5 font-serif text-2xl font-semibold">{title}</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p>
         {offline && onRetry ? (
@@ -195,6 +199,9 @@ export function AppGate({ children }: { children: ReactNode }) {
   }
 
   if (status === "unauthenticated") {
+    const isPasswordResetRoute =
+      pathname === "/forgot-password" || pathname === "/reset-password";
+
     return (
       <main className="min-h-screen bg-background lg:grid lg:grid-cols-[minmax(22rem,0.9fr)_minmax(30rem,1.1fr)]">
         <AcademicBrand />
@@ -203,23 +210,33 @@ export function AppGate({ children }: { children: ReactNode }) {
             <LanguageSwitcher compact />
           </div>
           <div className="w-full max-w-md pt-10">
-            <div className="mb-4 grid grid-cols-2 border border-border bg-surface p-1">
-              {(["login", "register"] as const).map((item) => (
-                <button
-                  className={
-                    mode === item
-                      ? "min-h-10 bg-navy px-3 text-sm font-semibold text-navy-foreground"
-                      : "min-h-10 px-3 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }
-                  key={item}
-                  onClick={() => setMode(item)}
-                  type="button"
-                >
-                  {item === "login" ? t("auth.signIn") : t("auth.createAccount")}
-                </button>
-              ))}
-            </div>
-            <AuthForm mode={mode} onModeChange={setMode} />
+            {isPasswordResetRoute ? (
+              pathname === "/forgot-password" ? (
+                <ForgotPasswordForm />
+              ) : (
+                <ResetPasswordForm />
+              )
+            ) : (
+              <>
+                <div className="mb-4 grid grid-cols-2 border border-border bg-surface p-1">
+                  {(["login", "register"] as const).map((item) => (
+                    <button
+                      className={
+                        mode === item
+                          ? "min-h-10 bg-navy px-3 text-sm font-semibold text-navy-foreground"
+                          : "min-h-10 px-3 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+                      }
+                      key={item}
+                      onClick={() => setMode(item)}
+                      type="button"
+                    >
+                      {item === "login" ? t("auth.signIn") : t("auth.createAccount")}
+                    </button>
+                  ))}
+                </div>
+                <AuthForm mode={mode} onModeChange={setMode} />
+              </>
+            )}
           </div>
         </section>
         <SupportLink className="fixed bottom-4 right-4 z-30 shadow-card" />
