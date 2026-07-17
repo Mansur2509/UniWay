@@ -198,7 +198,7 @@ export function MajorAssessment({
                         <label
                           className={
                             answers[question.id] === answer
-                              ? "cursor-pointer border border-primary bg-primary px-2 py-3 text-center text-xs font-semibold text-primary-foreground"
+                              ? "cursor-pointer border border-primary-button bg-primary-button px-2 py-3 text-center text-xs font-semibold text-primary-foreground"
                               : "cursor-pointer border bg-surface px-2 py-3 text-center text-xs text-muted-foreground hover:bg-elevated"
                           }
                           key={answer}

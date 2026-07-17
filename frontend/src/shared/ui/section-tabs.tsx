@@ -26,7 +26,7 @@ export function SectionTabs({ ariaLabel, items }: { ariaLabel: string; items: Se
             className={cn(
               "inline-flex min-h-9 items-center gap-2 rounded-sm border px-3 text-xs font-semibold transition-colors duration-fast ease-academic",
               isActive
-                ? "border-primary bg-primary text-primary-foreground"
+                ? "border-primary-button bg-primary-button text-primary-foreground"
                 : "bg-surface text-muted-foreground hover:border-navy/35 hover:text-foreground"
             )}
             href={item.href}

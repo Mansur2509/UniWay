@@ -175,7 +175,7 @@ export function MyEventsCalendar({ registrations }: { registrations: EventRegist
                   <p
                     className={`text-xs font-semibold ${
                       key === todayKey
-                        ? "inline-block bg-primary px-1.5 py-0.5 text-primary-foreground"
+                        ? "inline-block bg-primary-button px-1.5 py-0.5 text-primary-foreground"
                         : inMonth
                           ? "text-foreground"
                           : "text-muted-foreground"

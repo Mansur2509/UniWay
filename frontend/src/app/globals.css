@@ -16,6 +16,12 @@
   --primary: 348 74% 31%;
   --primary-hover: 348 77% 25%;
   --primary-foreground: 42 40% 97%;
+  /* --primary/-hover double as body text (labels, links, badges) and as the
+     solid button/tab/marker fill. Light mode's primary is dark enough to
+     serve both roles at once, so the button tokens just mirror it here --
+     see the dark-theme block below for why they diverge there. */
+  --button-primary: 348 74% 31%;
+  --button-primary-hover: 348 77% 25%;
   --navy: 218 46% 17%;
   --navy-foreground: 42 40% 96%;
   --accent: 39 64% 43%;
@@ -42,13 +48,26 @@
   --surface: 219 34% 12%;
   --card: 218 29% 15%;
   --elevated: 217 25% 19%;
-  --border: 216 19% 28%;
+  /* Bumped from 28% -> 34%: at 28% a card border read as ~1.9:1 against the
+     page background, low enough that cards, inputs, and table rows lost
+     their edge entirely on real displays. 34% keeps the line restrained
+     (still clearly a dark-theme hairline, not a bright divider) while
+     making card/input/table boundaries genuinely visible. */
+  --border: 216 19% 34%;
   --text: 42 31% 92%;
   --foreground: 42 31% 92%;
   --muted: 217 23% 19%;
   --muted-foreground: 216 13% 68%;
-  --primary: 348 66% 48%;
-  --primary-hover: 348 72% 57%;
+  /* --primary/-hover are read here as TEXT (labels, links, the ~10%-tint
+     badges/chips throughout the app) far more often than as a solid fill --
+     the previous values (66% 48% / 72% 57%) were tuned for a light-mode-style
+     button, and as text they measured 2.97:1 / 3.85:1 against card, well
+     under the 4.5:1 body-text minimum. Lightened here to clear that bar
+     everywhere the crimson text actually appears; the solid-fill role (real
+     buttons, active tabs/markers) uses the separate --button-primary tokens
+     below, which keep the original, darker, white-text-safe tone. */
+  --primary: 348 68% 63%;
+  --primary-hover: 348 70% 70%;
   --primary-foreground: 0 0% 100%;
   --navy: 220 45% 7%;
   --navy-foreground: 42 31% 94%;
@@ -58,6 +77,13 @@
   --warning: 38 75% 55%;
   --danger: 0 64% 58%;
   --focus-ring: 39 72% 58%;
+  /* Original --primary/-hover values: kept as the button/active-tab/marker
+     fill so white foreground text stays comfortably readable (the lightened
+     --primary above would drop that pairing under 3.3:1). --button-primary
+     -hover is a new, slightly brighter value -- the old hover fill (72% 57%)
+     only reached 4.08:1 for its white text, itself under the 4.5:1 minimum. */
+  --button-primary: 348 66% 48%;
+  --button-primary-hover: 348 66% 52%;
 }
 
 * {

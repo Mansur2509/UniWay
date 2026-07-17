@@ -50,7 +50,7 @@ export function EventMapPreview({ events }: { events: EventDetails[] }) {
               key={event.id}
               style={{ left: `${left}%`, top: `${top}%` }}
             >
-              <span className="grid size-7 place-items-center border border-white/25 bg-primary text-primary-foreground shadow-lg transition-transform group-hover:scale-110">
+              <span className="grid size-7 place-items-center border border-white/25 bg-primary-button text-primary-foreground shadow-lg transition-transform group-hover:scale-110">
                 <MapPin aria-hidden className="size-4" />
               </span>
               <span className="pointer-events-none absolute left-1/2 top-9 hidden w-48 -translate-x-1/2 border border-white/15 bg-navy px-3 py-2 text-xs font-semibold text-white shadow-lg group-hover:block">

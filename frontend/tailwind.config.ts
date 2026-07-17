@@ -20,7 +20,9 @@ const config: Config = {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
-          hover: "hsl(var(--primary-hover))"
+          hover: "hsl(var(--primary-hover))",
+          button: "hsl(var(--button-primary))",
+          "button-hover": "hsl(var(--button-primary-hover))"
         },
         navy: {
           DEFAULT: "hsl(var(--navy))",

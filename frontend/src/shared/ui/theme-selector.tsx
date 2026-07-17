@@ -56,7 +56,7 @@ export function ThemeSelector({ compact = false }: { compact?: boolean }) {
             className={cn(
               "inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-xs font-semibold transition-colors duration-fast ease-academic",
               selected
-                ? "bg-primary text-primary-foreground"
+                ? "bg-primary-button text-primary-foreground"
                 : "text-muted-foreground hover:bg-elevated hover:text-foreground"
             )}
             key={option.value}
@@ -78,5 +78,41 @@ export function ThemeSelector({ compact = false }: { compact?: boolean }) {
         );
       })}
     </div>
+  );
+}
+
+// A single-button cycle toggle for space-constrained spots (the dashboard
+// header): the full 3-way radiogroup above is ~120px wide and overflows a
+// 375px mobile viewport once placed next to the header's other icons, so
+// the header uses this instead. Same shared useTheme() state as
+// ThemeSelector, so choosing a theme here or in Settings stays in sync.
+export function ThemeToggleButton() {
+  const { theme, setTheme } = useTheme();
+  const { t } = useI18n();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const activeIndex = Math.max(
+    0,
+    OPTIONS.findIndex((option) => option.value === theme)
+  );
+  const current = mounted ? OPTIONS[activeIndex] : OPTIONS[2];
+  const label = `${t("settings.appearance.label")}: ${t(current.labelKey)}`;
+
+  function cycle() {
+    const nextOption = OPTIONS[(activeIndex + 1) % OPTIONS.length];
+    setTheme(nextOption.value);
+  }
+
+  return (
+    <button
+      aria-label={label}
+      className="grid size-9 place-items-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      onClick={cycle}
+      title={label}
+      type="button"
+    >
+      <AppIcon decorative icon={current.icon} />
+    </button>
   );
 }

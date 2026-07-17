@@ -37,7 +37,7 @@ export function NavLink({
             ? "shrink-0 px-3 py-2 text-xs"
             : "px-3 py-2",
         active
-          ? "bg-primary text-primary-foreground"
+          ? "bg-primary-button text-primary-foreground"
           : inverse
             ? "text-white/70 hover:bg-white/10 hover:text-white"
             : "text-muted-foreground hover:bg-muted hover:text-foreground"
