@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Inter, Source_Serif_4 } from "next/font/google";
 import type { ReactNode } from "react";
 
 import { AuthProvider } from "@/features/auth";
@@ -7,6 +8,19 @@ import { ThemeProvider } from "@/shared/theme/provider";
 
 import "./globals.css";
 import { AppGate } from "./app-gate";
+
+const inter = Inter({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-inter",
+  display: "swap"
+});
+
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-source-serif",
+  display: "swap",
+  weight: ["500", "600", "700"]
+});
 
 export const metadata: Metadata = {
   title: {
@@ -23,7 +37,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html className={`${inter.variable} ${sourceSerif.variable}`} lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider>
           <I18nProvider>

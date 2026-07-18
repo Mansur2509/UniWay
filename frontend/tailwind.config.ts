@@ -47,7 +47,38 @@ const config: Config = {
           DEFAULT: "hsl(var(--recommendation))",
           foreground: "hsl(var(--recommendation-foreground))"
         },
+        event: {
+          DEFAULT: "hsl(var(--event))",
+          foreground: "hsl(var(--event-foreground))"
+        },
+        /* Named aliases for the task/content categories from the 026 design
+           brief. Most intentionally reuse an existing hue rather than
+           inventing a new one per category -- e.g. scholarship/verified both
+           mean "confirmed, positive" (success); application/exam are neutral
+           status information (info); essay/research are AI-assisted or
+           academic-depth content (recommendation). `event` above is the one
+           genuinely new hue. Aliasing keeps class names semantic
+           (`text-scholarship`, `bg-deadline/10`) without multiplying hues. */
+        scholarship: "hsl(var(--success))",
+        verified: "hsl(var(--success))",
+        deadline: "hsl(var(--accent))",
+        application: "hsl(var(--info))",
+        exam: "hsl(var(--info))",
+        essay: "hsl(var(--recommendation))",
+        research: "hsl(var(--recommendation))",
         focus: "hsl(var(--focus-ring))"
+      },
+      fontFamily: {
+        sans: [
+          "var(--font-inter)",
+          "ui-sans-serif",
+          "system-ui",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "Segoe UI",
+          "sans-serif"
+        ],
+        display: ["var(--font-source-serif)", "Georgia", "Cambria", "Times New Roman", "serif"]
       },
       borderRadius: {
         xl: "var(--radius)"

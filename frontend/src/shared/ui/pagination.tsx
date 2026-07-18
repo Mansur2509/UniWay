@@ -1,11 +1,12 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, SearchX } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n";
 
 import { Button } from "./button";
+import { EmptyState } from "./empty-state";
 import { SkeletonCards, SkeletonRows } from "./skeleton";
 
 export const DEFAULT_PAGE_SIZE = 21;
@@ -325,12 +326,11 @@ function PaginationSummary({
 function DefaultEmptyState() {
   const { t } = useI18n();
   return (
-    <div className="rounded-sm border bg-card p-5">
-      <h2 className="text-lg font-semibold">{t("pagination.noResults")}</h2>
-      <p className="mt-2 text-sm text-muted-foreground">
-        {t("pagination.tryChangingFilters")}
-      </p>
-    </div>
+    <EmptyState
+      description={t("pagination.tryChangingFilters")}
+      icon={SearchX}
+      title={t("pagination.noResults")}
+    />
   );
 }
 
