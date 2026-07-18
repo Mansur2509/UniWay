@@ -1,16 +1,37 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import { Plus, Trash2, X, type LucideIcon } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { useUnsavedChangesGuard } from "@/shared/lib/use-unsaved-changes-guard";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
+import { EmptyState } from "@/shared/ui/empty-state";
 import { fieldClassName } from "@/shared/ui/field";
 import { AppIcon } from "@/shared/ui/icon";
 import { IconButton } from "@/shared/ui/icon-button";
+import { Reveal } from "@/shared/ui/reveal";
+import { SkeletonRows } from "@/shared/ui/skeleton";
 import { UnsavedChangesDialog } from "@/shared/ui/unsaved-changes-dialog";
+
+export type ProfileItemTone = "info" | "success" | "accent" | "recommendation" | "event";
+
+const TONE_ICON_CLASSES: Record<ProfileItemTone, string> = {
+  info: "border-info/30 bg-info/10 text-info",
+  success: "border-success/30 bg-success/10 text-success",
+  accent: "border-accent/30 bg-accent/10 text-accent",
+  recommendation: "border-recommendation/30 bg-recommendation/10 text-recommendation",
+  event: "border-event/30 bg-event/10 text-event"
+};
+
+const TONE_HOVER_CLASSES: Record<ProfileItemTone, string> = {
+  info: "hover:border-info/45",
+  success: "hover:border-success/45",
+  accent: "hover:border-accent/45",
+  recommendation: "hover:border-recommendation/45",
+  event: "hover:border-event/45"
+};
 
 export type ProfileItemField = {
   key: string;
@@ -35,6 +56,8 @@ interface ProfileItemSectionProps<T extends { id: number }> {
   itemDisplay: (item: T) => React.ReactNode;
   statusLabel?: string;
   statusTone?: "complete" | "missing";
+  icon: LucideIcon;
+  tone: ProfileItemTone;
 }
 
 export function ProfileItemSection<T extends { id: number }>({
@@ -50,6 +73,8 @@ export function ProfileItemSection<T extends { id: number }>({
   itemDisplay,
   statusLabel,
   statusTone = "missing",
+  icon,
+  tone
 }: ProfileItemSectionProps<T>) {
   const { t } = useI18n();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -149,7 +174,15 @@ export function ProfileItemSection<T extends { id: number }>({
   if (isLoading) {
     return (
       <Card className="p-4" id={id}>
-        <p className="text-xs text-muted-foreground">{t("common.loading")}</p>
+        <div className="flex items-center gap-3">
+          <span className={`grid size-9 shrink-0 place-items-center rounded-sm border ${TONE_ICON_CLASSES[tone]}`}>
+            <AppIcon icon={icon} />
+          </span>
+          <h3 className="text-lg font-semibold">{t(title)}</h3>
+        </div>
+        <div className="mt-4 space-y-2">
+          <SkeletonRows count={2} />
+        </div>
       </Card>
     );
   }
@@ -157,22 +190,29 @@ export function ProfileItemSection<T extends { id: number }>({
   return (
     <Card className="scroll-mt-24 p-4" id={id}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-lg font-semibold">{t(title)}</h3>
-            {statusLabel ? (
-              <span
-                className={`rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${
-                  statusTone === "complete"
-                    ? "border-success/35 bg-success/10 text-success"
-                    : "border-warning/35 bg-warning/10 text-warning"
-                }`}
-              >
-                {statusLabel}
-              </span>
-            ) : null}
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className={`mt-0.5 grid size-9 shrink-0 place-items-center rounded-sm border ${TONE_ICON_CLASSES[tone]}`}
+          >
+            <AppIcon icon={icon} />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-lg font-semibold">{t(title)}</h3>
+              {statusLabel ? (
+                <span
+                  className={`rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${
+                    statusTone === "complete"
+                      ? "border-success/35 bg-success/10 text-success"
+                      : "border-warning/35 bg-warning/10 text-warning"
+                  }`}
+                >
+                  {statusLabel}
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">{t(description)}</p>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">{t(description)}</p>
         </div>
         <Button
           className="shrink-0 self-start sm:self-auto"
@@ -193,43 +233,44 @@ export function ProfileItemSection<T extends { id: number }>({
       {/* Item list */}
       {items.length > 0 && (
         <div className="mt-4 space-y-2">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="flex items-start justify-between gap-3 rounded-sm border bg-elevated/45 p-3 text-sm"
-            >
-              <div className="min-w-0 flex-1">{itemDisplay(item)}</div>
-              <div className="flex shrink-0 gap-1">
-                <Button
-                  className="min-h-10"
-                  onClick={() => handleEdit(item)}
-                  size="sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  {t("profile.sections.edit")}
-                </Button>
-                <IconButton
-                  className="size-10 min-h-10 text-danger hover:bg-danger/10 hover:text-danger"
-                  label={t("profile.sections.delete")}
-                  onClick={() => setDeleteConfirm(item.id)}
-                >
-                  <AppIcon icon={Trash2} />
-                </IconButton>
+          {items.map((item, index) => (
+            <Reveal delayMs={Math.min(index, 6) * 40} key={item.id}>
+              <div
+                className={`flex items-start justify-between gap-3 rounded-sm border bg-elevated/45 p-3 text-sm transition-colors ${TONE_HOVER_CLASSES[tone]}`}
+              >
+                <div className="min-w-0 flex-1">{itemDisplay(item)}</div>
+                <div className="flex shrink-0 gap-1">
+                  <Button
+                    className="min-h-10"
+                    onClick={() => handleEdit(item)}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    {t("profile.sections.edit")}
+                  </Button>
+                  <IconButton
+                    className="size-10 min-h-10 text-danger hover:bg-danger/10 hover:text-danger"
+                    label={t("profile.sections.delete")}
+                    onClick={() => setDeleteConfirm(item.id)}
+                  >
+                    <AppIcon icon={Trash2} />
+                  </IconButton>
+                </div>
               </div>
-            </div>
+            </Reveal>
           ))}
         </div>
       )}
 
       {/* Empty state */}
       {items.length === 0 && !isExpanded && (
-        <div className="mt-4 rounded-sm border border-dashed bg-elevated/35 p-4">
-          <p className="text-xs text-muted-foreground">{t("profile.sections.empty")}</p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            {t("profile.sections.emptyAction")}
-          </p>
-        </div>
+        <EmptyState
+          className="mt-4 border border-dashed p-4 shadow-none"
+          description={t("profile.sections.emptyAction")}
+          icon={icon}
+          title={t("profile.sections.empty")}
+        />
       )}
 
       {/* Delete confirmation */}

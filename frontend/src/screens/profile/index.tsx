@@ -2,13 +2,21 @@
 
 import {
   Award,
+  CheckCircle2,
+  CircleAlert,
+  ClipboardCheck,
+  Contact,
   Dumbbell,
   FilePenLine,
   FlaskConical,
   FolderKanban,
+  GraduationCap,
   HeartHandshake,
+  IdCard,
   Medal,
   MessagesSquare,
+  Settings2,
+  Target,
   Users,
   type LucideIcon
 } from "lucide-react";
@@ -76,7 +84,7 @@ import {
   recommenderFields,
   recommenderDisplay
 } from "@/features/profile/lib/profile-items-config";
-import { ProfileItemSection } from "@/features/profile/ui/profile-item-section";
+import { ProfileItemSection, type ProfileItemTone } from "@/features/profile/ui/profile-item-section";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { formatDateTime } from "@/shared/lib/date-time";
 import { useUnsavedChangesGuard } from "@/shared/lib/use-unsaved-changes-guard";
@@ -86,8 +94,26 @@ import { Card } from "@/shared/ui/card";
 import { fieldClassName } from "@/shared/ui/field";
 import { HelpTooltip } from "@/shared/ui/help-tooltip";
 import { AppIcon } from "@/shared/ui/icon";
+import { LoadingNotice } from "@/shared/ui/loading-notice";
 import { ProgressRing } from "@/shared/ui/progress-ring";
+import { Reveal } from "@/shared/ui/reveal";
 import { UnsavedChangesDialog } from "@/shared/ui/unsaved-changes-dialog";
+
+const SECTION_TONE_CLASSES: Record<ProfileItemTone, string> = {
+  info: "border-info/30 bg-info/10 text-info",
+  success: "border-success/30 bg-success/10 text-success",
+  accent: "border-accent/30 bg-accent/10 text-accent",
+  recommendation: "border-recommendation/30 bg-recommendation/10 text-recommendation",
+  event: "border-event/30 bg-event/10 text-event"
+};
+
+const TONE_HOVER_CLASSES: Record<ProfileItemTone, string> = {
+  info: "hover:border-info/45",
+  success: "hover:border-success/45",
+  accent: "hover:border-accent/45",
+  recommendation: "hover:border-recommendation/45",
+  event: "hover:border-event/45"
+};
 
 type ProfileFormState = {
   fullName: string;
@@ -290,19 +316,32 @@ function ProfileSection({
   id,
   title,
   description,
+  icon,
+  tone,
   children
 }: {
   id?: string;
   title: string;
   description: string;
+  icon: LucideIcon;
+  tone: ProfileItemTone;
   children: ReactNode;
 }) {
   return (
     <Card className="scroll-mt-24 p-5" id={id}>
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
-        {description}
-      </p>
+      <div className="flex items-start gap-3">
+        <span
+          className={`mt-0.5 grid size-9 shrink-0 place-items-center rounded-sm border ${SECTION_TONE_CLASSES[tone]}`}
+        >
+          <AppIcon icon={icon} />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold">{title}</h2>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
+            {description}
+          </p>
+        </div>
+      </div>
       <div className="mt-4 grid gap-x-4 gap-y-3 sm:grid-cols-2">
         {children}
       </div>
@@ -815,17 +854,14 @@ export function ProfileScreen() {
     };
 
   if (isLoading) {
-    return (
-      <Card>
-        <p className="text-sm text-muted-foreground">{t("profile.loading")}</p>
-      </Card>
-    );
+    return <LoadingNotice message={t("profile.loading")} />;
   }
 
   if (loadFailed || !profile || !completion) {
     return (
       <Card>
-        <p className="text-sm text-danger" role="alert">
+        <p className="flex items-center gap-2 text-sm text-danger" role="alert">
+          <AppIcon icon={CircleAlert} />
           {t("profile.loadError")}
         </p>
         <Button className="mt-4" onClick={() => void loadProfile()} type="button">
@@ -840,50 +876,70 @@ export function ProfileScreen() {
     title: TranslationKey;
     count: number;
     icon: LucideIcon;
+    tone: ProfileItemTone;
   }> = [
     {
       id: "profile-section-activities",
       title: "profile.sections.activities",
       count: activities.length,
-      icon: Users
+      icon: Users,
+      tone: "info"
     },
-    { id: "profile-section-honors", title: "profile.sections.honors", count: honors.length, icon: Award },
+    {
+      id: "profile-section-honors",
+      title: "profile.sections.honors",
+      count: honors.length,
+      icon: Award,
+      tone: "success"
+    },
     {
       id: "profile-section-olympiads",
       title: "profile.sections.olympiads",
       count: olympiads.length,
-      icon: Medal
+      icon: Medal,
+      tone: "accent"
     },
-    { id: "profile-section-sports", title: "profile.sections.sports", count: sports.length, icon: Dumbbell },
+    {
+      id: "profile-section-sports",
+      title: "profile.sections.sports",
+      count: sports.length,
+      icon: Dumbbell,
+      tone: "event"
+    },
     {
       id: "profile-section-research",
       title: "profile.sections.research",
       count: research.length,
-      icon: FlaskConical
+      icon: FlaskConical,
+      tone: "recommendation"
     },
     {
       id: "profile-section-volunteering",
       title: "profile.sections.volunteering",
       count: volunteering.length,
-      icon: HeartHandshake
+      icon: HeartHandshake,
+      tone: "success"
     },
     {
       id: "profile-section-recommenders",
       title: "profile.sections.recommenders",
       count: recommenders.length,
-      icon: MessagesSquare
+      icon: MessagesSquare,
+      tone: "info"
     },
     {
       id: "profile-section-essays",
       title: "profile.sections.essays",
       count: essays.length,
-      icon: FilePenLine
+      icon: FilePenLine,
+      tone: "recommendation"
     },
     {
       id: "profile-section-portfolio",
       title: "profile.sections.portfolio",
       count: portfolio.length,
-      icon: FolderKanban
+      icon: FolderKanban,
+      tone: "accent"
     }
   ];
 
@@ -896,7 +952,7 @@ export function ProfileScreen() {
       <section className="grid gap-4 rounded-sm border bg-card p-5 shadow-card lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start">
         <div>
           <Badge>{t("profile.eyebrow")}</Badge>
-          <h1 className="mt-3 text-2xl font-semibold sm:text-3xl">{t("profile.title")}</h1>
+          <h1 className="text-display mt-3">{t("profile.title")}</h1>
           <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
             {t("profile.description")}
           </p>
@@ -944,31 +1000,36 @@ export function ProfileScreen() {
           </Button>
         </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {structuredSections.map((section) => (
-            <a
-              className="flex items-center justify-between gap-3 rounded-sm border bg-elevated/35 px-3 py-2 text-xs transition-colors hover:bg-elevated"
-              href={`#${section.id}`}
-              key={section.id}
-            >
-              <span className="flex min-w-0 items-center gap-2 font-semibold">
-                <AppIcon className="text-muted-foreground" icon={section.icon} />
-                <span className="truncate">{t(section.title)}</span>
-              </span>
-              <span className="flex shrink-0 items-center gap-1.5">
-                <span className="text-muted-foreground">
-                  {t("profile.navigation.itemCount", { count: section.count })}
+          {structuredSections.map((section, index) => (
+            <Reveal delayMs={Math.min(index, 8) * 30} key={section.id}>
+              <a
+                className={`flex items-center justify-between gap-3 rounded-sm border bg-elevated/35 px-3 py-2 text-xs transition-colors hover:bg-elevated ${TONE_HOVER_CLASSES[section.tone]}`}
+                href={`#${section.id}`}
+              >
+                <span className="flex min-w-0 items-center gap-2 font-semibold">
+                  <span
+                    className={`grid size-6 shrink-0 place-items-center rounded-sm border ${SECTION_TONE_CLASSES[section.tone]}`}
+                  >
+                    <AppIcon icon={section.icon} size="xs" />
+                  </span>
+                  <span className="truncate">{t(section.title)}</span>
                 </span>
-                <span
-                  className={`rounded-sm border px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-wide ${
-                    section.count > 0
-                      ? "border-success/35 bg-success/10 text-success"
-                      : "border-warning/35 bg-warning/10 text-warning"
-                  }`}
-                >
-                  {sectionStatusLabel(section.count)}
+                <span className="flex shrink-0 items-center gap-1.5">
+                  <span className="text-muted-foreground">
+                    {t("profile.navigation.itemCount", { count: section.count })}
+                  </span>
+                  <span
+                    className={`rounded-sm border px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-wide ${
+                      section.count > 0
+                        ? "border-success/35 bg-success/10 text-success"
+                        : "border-warning/35 bg-warning/10 text-warning"
+                    }`}
+                  >
+                    {sectionStatusLabel(section.count)}
+                  </span>
                 </span>
-              </span>
-            </a>
+              </a>
+            </Reveal>
           ))}
         </div>
       </Card>
@@ -984,8 +1045,10 @@ export function ProfileScreen() {
 
       <ProfileSection
         description={t("profile.sections.personalHelp")}
+        icon={IdCard}
         id="profile-foundation-personal"
         title={t("profile.sections.personal")}
+        tone="info"
       >
         <Field label={t("auth.fullName")}>
           <input
@@ -1027,8 +1090,10 @@ export function ProfileScreen() {
 
       <ProfileSection
         description={t("profile.sections.educationHelp")}
+        icon={GraduationCap}
         id="profile-foundation-education"
         title={t("profile.sections.education")}
+        tone="accent"
       >
         <Field label={t("profile.schoolOrUniversity")} wide>
           <input
@@ -1243,8 +1308,10 @@ export function ProfileScreen() {
 
       <ProfileSection
         description={t("profile.sections.admissionsHelp")}
+        icon={Target}
         id="profile-foundation-admissions"
         title={t("profile.sections.admissions")}
+        tone="recommendation"
       >
         <Field label={t("profile.intendedDegree")}>
           <select
@@ -1349,8 +1416,10 @@ export function ProfileScreen() {
 
       <ProfileSection
         description={t("profile.sections.testsHelp")}
+        icon={ClipboardCheck}
         id="profile-foundation-tests"
         title={t("profile.sections.tests")}
+        tone="info"
       >
         <Field label={t("profile.test.sat")}>
           <input
@@ -1414,8 +1483,10 @@ export function ProfileScreen() {
 
       <ProfileSection
         description={t("profile.sections.preferencesHelp")}
+        icon={Settings2}
         id="profile-foundation-preferences"
         title={t("profile.sections.preferences")}
+        tone="success"
       >
         <Field helper={t("profile.languagesHelp")} label={t("profile.languages")}>
           <input
@@ -1435,8 +1506,10 @@ export function ProfileScreen() {
 
       <ProfileSection
         description={t("profile.sections.contactHelp")}
+        icon={Contact}
         id="profile-foundation-contact"
         title={t("profile.sections.contact")}
+        tone="event"
       >
         <Field helper={t("profile.telegramHelp")} label={t("profile.telegram")}>
           <input
@@ -1462,6 +1535,7 @@ export function ProfileScreen() {
       <div className="space-y-4 border-t pt-4">
         <ProfileItemSection
           description="profile.sections.activitiesHelp"
+          icon={Users}
           id="profile-section-activities"
           items={activities}
           fields={activityFields}
@@ -1472,10 +1546,12 @@ export function ProfileScreen() {
           statusLabel={sectionStatusLabel(activities.length)}
           statusTone={sectionStatusTone(activities.length)}
           title="profile.sections.activities"
+          tone="info"
           isLoading={itemsLoading}
         />
         <ProfileItemSection
           description="profile.sections.honorsHelp"
+          icon={Award}
           id="profile-section-honors"
           items={honors}
           fields={honorFields}
@@ -1486,10 +1562,12 @@ export function ProfileScreen() {
           statusLabel={sectionStatusLabel(honors.length)}
           statusTone={sectionStatusTone(honors.length)}
           title="profile.sections.honors"
+          tone="success"
           isLoading={itemsLoading}
         />
         <ProfileItemSection
           description="profile.sections.olympiadsHelp"
+          icon={Medal}
           id="profile-section-olympiads"
           items={olympiads}
           fields={olympiadFields}
@@ -1500,10 +1578,12 @@ export function ProfileScreen() {
           statusLabel={sectionStatusLabel(olympiads.length)}
           statusTone={sectionStatusTone(olympiads.length)}
           title="profile.sections.olympiads"
+          tone="accent"
           isLoading={itemsLoading}
         />
         <ProfileItemSection
           description="profile.sections.sportsHelp"
+          icon={Dumbbell}
           id="profile-section-sports"
           items={sports}
           fields={sportFields}
@@ -1514,10 +1594,12 @@ export function ProfileScreen() {
           statusLabel={sectionStatusLabel(sports.length)}
           statusTone={sectionStatusTone(sports.length)}
           title="profile.sections.sports"
+          tone="event"
           isLoading={itemsLoading}
         />
         <ProfileItemSection
           description="profile.sections.researchHelp"
+          icon={FlaskConical}
           id="profile-section-research"
           items={research}
           fields={researchFields}
@@ -1528,10 +1610,12 @@ export function ProfileScreen() {
           statusLabel={sectionStatusLabel(research.length)}
           statusTone={sectionStatusTone(research.length)}
           title="profile.sections.research"
+          tone="recommendation"
           isLoading={itemsLoading}
         />
         <ProfileItemSection
           description="profile.sections.essaysHelp"
+          icon={FilePenLine}
           id="profile-section-essays"
           items={essays}
           fields={essayFields}
@@ -1542,10 +1626,12 @@ export function ProfileScreen() {
           statusLabel={sectionStatusLabel(essays.length)}
           statusTone={sectionStatusTone(essays.length)}
           title="profile.sections.essays"
+          tone="recommendation"
           isLoading={itemsLoading}
         />
         <ProfileItemSection
           description="profile.sections.portfolioHelp"
+          icon={FolderKanban}
           id="profile-section-portfolio"
           items={portfolio}
           fields={portfolioFields}
@@ -1556,10 +1642,12 @@ export function ProfileScreen() {
           statusLabel={sectionStatusLabel(portfolio.length)}
           statusTone={sectionStatusTone(portfolio.length)}
           title="profile.sections.portfolio"
+          tone="accent"
           isLoading={itemsLoading}
         />
         <ProfileItemSection
           description="profile.sections.volunteeringHelp"
+          icon={HeartHandshake}
           id="profile-section-volunteering"
           items={volunteering}
           fields={volunteerFields}
@@ -1570,10 +1658,12 @@ export function ProfileScreen() {
           statusLabel={sectionStatusLabel(volunteering.length)}
           statusTone={sectionStatusTone(volunteering.length)}
           title="profile.sections.volunteering"
+          tone="success"
           isLoading={itemsLoading}
         />
         <ProfileItemSection
           description="profile.sections.recommendersHelp"
+          icon={MessagesSquare}
           id="profile-section-recommenders"
           items={recommenders}
           fields={recommenderFields}
@@ -1584,20 +1674,23 @@ export function ProfileScreen() {
           statusLabel={sectionStatusLabel(recommenders.length)}
           statusTone={sectionStatusTone(recommenders.length)}
           title="profile.sections.recommenders"
+          tone="info"
           isLoading={itemsLoading}
         />
       </div>
 
       {saveFailed ? (
-        <Card className="border-danger/35 bg-danger/10">
-          <p className="text-sm text-danger" role="alert">
+        <Card animate="fade-up" className="border-danger/35 bg-danger/10">
+          <p className="flex items-center gap-2 text-sm text-danger" role="alert">
+            <AppIcon icon={CircleAlert} />
             {t("profile.saveError")}
           </p>
         </Card>
       ) : null}
       {saved ? (
-        <Card className="border-success/35 bg-success/10">
-          <p className="text-sm text-success" role="status">
+        <Card animate="fade-up" className="border-success/35 bg-success/10">
+          <p className="flex items-center gap-2 text-sm text-success" role="status">
+            <AppIcon icon={CheckCircle2} />
             {t("profile.saved")}
           </p>
         </Card>

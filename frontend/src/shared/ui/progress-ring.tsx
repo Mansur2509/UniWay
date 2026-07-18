@@ -1,3 +1,5 @@
+import { useCountUp } from "@/shared/lib/use-count-up";
+
 const TONE_STROKE: Record<"success" | "accent" | "info" | "recommendation" | "primary", string> = {
   success: "stroke-success",
   accent: "stroke-accent",
@@ -36,6 +38,7 @@ export function ProgressRing({
   const circumference = 2 * Math.PI * radius;
   const clamped = percentage === null ? 0 : Math.max(0, Math.min(100, percentage));
   const offset = circumference * (1 - clamped / 100);
+  const displayedPercentage = useCountUp(clamped);
 
   return (
     <div
@@ -71,7 +74,7 @@ export function ProgressRing({
         ) : null}
       </svg>
       <span className={`absolute text-sm font-semibold ${percentage === null ? "text-muted-foreground" : TONE_TEXT[tone]}`}>
-        {percentage === null ? "—" : `${Math.round(percentage)}%`}
+        {percentage === null ? "—" : `${Math.round(displayedPercentage)}%`}
       </span>
     </div>
   );
