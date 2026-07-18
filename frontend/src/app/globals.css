@@ -336,6 +336,20 @@ textarea::placeholder {
   animation: scale-out var(--motion-fast) var(--motion-ease-out) both;
 }
 
+/* Landing page university marquee: a duplicated track scrolls -50% (one
+   full copy's width) so the loop reads as continuous. Paused via Tailwind
+   classes on hover/focus-within; reduced-motion users get a static wrapped
+   row instead (see university-marquee.tsx), so this keyframe simply never
+   runs for them rather than needing its own reduced-motion override here. */
+@keyframes landing-marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
