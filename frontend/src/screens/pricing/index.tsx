@@ -7,6 +7,7 @@ import { useAuth } from "@/features/auth";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { Badge } from "@/shared/ui/badge";
 import { Card } from "@/shared/ui/card";
+import { Reveal } from "@/shared/ui/reveal";
 
 const plans: Array<{
   id: SubscriptionPlan;
@@ -96,56 +97,62 @@ export function PricingScreen() {
         aria-label={t("pricingPage.planComparison")}
         className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
       >
-        {plans.map((plan) => {
+        {plans.map((plan, index) => {
           const isCurrent = user?.subscription.tier === plan.id;
           return (
-            <Card
-              className={
-                plan.featured
-                  ? "relative flex flex-col border-primary/55 border-t-4"
-                  : "relative flex flex-col border-t-4 border-t-navy"
-              }
-              key={plan.id}
-            >
-              <div className="flex min-h-7 items-start justify-between gap-3">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                  {t(`plans.${plan.id}` as TranslationKey)}
+            <Reveal delayMs={index * 60} key={plan.id}>
+              <Card
+                className={
+                  isCurrent
+                    ? "relative flex h-full flex-col border-t-4 border-success/70 ring-1 ring-success/30"
+                    : plan.featured
+                      ? "relative flex h-full flex-col border-primary/55 border-t-4 hover:border-primary/70"
+                      : "relative flex h-full flex-col border-t-4 border-t-navy hover:border-navy/50"
+                }
+                interactive
+              >
+                <div className="flex min-h-7 items-start justify-between gap-3">
+                  <p className="text-eyebrow text-muted-foreground">
+                    {t(`plans.${plan.id}` as TranslationKey)}
+                  </p>
+                  <Badge className={isCurrent ? "border-success/35 bg-success/10 text-success" : undefined}>
+                    {isCurrent ? t("pricingPage.active") : t(plan.statusKey)}
+                  </Badge>
+                </div>
+                <p className="mt-4 font-serif text-4xl font-semibold">{t(plan.priceKey)}</p>
+                {plan.id === "free" ? (
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    {t("pricingPage.betaFree")}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    {t("pricingPage.notActiveDuringBeta")}
+                  </p>
+                )}
+                <p className="mt-5 min-h-24 text-sm leading-6 text-muted-foreground">
+                  {t(plan.summaryKey)}
                 </p>
-                <Badge>{isCurrent ? t("pricingPage.active") : t(plan.statusKey)}</Badge>
-              </div>
-              <p className="mt-4 font-serif text-4xl font-semibold">{t(plan.priceKey)}</p>
-              {plan.id === "free" ? (
-                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  {t("pricingPage.betaFree")}
-                </p>
-              ) : (
-                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  {t("pricingPage.notActiveDuringBeta")}
-                </p>
-              )}
-              <p className="mt-5 min-h-24 text-sm leading-6 text-muted-foreground">
-                {t(plan.summaryKey)}
-              </p>
-              {plan.id === "free" ? (
-                <ul className="mt-5 space-y-3 border-t pt-5">
-                  {coreFeatures.map((feature) => (
-                    <li className="flex items-start gap-2 text-sm" key={feature}>
-                      <Check aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
-                      <span>{t(feature)}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-auto border-t pt-5 text-sm font-semibold text-muted-foreground">
-                  {t("pricingPage.plansComingSoon")}
-                </p>
-              )}
-            </Card>
+                {plan.id === "free" ? (
+                  <ul className="mt-5 space-y-3 border-t pt-5">
+                    {coreFeatures.map((feature) => (
+                      <li className="flex items-start gap-2 text-sm" key={feature}>
+                        <Check aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
+                        <span>{t(feature)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-auto border-t pt-5 text-sm font-semibold text-muted-foreground">
+                    {t("pricingPage.plansComingSoon")}
+                  </p>
+                )}
+              </Card>
+            </Reveal>
           );
         })}
       </section>
 
-      <Card className="flex items-start gap-4 bg-muted/45">
+      <Card animate="fade-up" className="flex items-start gap-4 bg-muted/45">
         <ShieldCheck aria-hidden className="mt-0.5 size-5 shrink-0 text-accent" />
         <div>
           <h2 className="text-sm font-semibold">{t("pricingPage.transparentTitle")}</h2>
