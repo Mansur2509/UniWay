@@ -137,12 +137,12 @@ export function OrganizerParticipantsScreen({ slug }: { slug: string }) {
   return (
     <div className="space-y-6">
       <section className="rounded-sm border bg-card p-6 shadow-card sm:p-9">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
+        <p className="text-eyebrow text-primary-hover">
           {t("organizer.participants.eyebrow")}
         </p>
         <div className="mt-3 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
           <div>
-            <h1 className="text-3xl font-semibold sm:text-5xl">{event.title}</h1>
+            <h1 className="text-display">{event.title}</h1>
             <p className="mt-4 text-muted-foreground">
               {t("organizer.participants.count", {
                 count: totalCount

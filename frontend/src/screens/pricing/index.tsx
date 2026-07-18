@@ -61,10 +61,10 @@ export function PricingScreen() {
       <section className="grid gap-6 rounded-sm border bg-card p-6 shadow-card sm:p-9 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
           <Badge>{t("pricingPage.previewBadge")}</Badge>
-          <p className="mt-5 text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
+          <p className="mt-5 text-eyebrow text-primary-hover">
             {t("pricingPage.eyebrow")}
           </p>
-          <h1 className="mt-2 max-w-4xl text-3xl font-semibold sm:text-5xl">
+          <h1 className="text-display mt-2 max-w-4xl">
             {t("pricingPage.title")}
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">

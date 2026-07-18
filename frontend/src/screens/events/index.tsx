@@ -92,14 +92,10 @@ export function EventsScreen() {
   return (
     <div className="space-y-6">
       <section className="rounded-sm border bg-card p-6 shadow-card sm:p-9">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
-          {t("events.list.eyebrow")}
-        </p>
+        <p className="text-eyebrow text-primary-hover">{t("events.list.eyebrow")}</p>
         <div className="mt-3 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
           <div>
-            <h1 className="max-w-3xl text-3xl font-semibold sm:text-5xl">
-              {t("events.list.title")}
-            </h1>
+            <h1 className="text-display max-w-3xl">{t("events.list.title")}</h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
               {t("events.list.description")}
             </p>

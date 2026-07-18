@@ -300,10 +300,10 @@ export function RecommendationsScreen() {
       />
 
       <section className="rounded-sm border bg-card p-6 shadow-card sm:p-9">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
+        <p className="text-eyebrow text-primary-hover">
           {t("recommendations.eyebrow")}
         </p>
-        <h1 className="mt-2 max-w-3xl text-3xl font-semibold sm:text-4xl">
+        <h1 className="text-display mt-2 max-w-3xl">
           {t("recommendations.title")}
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">

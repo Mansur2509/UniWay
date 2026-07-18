@@ -179,7 +179,7 @@ export function NotificationsScreen() {
             {t("notifications.page.eyebrow")}
           </p>
         </div>
-        <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{t("notifications.page.title")}</h1>
+        <h1 className="text-display mt-2">{t("notifications.page.title")}</h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
           {t("notifications.page.description")}
         </p>

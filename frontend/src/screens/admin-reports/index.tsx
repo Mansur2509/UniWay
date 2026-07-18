@@ -96,10 +96,10 @@ export function AdminReportsScreen() {
   return (
     <div className="space-y-6">
       <section className="rounded-sm border bg-card p-6 shadow-card sm:p-9">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
+        <p className="text-eyebrow text-primary-hover">
           {t("adminReports.eyebrow")}
         </p>
-        <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{t("adminReports.title")}</h1>
+        <h1 className="text-display mt-2">{t("adminReports.title")}</h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
           {t("adminReports.description")}
         </p>

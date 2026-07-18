@@ -375,10 +375,10 @@ export function UniversityImportScreen() {
   return (
     <div className="space-y-6">
       <section className="rounded-sm border bg-card p-6 shadow-card sm:p-9">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
+        <p className="text-eyebrow text-primary-hover">
           {t("universityImport.eyebrow")}
         </p>
-        <h1 className="mt-3 text-3xl font-semibold sm:text-5xl">
+        <h1 className="text-display mt-3">
           {t("universityImport.title")}
         </h1>
         <p className="mt-4 max-w-3xl leading-7 text-muted-foreground">

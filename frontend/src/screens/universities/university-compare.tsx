@@ -194,7 +194,7 @@ export function UniversityCompareScreen({ ids }: { ids: string }) {
   return (
     <div className="space-y-6">
       <section className="rounded-sm border bg-card p-6 shadow-card sm:p-9">
-        <h1 className="text-3xl font-semibold sm:text-5xl">{t("universities.compare.title")}</h1>
+        <h1 className="text-display">{t("universities.compare.title")}</h1>
         <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
           {t("universities.compare.description")}
         </p>

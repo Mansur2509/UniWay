@@ -669,10 +669,10 @@ export function EssaysScreen() {
       <section className="rounded-sm border bg-card p-6 shadow-card sm:p-9">
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
+            <p className="text-eyebrow text-primary-hover">
               {t("essays.list.eyebrow")}
             </p>
-            <h1 className="mt-2 max-w-3xl text-3xl font-semibold sm:text-4xl">
+            <h1 className="text-display mt-2 max-w-3xl">
               {t("essays.list.title")}
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">

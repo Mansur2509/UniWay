@@ -53,7 +53,7 @@ export function ModuleScreen({
         <div className="grid lg:grid-cols-[1.4fr_0.6fr]">
           <div className="p-6 sm:p-9">
             <Badge>{status ?? t("module.preview")}</Badge>
-            <p className="mt-5 text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
+            <p className="mt-5 text-eyebrow text-primary-hover">
               {eyebrow}
             </p>
             <h1 className="mt-2 max-w-3xl text-3xl font-semibold tracking-tight sm:text-5xl">
@@ -141,7 +141,7 @@ export function BetaModuleScreen({ module }: { module: BetaModuleId }) {
         <div className="grid lg:grid-cols-[1.35fr_0.65fr]">
           <div className="p-6 sm:p-9">
             <Badge>{t(config.statusKey)}</Badge>
-            <p className="mt-5 text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
+            <p className="mt-5 text-eyebrow text-primary-hover">
               {t(config.eyebrowKey)}
             </p>
             <h1 className="mt-2 max-w-3xl text-3xl font-semibold tracking-tight sm:text-5xl">

@@ -946,10 +946,10 @@ export function OnboardingFlow({ onCompleted }: { onCompleted?: () => void }) {
         </aside>
 
         <section className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
+          <p className="text-eyebrow text-primary-hover">
             {t("onboarding.stepLabel", { number: step + 1 })}
           </p>
-          <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{stepTitle}</h1>
+          <h1 className="text-display mt-2">{stepTitle}</h1>
           <p className="mt-3 max-w-3xl leading-7 text-muted-foreground">
             {stepDescription}
           </p>

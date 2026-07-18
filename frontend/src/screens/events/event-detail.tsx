@@ -127,7 +127,7 @@ export function EventDetailScreen({ slug }: { slug: string }) {
             </span>
           ) : null}
         </div>
-        <h1 className="mt-5 max-w-4xl text-3xl font-semibold sm:text-5xl">{event.title}</h1>
+        <h1 className="text-display mt-5 max-w-4xl">{event.title}</h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
           {event.short_description}
         </p>

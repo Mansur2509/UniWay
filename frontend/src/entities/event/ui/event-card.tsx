@@ -66,7 +66,10 @@ export function EventCard({ event }: { event: EventDetails }) {
   const visual = categoryVisual(event.category.slug);
 
   return (
-    <Card className="flex h-full flex-col overflow-hidden" interactive>
+    <Card
+      className="flex h-full flex-col overflow-hidden hover:border-event/45"
+      interactive
+    >
       <div className="-mx-4 -mt-4 mb-3 h-28 shrink-0 overflow-hidden">
         {showCover ? (
           <Image

@@ -17,11 +17,13 @@ import {
   getOrganizerEventsRequest,
   submitOrganizerEventRequest
 } from "@/features/organizer-events";
+import { StatValue } from "@/entities/university";
 import { useI18n } from "@/shared/i18n";
 import { formatDateTime } from "@/shared/lib/date-time";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { DEFAULT_PAGE_SIZE, PaginationControls } from "@/shared/ui/pagination";
+import { Reveal } from "@/shared/ui/reveal";
 
 export function OrganizerEventsScreen() {
   const { locale, t } = useI18n();
@@ -118,14 +120,10 @@ export function OrganizerEventsScreen() {
   return (
     <div className="space-y-6">
       <section className="rounded-sm border bg-card p-6 shadow-card sm:p-9">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
-          {t("organizer.list.eyebrow")}
-        </p>
+        <p className="text-eyebrow text-primary-hover">{t("organizer.list.eyebrow")}</p>
         <div className="mt-3 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
           <div>
-            <h1 className="text-3xl font-semibold sm:text-5xl">
-              {t("organizer.list.title")}
-            </h1>
+            <h1 className="text-display">{t("organizer.list.title")}</h1>
             <p className="mt-4 max-w-2xl leading-7 text-muted-foreground">
               {t("organizer.list.description")}
             </p>
@@ -150,34 +148,55 @@ export function OrganizerEventsScreen() {
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              [t("organizer.statusSummary.total"), totalCount],
-              [t("organizer.statusSummary.pending"), statusCounts.pending],
-              [t("organizer.statusSummary.published"), statusCounts.published],
+            {(
               [
-                t("organizer.statusSummary.registrations"),
-                analytics?.total_registrations ?? 0
-              ],
-              [
-                t("organizer.statusSummary.checkedIn"),
-                analytics?.checked_in_count ?? 0
-              ],
-              [
-                t("organizer.statusSummary.attendanceRate"),
-                analytics?.attendance_rate === null || analytics?.attendance_rate === undefined
-                  ? t("events.value.notSet")
-                  : `${analytics.attendance_rate}%`
-              ],
-              [t("organizer.statusSummary.needsAction"), statusCounts.needsAction]
-            ].map(([label, value]) => (
-              <Card className="p-4" key={label}>
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                  {label}
-                </p>
-                <p className="mt-2 font-serif text-3xl font-semibold text-accent">
-                  {value}
-                </p>
-              </Card>
+                { label: t("organizer.statusSummary.total"), value: totalCount, suffix: undefined },
+                {
+                  label: t("organizer.statusSummary.pending"),
+                  value: statusCounts.pending,
+                  suffix: undefined
+                },
+                {
+                  label: t("organizer.statusSummary.published"),
+                  value: statusCounts.published,
+                  suffix: undefined
+                },
+                {
+                  label: t("organizer.statusSummary.registrations"),
+                  value: analytics?.total_registrations ?? 0,
+                  suffix: undefined
+                },
+                {
+                  label: t("organizer.statusSummary.checkedIn"),
+                  value: analytics?.checked_in_count ?? 0,
+                  suffix: undefined
+                },
+                {
+                  label: t("organizer.statusSummary.attendanceRate"),
+                  value:
+                    analytics?.attendance_rate === null || analytics?.attendance_rate === undefined
+                      ? t("events.value.notSet")
+                      : analytics.attendance_rate,
+                  suffix:
+                    analytics?.attendance_rate === null || analytics?.attendance_rate === undefined
+                      ? undefined
+                      : "%"
+                },
+                {
+                  label: t("organizer.statusSummary.needsAction"),
+                  value: statusCounts.needsAction,
+                  suffix: undefined
+                }
+              ] as Array<{ label: string; value: string | number; suffix?: string }>
+            ).map(({ label, value, suffix }, index) => (
+              <Reveal delayMs={index * 30} key={label}>
+                <Card className="p-4">
+                  <p className="text-eyebrow text-muted-foreground">{label}</p>
+                  <p className="text-feature-heading mt-2 text-accent">
+                    <StatValue suffix={suffix} value={value} />
+                  </p>
+                </Card>
+              </Reveal>
             ))}
           </div>
         </section>

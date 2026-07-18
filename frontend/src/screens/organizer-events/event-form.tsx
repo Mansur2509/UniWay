@@ -317,12 +317,12 @@ export function OrganizerEventFormScreen({ slug }: { slug?: string }) {
     <div className="space-y-6">
       <section className="rounded-sm border bg-card p-6 shadow-card sm:p-9">
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
+          <p className="text-eyebrow text-primary-hover">
             {event ? t("organizer.form.editEyebrow") : t("organizer.form.newEyebrow")}
           </p>
           {event ? <ModerationStatusBadge status={event.status} /> : null}
         </div>
-        <h1 className="mt-3 text-3xl font-semibold sm:text-5xl">
+        <h1 className="text-display mt-3">
           {event ? t("organizer.form.editTitle") : t("organizer.form.newTitle")}
         </h1>
         <p className="mt-4 max-w-3xl leading-7 text-muted-foreground">

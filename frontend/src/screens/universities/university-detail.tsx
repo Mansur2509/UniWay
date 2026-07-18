@@ -570,7 +570,7 @@ export function UniversityDetailScreen({ slug }: { slug: string }) {
             </span>
           ) : null}
         </div>
-        <h1 className="mt-5 max-w-4xl text-3xl font-semibold sm:text-5xl">{university.name}</h1>
+        <h1 className="text-display mt-5 max-w-4xl">{university.name}</h1>
         <p className="mt-3 text-sm text-muted-foreground">
           {[university.city, university.country].filter(Boolean).join(", ")}
         </p>

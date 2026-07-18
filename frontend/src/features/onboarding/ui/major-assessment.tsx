@@ -108,12 +108,12 @@ export function MajorAssessment({
       </header>
 
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
+        <p className="text-eyebrow text-primary-hover">
           {result
             ? t("onboarding.recommendation.results")
             : t("admissions.assessment.progress", { current: section })}
         </p>
-        <h1 className="mt-2 text-3xl font-semibold sm:text-5xl">
+        <h1 className="text-display mt-2">
           {t("admissions.assessment.title")}
         </h1>
         <p className="mt-4 max-w-3xl leading-7 text-muted-foreground">

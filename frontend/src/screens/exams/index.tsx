@@ -387,12 +387,12 @@ export function ExamsScreen() {
   return (
     <div className="space-y-5">
       <section className="rounded-sm border bg-card p-6 shadow-card sm:p-8">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
+        <p className="text-eyebrow text-primary-hover">
           {t("exams.eyebrow")}
         </p>
         <div className="mt-3 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
           <div>
-            <h1 className="max-w-3xl text-3xl font-semibold sm:text-4xl">
+            <h1 className="text-display max-w-3xl">
               {t("exams.title")}
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
