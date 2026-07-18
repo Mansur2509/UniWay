@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import { Inter, Source_Serif_4 } from "next/font/google";
 import type { ReactNode } from "react";
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
             </AuthProvider>
           </I18nProvider>
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );
