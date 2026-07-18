@@ -440,7 +440,7 @@ export const uzCyrl = {
   "universities.filters.institutionType": "Муассаса тури",
   "universities.filters.all": "Барчаси",
   "universities.filters.scholarshipAvailable": "Стипендия мавжуд",
-  "universities.filters.scholarshipCount": "Ушбу саҳифада {count} та университет стипендия таклиф қилади",
+  "universities.filters.scholarshipCount": "Ушбу саҳифада {{count}} та университет стипендия таклиф қилади",
   "universities.filters.costStatus": "Бюджет билан солиштириш",
   "universities.filters.costStatusAny": "Барчаси (бюджет шарт эмас)",
   "universities.filters.costConfidence": "Харажат маълумоти ишончи",

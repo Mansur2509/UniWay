@@ -558,7 +558,7 @@ export const en = {
   "universities.filters.institutionType": "Institution type",
   "universities.filters.all": "All",
   "universities.filters.scholarshipAvailable": "Scholarship available",
-  "universities.filters.scholarshipCount": "{count} on this page offer scholarships",
+  "universities.filters.scholarshipCount": "{{count}} on this page offer scholarships",
   "universities.filters.costStatus": "Budget comparison",
   "universities.filters.costStatusAny": "All (budget optional)",
   "universities.filters.costConfidence": "Cost data confidence",

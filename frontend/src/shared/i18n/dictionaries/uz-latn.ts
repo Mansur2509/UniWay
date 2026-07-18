@@ -440,7 +440,7 @@ export const uzLatn = {
   "universities.filters.institutionType": "Muassasa turi",
   "universities.filters.all": "Barchasi",
   "universities.filters.scholarshipAvailable": "Stipendiya mavjud",
-  "universities.filters.scholarshipCount": "Ushbu sahifada {count} ta universitet stipendiya taklif qiladi",
+  "universities.filters.scholarshipCount": "Ushbu sahifada {{count}} ta universitet stipendiya taklif qiladi",
   "universities.filters.costStatus": "Byudjet bilan solishtirish",
   "universities.filters.costStatusAny": "Barchasi (byudjet shart emas)",
   "universities.filters.costConfidence": "Xarajat ma'lumoti ishonchi",
