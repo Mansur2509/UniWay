@@ -617,8 +617,12 @@ export function DashboardScreen() {
 
   return (
     <div className="space-y-3">
-      <section className="overflow-hidden rounded-sm border bg-card shadow-card">
-        <div className="grid lg:grid-cols-[1.35fr_0.65fr]">
+      <section className="relative overflow-hidden rounded-sm border bg-card shadow-card">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/8 via-transparent to-accent/8"
+        />
+        <div className="relative grid lg:grid-cols-[1.35fr_0.65fr]">
           <div className="p-4 sm:p-5">
             <Badge>{t("dashboard.betaBadge")}</Badge>
             <p className="text-eyebrow mt-3 text-primary-hover">{t("dashboard.eyebrow")}</p>
@@ -640,7 +644,7 @@ export function DashboardScreen() {
               </Button>
             </div>
           </div>
-          <div className="border-t bg-surface p-4 lg:border-l lg:border-t-0 lg:p-5">
+          <div className="border-t bg-surface/70 p-4 backdrop-blur-sm lg:border-l lg:border-t-0 lg:p-5">
             <p className="text-eyebrow text-muted-foreground">{t("dashboard.nextAction.label")}</p>
             <h2 className="mt-1.5 text-lg font-semibold">
               {nextWorkflowStep ? t(nextWorkflowStep.titleKey) : t("dashboard.nextAction.roadmap")}
@@ -664,21 +668,16 @@ export function DashboardScreen() {
                     <Link className="font-semibold hover:text-primary-hover" href={step.href}>
                       {index + 1}. {t(step.titleKey)}
                     </Link>
-                    <span
-                      className={`shrink-0 rounded-sm border px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-wide ${
-                        step.isDone
-                          ? "border-success/35 bg-success/10 text-success"
-                          : isNext
-                            ? "border-accent/35 bg-accent/10 text-accent"
-                            : "border-muted-foreground/25 bg-surface text-muted-foreground"
-                      }`}
+                    <Badge
+                      className="shrink-0 px-1.5 py-0.5 text-[0.62rem]"
+                      tone={step.isDone ? "success" : isNext ? "accent" : "muted"}
                     >
                       {step.isDone
                         ? t("dashboard.workflow.status.done")
                         : isNext
                           ? t("dashboard.workflow.status.next")
                           : t("dashboard.workflow.status.open")}
-                    </span>
+                    </Badge>
                   </li>
                 );
               })}
@@ -742,7 +741,14 @@ export function DashboardScreen() {
       ) : null}
 
       <section className="grid gap-4 xl:grid-cols-[0.75fr_1.25fr]">
-        <Card className="p-4">
+        <Card className="relative overflow-hidden p-4" interactive>
+          <span
+            aria-hidden
+            className={cn(
+              "absolute inset-x-0 top-0 h-1",
+              completionPercentage >= 100 ? "bg-success" : "bg-accent"
+            )}
+          />
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-eyebrow text-primary-hover">
@@ -811,7 +817,8 @@ export function DashboardScreen() {
           </Button>
         </Card>
 
-        <Card className="p-4">
+        <Card className="relative overflow-hidden p-4" interactive>
+          <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-info" />
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-eyebrow text-primary-hover">
