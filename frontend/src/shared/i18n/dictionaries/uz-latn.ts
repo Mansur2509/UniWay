@@ -2,11 +2,13 @@ import type { TranslationDictionary } from "../types";
 import { betaPreviewUzLatn } from "./beta-preview.uz-latn";
 import { admissionsV1UzLatn } from "./admissions-v1.uz-latn";
 import { onboardingUzLatn } from "./onboarding.uz-latn";
+import { landingUzLatn } from "./landing.uz-latn";
 
 export const uzLatn = {
   ...betaPreviewUzLatn,
   ...admissionsV1UzLatn,
   ...onboardingUzLatn,
+  ...landingUzLatn,
   "navigation.dashboard": "Boshqaruv paneli",
   "navigation.eventMap": "Tadbirlar xaritasi",
   "navigation.universities": "Universitetlar",

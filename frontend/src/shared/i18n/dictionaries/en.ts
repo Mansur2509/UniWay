@@ -1,11 +1,13 @@
 import { betaPreviewEn } from "./beta-preview.en";
 import { admissionsV1En } from "./admissions-v1.en";
 import { onboardingEn } from "./onboarding.en";
+import { landingEn } from "./landing.en";
 
 export const en = {
   ...betaPreviewEn,
   ...admissionsV1En,
   ...onboardingEn,
+  ...landingEn,
   "navigation.dashboard": "Dashboard",
   "navigation.eventMap": "Event Map",
   "navigation.universities": "Universities",

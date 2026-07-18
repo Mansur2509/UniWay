@@ -2,11 +2,13 @@ import type { TranslationDictionary } from "../types";
 import { betaPreviewRu } from "./beta-preview.ru";
 import { admissionsV1Ru } from "./admissions-v1.ru";
 import { onboardingRu } from "./onboarding.ru";
+import { landingRu } from "./landing.ru";
 
 export const ru = {
   ...betaPreviewRu,
   ...admissionsV1Ru,
   ...onboardingRu,
+  ...landingRu,
   "navigation.dashboard": "Панель",
   "navigation.eventMap": "Карта событий",
   "navigation.universities": "Университеты",

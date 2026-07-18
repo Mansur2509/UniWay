@@ -7,10 +7,22 @@ const frontendRoot = path.resolve(scriptDirectory, "..");
 const sourceRoot = path.join(frontendRoot, "src");
 const dictionaryDirectory = path.join(sourceRoot, "shared", "i18n", "dictionaries");
 const dictionaryFiles = {
-  en: ["en.ts", "beta-preview.en.ts", "onboarding.en.ts", "admissions-v1.en.ts"],
-  ru: ["ru.ts", "beta-preview.ru.ts", "onboarding.ru.ts", "admissions-v1.en.ts"],
-  "uz-Latn": ["uz-latn.ts", "beta-preview.uz-latn.ts", "onboarding.en.ts", "admissions-v1.en.ts"],
-  "uz-Cyrl": ["uz-cyrl.ts", "beta-preview.uz-cyrl.ts", "onboarding.en.ts", "admissions-v1.en.ts"]
+  en: ["en.ts", "beta-preview.en.ts", "onboarding.en.ts", "admissions-v1.en.ts", "landing.en.ts"],
+  ru: ["ru.ts", "beta-preview.ru.ts", "onboarding.ru.ts", "admissions-v1.en.ts", "landing.ru.ts"],
+  "uz-Latn": [
+    "uz-latn.ts",
+    "beta-preview.uz-latn.ts",
+    "onboarding.en.ts",
+    "admissions-v1.en.ts",
+    "landing.uz-latn.ts"
+  ],
+  "uz-Cyrl": [
+    "uz-cyrl.ts",
+    "beta-preview.uz-cyrl.ts",
+    "onboarding.en.ts",
+    "admissions-v1.en.ts",
+    "landing.uz-cyrl.ts"
+  ]
 };
 
 function readKeys(filenames) {

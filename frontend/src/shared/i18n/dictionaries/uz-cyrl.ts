@@ -2,11 +2,13 @@ import type { TranslationDictionary } from "../types";
 import { betaPreviewUzCyrl } from "./beta-preview.uz-cyrl";
 import { admissionsV1UzCyrl } from "./admissions-v1.uz-cyrl";
 import { onboardingUzCyrl } from "./onboarding.uz-cyrl";
+import { landingUzCyrl } from "./landing.uz-cyrl";
 
 export const uzCyrl = {
   ...betaPreviewUzCyrl,
   ...admissionsV1UzCyrl,
   ...onboardingUzCyrl,
+  ...landingUzCyrl,
   "navigation.dashboard": "Бошқарув панели",
   "navigation.eventMap": "Тадбирлар харитаси",
   "navigation.universities": "Университетлар",
