@@ -3,7 +3,9 @@
 import {
   AlertTriangle,
   CheckCircle2,
+  CircleAlert,
   ExternalLink,
+  FilePenLine,
   HelpCircle,
   ListChecks,
   Plus,
@@ -58,10 +60,13 @@ import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { CollapsibleFilterPanel } from "@/shared/ui/collapsible-filter-panel";
 import { CollapsiblePanel } from "@/shared/ui/collapsible-panel";
+import { EmptyState } from "@/shared/ui/empty-state";
 import { fieldClassName } from "@/shared/ui/field";
 import { HelpTooltip } from "@/shared/ui/help-tooltip";
+import { AppIcon } from "@/shared/ui/icon";
 import { LoadingNotice } from "@/shared/ui/loading-notice";
 import { PaginationControls } from "@/shared/ui/pagination";
+import { Reveal } from "@/shared/ui/reveal";
 import { UnsavedChangesDialog } from "@/shared/ui/unsaved-changes-dialog";
 
 const ESSAYS_PAGE_SIZE = 5;
@@ -71,6 +76,12 @@ function scoreCardStorageKey(essayId: number) {
 }
 
 type Translate = ReturnType<typeof useI18n>["t"];
+
+function scoreToneClasses(score: number) {
+  if (score >= 75) return "border-success/40 bg-success/10 text-success";
+  if (score >= 50) return "border-warning/40 bg-warning/10 text-warning";
+  return "border-danger/40 bg-danger/10 text-danger";
+}
 
 function groupEssays(essays: EssayWorkspace[], t: Translate) {
   const groups = new Map<string, { key: string; label: string; items: EssayWorkspace[] }>();
@@ -654,7 +665,8 @@ export function EssaysScreen() {
   if (hasError) {
     return (
       <Card>
-        <p className="text-sm text-danger" role="alert">
+        <p className="flex items-center gap-2 text-sm text-danger" role="alert">
+          <AppIcon icon={CircleAlert} />
           {t("essays.states.loadError")}
         </p>
         <Button className="mt-4" onClick={() => void loadEssays()} type="button">
@@ -706,8 +718,9 @@ export function EssaysScreen() {
       </section>
 
       {essaySuggestionNotice ? (
-        <Card className="border-success/30 bg-success/10">
-          <p className="text-sm text-success">
+        <Card animate="fade-up" className="border-success/30 bg-success/10">
+          <p className="flex items-center gap-2 text-sm text-success" role="status">
+            <AppIcon icon={CheckCircle2} />
             {t("essays.suggestionGeneration.notice", {
               created: essaySuggestionNotice.created,
               existing: essaySuggestionNotice.existing
@@ -717,8 +730,9 @@ export function EssaysScreen() {
       ) : null}
 
       {actionError ? (
-        <Card className="border-danger/35 bg-danger/10">
-          <p className="text-sm text-danger" role="alert">
+        <Card animate="fade-up" className="border-danger/35 bg-danger/10">
+          <p className="flex items-center gap-2 text-sm text-danger" role="alert">
+            <AppIcon icon={CircleAlert} />
             {t("essays.states.actionError")}
           </p>
         </Card>
@@ -726,7 +740,10 @@ export function EssaysScreen() {
 
       {essays.length > 0 && essays.every((essay) => essay.prompt_verification_status !== "verified") ? (
         <Card className="border-warning/35 bg-warning/10">
-          <p className="text-sm text-warning">{t("essays.states.noVerifiedPrompts")}</p>
+          <p className="flex items-center gap-2 text-sm text-warning">
+            <AppIcon icon={AlertTriangle} />
+            {t("essays.states.noVerifiedPrompts")}
+          </p>
         </Card>
       ) : null}
 
@@ -856,17 +873,17 @@ export function EssaysScreen() {
       </CollapsibleFilterPanel>
 
       {essays.length === 0 ? (
-        <Card>
-          <p className="text-sm text-muted-foreground">
-            {shortlist.length === 0
+        <EmptyState
+          description={
+            shortlist.length === 0
               ? t("essays.states.noApplicationsYet")
-              : t("essays.states.readyToGenerate")}
-          </p>
-        </Card>
+              : t("essays.states.readyToGenerate")
+          }
+          icon={FilePenLine}
+          title={t("essays.list.title")}
+        />
       ) : filteredEssays.length === 0 ? (
-        <Card>
-          <p className="text-sm text-muted-foreground">{t("essays.states.emptyFilter")}</p>
-        </Card>
+        <EmptyState description={t("essays.states.emptyFilter")} icon={FilePenLine} title={t("essays.list.title")} />
       ) : (
         <div className="grid gap-5 lg:grid-cols-[20rem_1fr]">
           <div className="space-y-4">
@@ -885,15 +902,16 @@ export function EssaysScreen() {
                   {group.label}
                 </h2>
                 <div className="space-y-3">
-                  {group.items.map((essay) => (
-                    <EssayCard
-                      essay={essay}
-                      isSelected={essay.id === selectedEssayId}
-                      key={essay.id}
-                      onSelect={(item) =>
-                        draftGuard.requestLeave(() => setSelectedEssayId(item.id))
-                      }
-                    />
+                  {group.items.map((essay, index) => (
+                    <Reveal delayMs={Math.min(index, 8) * 40} key={essay.id}>
+                      <EssayCard
+                        essay={essay}
+                        isSelected={essay.id === selectedEssayId}
+                        onSelect={(item) =>
+                          draftGuard.requestLeave(() => setSelectedEssayId(item.id))
+                        }
+                      />
+                    </Reveal>
                   ))}
                 </div>
               </section>
@@ -912,9 +930,7 @@ export function EssaysScreen() {
 
           <div>
             {!selectedEssay ? (
-              <Card>
-                <p className="text-sm text-muted-foreground">{t("essays.states.selectEssay")}</p>
-              </Card>
+              <EmptyState description={t("essays.states.selectEssay")} icon={FilePenLine} title={t("essays.list.title")} />
             ) : (
               <div className="space-y-4">
                 <Card className="p-5">
@@ -1127,7 +1143,7 @@ export function EssaysScreen() {
                 </Card>
 
                 {selectedEssay.latest_feedback ? (
-                  <Card className="bg-elevated/45 p-5">
+                  <Card className="border-l-2 border-l-muted-foreground/40 bg-elevated/45 p-5">
                     <h3 className="text-sm font-semibold text-muted-foreground">
                       {t("essays.feedback.title")}
                     </h3>
@@ -1216,13 +1232,15 @@ export function EssaysScreen() {
                 ) : null}
 
                 <CollapsiblePanel
-                  className="bg-elevated/45"
+                  className="border-l-2 border-l-recommendation/50 bg-elevated/45"
                   header={
                     !latestScore ? (
                       t("essays.score.notReviewedYet")
                     ) : (
                       <span className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-sm border bg-card px-2 py-0.5 font-semibold">
+                        <span
+                          className={`rounded-sm border px-2 py-0.5 font-semibold ${scoreToneClasses(latestScore.overall_essay_readiness)}`}
+                        >
                           {t("essays.score.overall", { score: latestScore.overall_essay_readiness })}
                         </span>
                         {scoreRequestFailureCode ||
@@ -1259,7 +1277,9 @@ export function EssaysScreen() {
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-sm border px-3 py-1 text-sm font-semibold">
+                        <span
+                          className={`rounded-sm border px-3 py-1 text-sm font-semibold ${scoreToneClasses(latestScore.overall_essay_readiness)}`}
+                        >
                           {t("essays.score.overall", {
                             score: latestScore.overall_essay_readiness
                           })}
@@ -1466,7 +1486,7 @@ export function EssaysScreen() {
                   )}
                 </CollapsiblePanel>
 
-                <Card className="p-5">
+                <Card className="border-l-2 border-l-accent/50 p-5">
                   <h3 className="text-lg font-semibold">{t("essays.revision.title")}</h3>
                   {selectedEssay.revision_tasks.length === 0 ? (
                     <p className="mt-2 text-sm text-muted-foreground">
@@ -1474,10 +1494,10 @@ export function EssaysScreen() {
                     </p>
                   ) : (
                     <ul className="mt-3 space-y-2">
-                      {selectedEssay.revision_tasks.map((task) => (
+                      {selectedEssay.revision_tasks.map((task, index) => (
+                        <Reveal delayMs={Math.min(index, 6) * 30} key={task.id}>
                         <li
                           className="flex flex-wrap items-start justify-between gap-3 rounded-sm border bg-surface p-3 text-sm"
-                          key={task.id}
                         >
                           <div>
                             <span className="rounded-sm border bg-elevated px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1514,6 +1534,7 @@ export function EssaysScreen() {
                             </span>
                           )}
                         </li>
+                        </Reveal>
                       ))}
                     </ul>
                   )}

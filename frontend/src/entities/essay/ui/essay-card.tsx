@@ -46,7 +46,8 @@ export function EssayCard({
 
   return (
     <Card
-      className={`flex flex-col gap-2 p-4 ${isSelected ? "border-primary/60" : ""}`}
+      className={`flex flex-col gap-2 p-4 hover:border-recommendation/45 ${isSelected ? "border-primary/60" : ""}`}
+      interactive
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-sm border bg-surface px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
