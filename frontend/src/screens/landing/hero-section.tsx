@@ -11,6 +11,7 @@ import { ParallaxLayer } from "@/shared/ui/parallax-layer";
 import { TiltCard } from "@/shared/ui/tilt-card";
 
 import { MockupFrame } from "./mockup-frame";
+import { UNIVERSITY_COUNT_DISPLAY } from "./site-stats";
 
 export function HeroSection() {
   const { t } = useI18n();
@@ -32,7 +33,7 @@ export function HeroSection() {
           </div>
           <div className="mt-10 flex items-center gap-2 text-sm font-semibold text-white/70">
             <Sparkles aria-hidden className="size-4 text-accent" />
-            <CountUp className="text-white" durationMs={1200} suffix="+" target={450} />
+            <CountUp className="text-white" durationMs={1200} suffix="+" target={UNIVERSITY_COUNT_DISPLAY} />
             <span>{t("landing.trust.universitiesSuffix")}</span>
           </div>
         </MotionReveal>

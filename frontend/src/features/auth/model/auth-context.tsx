@@ -22,6 +22,7 @@ import {
   subscribeToAuthInvalid
 } from "@/shared/lib/auth-storage";
 import { invalidateCacheByPrefix } from "@/shared/lib/request-cache";
+import { clearSessionHint, setSessionHint } from "@/shared/lib/session-hint";
 
 import {
   getCurrentUserRequest,
@@ -62,15 +63,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const currentUser = await getCurrentUserRequest();
       setUser(currentUser);
       setStatus("authenticated");
+      setSessionHint();
       return currentUser;
     } catch (error) {
       if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
         authStorage.clear();
+        clearSessionHint();
         setUser(null);
         setStatus("unauthenticated");
         return null;
       }
 
+      // Backend unreachable: we genuinely don't know whether this visitor is
+      // authenticated, so the session hint (if any) is left untouched --
+      // clearing it here would incorrectly present a returning user as
+      // logged out just because the network failed.
       setStatus("offline");
       return null;
     }
@@ -83,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     function handleInvalidAuth() {
       authStorage.clear();
+      clearSessionHint();
       setUser(null);
       setStatus("unauthenticated");
     }
@@ -100,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     invalidateCacheByPrefix("profile:");
     setUser(response.user);
     setStatus("authenticated");
+    setSessionHint();
     return response.user;
   }, []);
 
@@ -111,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     invalidateCacheByPrefix("profile:");
     setUser(response.user);
     setStatus("authenticated");
+    setSessionHint();
     return response.user;
   }, []);
 
@@ -121,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Local logout still completes if the API is unavailable.
     } finally {
       authStorage.clear();
+      clearSessionHint();
       invalidateCacheByPrefix("profile:");
       setUser(null);
       setStatus("unauthenticated");

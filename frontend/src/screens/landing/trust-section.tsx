@@ -7,6 +7,8 @@ import { Card } from "@/shared/ui/card";
 import { CountUp } from "@/shared/ui/count-up";
 import { MotionReveal } from "@/shared/ui/motion-reveal";
 
+import { UNIVERSITY_COUNT_DISPLAY } from "./site-stats";
+
 export function TrustSection() {
   const { t } = useI18n();
 
@@ -19,7 +21,7 @@ export function TrustSection() {
         <MotionReveal delayMs={0}>
           <Card className="flex h-full flex-col justify-center gap-1 text-center sm:text-left">
             <p className="text-3xl font-serif font-semibold">
-              <CountUp suffix="+" target={450} />
+              <CountUp suffix="+" target={UNIVERSITY_COUNT_DISPLAY} />
             </p>
             <p className="text-sm text-muted-foreground">{t("landing.trust.universitiesSuffix")}</p>
           </Card>

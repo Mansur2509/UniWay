@@ -2,13 +2,14 @@
 
 import { RefreshCw } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useState } from "react";
 
 import { useAuth } from "@/features/auth";
 import { OnboardingFlow } from "@/features/onboarding";
 import { getProfileCompletionRequest } from "@/features/profile";
 import { useI18n } from "@/shared/i18n";
 import { notifyAuthInvalid } from "@/shared/lib/auth-storage";
+import { hasSessionHint } from "@/shared/lib/session-hint";
 import { useSlowLoad } from "@/shared/lib/use-slow-load";
 import { BrandMark } from "@/shared/ui/brand-mark";
 import { Button } from "@/shared/ui/button";
@@ -104,6 +105,23 @@ export function AppGate({ children }: { children: ReactNode }) {
   const [onboardingStatus, setOnboardingStatus] =
     useState<OnboardingGateStatus>("checking");
   const isAuthRoute = AUTH_ROUTE_PATHS.has(pathname);
+  // Matches the server-rendered assumption of "no hint" so hydration never
+  // mismatches for the static-generated SSR HTML; corrected via
+  // useLayoutEffect immediately after mount. This decouples the flash
+  // duration from the session-check network round trip entirely (which
+  // could previously run for seconds on a slow/cold backend) and bounds it
+  // to local hydration time instead -- measured at ~150-600ms against a
+  // production build regardless of how slow the /me check is. A hard/fresh
+  // page load can still paint one SSR frame of landing content before that
+  // correction lands, because the server doesn't know about this cookie.
+  // Closing that last gap would mean the root layout reading it via
+  // next/headers, which forces the entire app out of static rendering (every
+  // route, not just "/") -- not taken here; see the Stage 1 QA report.
+  const [sessionHintPresent, setSessionHintPresent] = useState(false);
+
+  useLayoutEffect(() => {
+    setSessionHintPresent(hasSessionHint());
+  }, []);
 
   const checkOnboarding = useCallback(async () => {
     setOnboardingStatus("checking");
@@ -151,11 +169,20 @@ export function AppGate({ children }: { children: ReactNode }) {
   // session-check status, so logged-out visitors, crawlers, and the SSR
   // pass never see a spinner before real content -- the landing page has no
   // backend dependency at all, so a slow session check or an unreachable
-  // backend (status "checking"/"unauthenticated"/"offline") must never
-  // block it. Only a confirmed "authenticated" session falls through past
-  // this guard, into the same onboarding-aware redirect-to-dashboard
-  // handling used below for /login, /register, /onboarding.
-  if (pathname === "/" && status !== "authenticated") {
+  // backend must never block it for the anonymous majority. The one
+  // exception is a browser carrying a session hint (set on a previous
+  // successful login/refresh, cleared on logout/401): for that narrow,
+  // already-probably-authenticated population, "checking"/"offline" fall
+  // through to the same neutral status screens used everywhere else in the
+  // app instead of flashing the public landing page. A confirmed
+  // "authenticated" session always falls through, into the same
+  // onboarding-aware redirect-to-dashboard handling used below for /login,
+  // /register, /onboarding.
+  const showLandingAtRoot =
+    pathname === "/" &&
+    status !== "authenticated" &&
+    !(sessionHintPresent && (status === "checking" || status === "offline"));
+  if (showLandingAtRoot) {
     return <>{children}</>;
   }
 

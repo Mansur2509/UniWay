@@ -13,28 +13,29 @@ type CountUpProps = {
   className?: string;
 };
 
-// A stat number stuck at 0 forever reads as a false/broken claim, which is
-// worse than an invisible element -- if the viewport observer hasn't
-// reported this element as visible within this window, count up anyway.
-const FORCE_REVEAL_AFTER_MS = 1500;
-
 /**
- * Animates a truthful, already-known number from 0 up to `target` the first
- * time it enters the viewport. Wraps the existing useCountUp hook (which
- * only animates when its target argument changes) rather than duplicating
- * its easing/reduced-motion logic.
+ * Displays a truthful, already-known number, with a purely decorative 0 ->
+ * target count-up the first time it scrolls into view. The initial/SSR
+ * value is always `target` itself -- never 0 -- so no-JS clients, crawlers,
+ * and the pre-hydration paint always show the correct number; the animation
+ * is layered on top afterwards, not a precondition for correctness. Wraps
+ * the existing useCountUp hook (which only animates when its target
+ * argument changes) rather than duplicating its easing/reduced-motion logic.
  */
 export function CountUp({ target, durationMs = 900, prefix = "", suffix = "", className }: CountUpProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-80px 0px" });
-  const [activeTarget, setActiveTarget] = useState(0);
+  const [activeTarget, setActiveTarget] = useState(target);
+  const hasRevealedRef = useRef(false);
 
   useEffect(() => {
-    if (isInView) {
-      setActiveTarget(target);
-      return;
-    }
-    const timer = setTimeout(() => setActiveTarget(target), FORCE_REVEAL_AFTER_MS);
+    if (!isInView || hasRevealedRef.current) return;
+    hasRevealedRef.current = true;
+    // Dip to 0 only once, right before the reveal-triggered count-up --
+    // this happens after hydration, as a deliberate animation moment, never
+    // as the page's first-paint content.
+    setActiveTarget(0);
+    const timer = setTimeout(() => setActiveTarget(target), 16);
     return () => clearTimeout(timer);
   }, [isInView, target]);
 
