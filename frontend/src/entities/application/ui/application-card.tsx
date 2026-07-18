@@ -8,6 +8,25 @@ import { formatDate } from "@/shared/lib/date-time";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 
+// Mirrors urgencyForDeadline in screens/applications/index.tsx -- kept as a
+// small self-contained calc here (rather than a shared import) since this
+// card only needs a highlight for near-term deadlines, not the full
+// urgency-filter matching logic. Only returns a badge for overdue/critical/
+// urgent/soon -- anything further out stays unbadged to keep the card calm.
+function urgencyBadge(deadline: string | null): { label: string; classes: string } | null {
+  if (!deadline) return null;
+  const parsed = new Date(`${deadline}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((parsed.getTime() - today.getTime()) / 86_400_000);
+  if (days < 0) return { label: "overdue", classes: "border-danger/45 bg-danger/10 text-danger" };
+  if (days <= 7) return { label: "critical", classes: "border-danger/45 bg-danger/10 text-danger" };
+  if (days <= 14) return { label: "urgent", classes: "border-warning/45 bg-warning/10 text-warning" };
+  if (days <= 30) return { label: "soon", classes: "border-deadline/45 bg-deadline/10 text-deadline" };
+  return null;
+}
+
 const PRIORITY_STYLES: Record<string, string> = {
   low: "border-muted-foreground/30 bg-surface text-muted-foreground",
   medium: "border-accent/35 bg-accent/10 text-accent",
@@ -52,9 +71,13 @@ export function ApplicationCard({
     application.official_deadline.status === "verified"
       ? application.official_deadline.date
       : application.personal_estimated_deadline || application.deadline;
+  const urgency = urgencyBadge(deadline);
 
   return (
-    <Card className={`flex min-w-0 flex-col gap-2 p-4 ${isSelected ? "border-primary/60" : ""}`}>
+    <Card
+      className={`flex min-w-0 flex-col gap-2 p-4 hover:border-application/45 ${isSelected ? "border-primary/60" : ""}`}
+      interactive
+    >
       <div className="flex flex-wrap items-center gap-2">
         <span
           className={`rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${PRIORITY_STYLES[application.priority]}`}
@@ -76,8 +99,15 @@ export function ApplicationCard({
         {application.university_name}
       </h3>
       {deadline ? (
-        <p className="text-xs text-muted-foreground">
+        <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           {t("applications.card.deadline", { date: formatDate(deadline, locale) })}
+          {urgency ? (
+            <span
+              className={`rounded-sm border px-1.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide ${urgency.classes}`}
+            >
+              {t(`applications.urgency.${urgency.label}` as TranslationKey)}
+            </span>
+          ) : null}
         </p>
       ) : (
         <p className="text-xs italic text-muted-foreground">

@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardList, ExternalLink, Plus, Route, Target } from "lucide-react";
+import { CircleAlert, ClipboardList, ExternalLink, ListChecks, Plus, Route, Target } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -48,10 +48,13 @@ import { useUnsavedChangesGuard } from "@/shared/lib/use-unsaved-changes-guard";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { CollapsibleFilterPanel } from "@/shared/ui/collapsible-filter-panel";
+import { EmptyState } from "@/shared/ui/empty-state";
 import { fieldClassName } from "@/shared/ui/field";
 import { HelpTooltip } from "@/shared/ui/help-tooltip";
+import { AppIcon } from "@/shared/ui/icon";
 import { LoadingNotice } from "@/shared/ui/loading-notice";
 import { PaginationControls } from "@/shared/ui/pagination";
+import { Reveal } from "@/shared/ui/reveal";
 import { SectionTabs } from "@/shared/ui/section-tabs";
 import { UnsavedChangesDialog } from "@/shared/ui/unsaved-changes-dialog";
 
@@ -451,7 +454,8 @@ export function ApplicationsScreen() {
   if (hasError) {
     return (
       <Card>
-        <p className="text-sm text-danger" role="alert">
+        <p className="flex items-center gap-2 text-sm text-danger" role="alert">
+          <AppIcon icon={CircleAlert} />
           {t("applications.states.loadError")}
         </p>
         <Button className="mt-4" onClick={() => void loadApplications()} type="button">
@@ -497,8 +501,9 @@ export function ApplicationsScreen() {
       </section>
 
       {actionError ? (
-        <Card className="border-danger/35 bg-danger/10">
-          <p className="text-sm text-danger" role="alert">
+        <Card animate="fade-up" className="border-danger/35 bg-danger/10">
+          <p className="flex items-center gap-2 text-sm text-danger" role="alert">
+            <AppIcon icon={CircleAlert} />
             {t("applications.states.actionError")}
           </p>
         </Card>
@@ -530,21 +535,21 @@ export function ApplicationsScreen() {
       />
 
       {applications.length === 0 ? (
-        <Card>
-          <p className="text-sm font-semibold">{t("applications.states.emptyTitle")}</p>
-          <p className="mt-2 text-sm text-muted-foreground">{t("applications.states.empty")}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {t("applications.states.emptyAction")}
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button asChild size="sm" variant="secondary">
-              <Link href="/recommendations">{t("navigation.recommendations")}</Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/universities">{t("navigation.universities")}</Link>
-            </Button>
-          </div>
-        </Card>
+        <EmptyState
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button asChild size="sm" variant="secondary">
+                <Link href="/recommendations">{t("navigation.recommendations")}</Link>
+              </Button>
+              <Button asChild size="sm" variant="ghost">
+                <Link href="/universities">{t("navigation.universities")}</Link>
+              </Button>
+            </div>
+          }
+          description={`${t("applications.states.empty")} ${t("applications.states.emptyAction")}`}
+          icon={ClipboardList}
+          title={t("applications.states.emptyTitle")}
+        />
       ) : (
         <div className="space-y-4">
           <CollapsibleFilterPanel
@@ -668,15 +673,16 @@ export function ApplicationsScreen() {
                   {(column === "decisions"
                     ? DECISION_STATUSES.flatMap((status) => columns.get(status) ?? [])
                     : columns.get(column) ?? []
-                  ).map((application) => (
-                    <ApplicationCard
-                      application={application}
-                      isSelected={application.id === selectedId}
-                      key={application.id}
-                      onSelect={(item) =>
-                        notesGuard.requestLeave(() => setSelectedId(item.id))
-                      }
-                    />
+                  ).map((application, index) => (
+                    <Reveal delayMs={Math.min(index, 6) * 30} key={application.id}>
+                      <ApplicationCard
+                        application={application}
+                        isSelected={application.id === selectedId}
+                        onSelect={(item) =>
+                          notesGuard.requestLeave(() => setSelectedId(item.id))
+                        }
+                      />
+                    </Reveal>
                   ))}
                 </div>
               </div>
@@ -984,15 +990,18 @@ export function ApplicationsScreen() {
               <HelpTooltip label={t("applications.milestones.help")} />
             </div>
             {selected.milestones.length === 0 ? (
-              <p className="mt-2 text-sm text-muted-foreground">
-                {t("applications.milestones.empty")}
-              </p>
+              <EmptyState
+                className="mt-2 shadow-none"
+                description={t("applications.milestones.empty")}
+                icon={ListChecks}
+                title={t("applications.milestones.title")}
+              />
             ) : (
               <ul className="mt-2 space-y-2">
-                {selected.milestones.map((milestone) => (
+                {selected.milestones.map((milestone, index) => (
+                  <Reveal delayMs={Math.min(index, 8) * 30} key={milestone.id}>
                   <li
                     className="flex flex-wrap items-center justify-between gap-3 rounded-sm border bg-surface p-3 text-sm"
-                    key={milestone.id}
                   >
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
@@ -1037,6 +1046,7 @@ export function ApplicationsScreen() {
                       </span>
                     )}
                   </li>
+                  </Reveal>
                 ))}
               </ul>
             )}
