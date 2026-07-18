@@ -555,10 +555,10 @@ export function formatTuitionAmount(amount: string | number | null): string | nu
 }
 
 export function getFieldVerification(
-  verifications: UniversityFieldVerification[],
+  verifications: UniversityFieldVerification[] | undefined,
   fieldName: string
 ): UniversityFieldVerification | undefined {
-  return verifications.find((verification) => verification.field_name === fieldName);
+  return verifications?.find((verification) => verification.field_name === fieldName);
 }
 
 export { UniversityCard } from "./ui/university-card";

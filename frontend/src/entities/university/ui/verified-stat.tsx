@@ -5,23 +5,22 @@ import { ExternalLink } from "lucide-react";
 import type { UniversityFieldVerification, VerificationStatus } from "@/entities/university";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { formatDate } from "@/shared/lib/date-time";
+import { Badge, type BadgeTone } from "@/shared/ui/badge";
 
 import { StatValue } from "./stat-value";
 
-const BADGE_STYLES: Record<VerificationStatus, string> = {
-  verified: "border-success/35 bg-success/10 text-success",
-  partial: "border-warning/35 bg-warning/10 text-warning",
-  estimated: "border-muted-foreground/30 bg-surface text-muted-foreground"
+const VERIFICATION_TONE: Record<VerificationStatus, BadgeTone> = {
+  verified: "success",
+  partial: "warning",
+  estimated: "muted"
 };
 
 export function VerificationBadge({ status }: { status: VerificationStatus }) {
   const { t } = useI18n();
   return (
-    <span
-      className={`rounded-sm border px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-wide ${BADGE_STYLES[status]}`}
-    >
+    <Badge className="px-1.5 py-0.5 text-[0.62rem]" tone={VERIFICATION_TONE[status]}>
       {t(`universities.verification.status.${status}` as TranslationKey)}
-    </span>
+    </Badge>
   );
 }
 
