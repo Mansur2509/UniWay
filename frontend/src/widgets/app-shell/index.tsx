@@ -189,7 +189,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <nav
         aria-label={t("shell.mobileNavigation")}
-        className="fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-white/10 bg-navy px-2 py-1 lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 flex w-full justify-around border-t border-white/10 bg-navy px-2 py-1 lg:hidden"
       >
         {mobileNavigation.map((item) => (
           <NavLink compact inverse item={item} key={item.href} />
