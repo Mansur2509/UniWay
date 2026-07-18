@@ -1,6 +1,14 @@
 "use client";
 
-import { CalendarClock, ExternalLink, GraduationCap, RefreshCw } from "lucide-react";
+import {
+  CalendarClock,
+  CalendarX2,
+  CheckCircle2,
+  CircleAlert,
+  ExternalLink,
+  GraduationCap,
+  RefreshCw
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { OfficialExamDate } from "@/entities/exam";
@@ -13,8 +21,11 @@ import { formatDate } from "@/shared/lib/date-time";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
+import { EmptyState } from "@/shared/ui/empty-state";
 import { fieldClassName } from "@/shared/ui/field";
+import { AppIcon } from "@/shared/ui/icon";
 import { LoadingNotice } from "@/shared/ui/loading-notice";
+import { Reveal } from "@/shared/ui/reveal";
 
 const PAGE_SIZE = 200;
 
@@ -32,13 +43,18 @@ type ApPlanRow = {
 const DEFAULT_NOTIFICATION_INTERVALS = [30, 7, 1];
 const NOTIFICATION_OPTIONS = [60, 30, 14, 7, 1];
 
-function ExamDateRow({ item }: { item: OfficialExamDate }) {
+const EXAM_TONE_HOVER: Record<"info" | "recommendation", string> = {
+  info: "hover:border-info/45",
+  recommendation: "hover:border-recommendation/45"
+};
+
+function ExamDateRow({ item, tone }: { item: OfficialExamDate; tone: "info" | "recommendation" }) {
   const { locale, t } = useI18n();
   const statusBorderClass =
     item.date_status === "verified" ? "border-l-success" : "border-l-warning";
   return (
     <li
-      className={`rounded-sm border border-l-2 bg-surface px-3 py-2 text-sm ${statusBorderClass}`}
+      className={`rounded-sm border border-l-2 bg-surface px-3 py-2 text-sm transition-colors ${statusBorderClass} ${EXAM_TONE_HOVER[tone]}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
@@ -373,7 +389,8 @@ export function ExamsScreen() {
   if (hasError) {
     return (
       <Card className="border-danger/35 bg-danger/10">
-        <p className="text-sm text-danger" role="alert">
+        <p className="flex items-center gap-2 text-sm text-danger" role="alert">
+          <AppIcon icon={CircleAlert} />
           {t("exams.states.loadError")}
         </p>
         <Button className="mt-4" onClick={() => void loadDates()} type="button">
@@ -429,11 +446,13 @@ export function ExamsScreen() {
         </div>
 
         {saveState === "saved" ? (
-          <p className="mt-3 text-sm font-semibold text-success" role="status">
+          <p className="mt-3 flex items-center gap-2 text-sm font-semibold text-success animate-fade-in" role="status">
+            <AppIcon icon={CheckCircle2} />
             {t("exams.plan.saved")}
           </p>
         ) : saveState === "error" ? (
-          <p className="mt-3 text-sm font-semibold text-danger" role="alert">
+          <p className="mt-3 flex items-center gap-2 text-sm font-semibold text-danger animate-fade-in" role="alert">
+            <AppIcon icon={CircleAlert} />
             {t("exams.plan.saveError")}
           </p>
         ) : null}
@@ -628,7 +647,7 @@ export function ExamsScreen() {
       </Card>
 
       <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-        <Card className="p-4">
+        <Card animate="fade-up" className="p-4">
           <div className="flex items-center gap-2">
             <span className="grid size-8 shrink-0 place-items-center rounded-sm border border-info/30 bg-info/10 text-info">
               <CalendarClock aria-hidden className="size-4" />
@@ -636,18 +655,23 @@ export function ExamsScreen() {
             <h2 className="text-lg font-semibold">{t("exams.sat.title")}</h2>
           </div>
           {satDates.length === 0 ? (
-            <p className="mt-4 text-sm text-muted-foreground">
-              {t("exams.plan.officialDatesNotPublished")}
-            </p>
+            <EmptyState
+              className="mt-4 shadow-none"
+              description={t("exams.plan.officialDatesNotPublished")}
+              icon={CalendarX2}
+              title={t("exams.sat.title")}
+            />
           ) : null}
           <ul className="mt-4 max-h-[34rem] space-y-2 overflow-y-auto pr-1 scrollbar-quiet">
-            {satDates.map((item) => (
-              <ExamDateRow item={item} key={item.id} />
+            {satDates.map((item, index) => (
+              <Reveal delayMs={Math.min(index, 8) * 30} key={item.id}>
+                <ExamDateRow item={item} tone="info" />
+              </Reveal>
             ))}
           </ul>
         </Card>
 
-        <Card className="p-4">
+        <Card animate="fade-up" animationDelayMs={60} className="p-4">
           <div className="flex items-center gap-2">
             <span className="grid size-8 shrink-0 place-items-center rounded-sm border border-recommendation/30 bg-recommendation/10 text-recommendation">
               <GraduationCap aria-hidden className="size-4" />
@@ -655,9 +679,12 @@ export function ExamsScreen() {
             <h2 className="text-lg font-semibold">{t("exams.ap.title")}</h2>
           </div>
           {apExamDates.length === 0 ? (
-            <p className="mt-4 text-sm text-muted-foreground">
-              {t("exams.plan.officialDatesNotPublished")}
-            </p>
+            <EmptyState
+              className="mt-4 shadow-none"
+              description={t("exams.plan.officialDatesNotPublished")}
+              icon={CalendarX2}
+              title={t("exams.ap.title")}
+            />
           ) : (
             <>
               <label className="mt-3 block">
@@ -672,30 +699,40 @@ export function ExamsScreen() {
                 />
               </label>
               {filteredApExamDates.length === 0 ? (
-                <p className="mt-4 text-sm text-muted-foreground">
-                  {t("exams.ap.searchNoMatches")}
-                </p>
+                <EmptyState
+                  className="mt-4 shadow-none"
+                  description={t("exams.ap.searchNoMatches")}
+                  icon={CalendarX2}
+                  title={t("exams.ap.title")}
+                />
               ) : null}
             </>
           )}
           <div className="mt-4 max-h-[34rem] space-y-2 overflow-y-auto pr-1 scrollbar-quiet">
-            {filteredApExamDates.map((item) => (
-              <ExamDateRow item={item} key={item.id} />
+            {filteredApExamDates.map((item, index) => (
+              <Reveal delayMs={Math.min(index, 8) * 30} key={item.id}>
+                <ExamDateRow item={item} tone="recommendation" />
+              </Reveal>
             ))}
           </div>
         </Card>
       </section>
 
-      <Card className="p-4">
+      <Card animate="fade-up" animationDelayMs={120} className="p-4">
         <h2 className="text-lg font-semibold">{t("exams.ap.deadlineTitle")}</h2>
         {apDeadlineDates.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">
-            {t("exams.plan.officialDatesNotPublished")}
-          </p>
+          <EmptyState
+            className="mt-3 shadow-none"
+            description={t("exams.plan.officialDatesNotPublished")}
+            icon={CalendarX2}
+            title={t("exams.ap.deadlineTitle")}
+          />
         ) : null}
         <ul className="mt-4 grid gap-2 md:grid-cols-2">
-          {apDeadlineDates.map((item) => (
-            <ExamDateRow item={item} key={item.id} />
+          {apDeadlineDates.map((item, index) => (
+            <Reveal delayMs={Math.min(index, 8) * 30} key={item.id}>
+              <ExamDateRow item={item} tone="recommendation" />
+            </Reveal>
           ))}
         </ul>
       </Card>
