@@ -148,7 +148,7 @@ export function SupportLink({ className }: { className?: string }) {
           <div className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-sm border bg-card p-5 shadow-xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+                <p className="text-eyebrow text-primary-hover">
                   {t("support.eyebrow")}
                 </p>
                 <h2 className="mt-1 text-xl font-semibold">{t("support.title")}</h2>

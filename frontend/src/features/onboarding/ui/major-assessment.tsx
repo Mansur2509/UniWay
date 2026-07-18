@@ -125,7 +125,7 @@ export function MajorAssessment({
             <div className="grid gap-4 md:grid-cols-3">
               {result.clusters.map((cluster, index) => (
                 <Card key={cluster}>
-                  <span className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+                  <span className="text-eyebrow text-primary-hover">
                     0{index + 1}
                   </span>
                   <h2 className="mt-2 text-xl font-semibold">

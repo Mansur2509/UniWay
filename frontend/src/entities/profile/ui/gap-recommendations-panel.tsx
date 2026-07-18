@@ -33,7 +33,7 @@ export function GapRecommendationsPanel({
 
   return (
     <Card className="p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+      <p className="text-eyebrow text-primary-hover">
         {t("profileRecommendations.title")}
       </p>
       <p className="mt-1 text-xs leading-5 text-muted-foreground">

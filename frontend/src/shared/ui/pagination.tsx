@@ -7,6 +7,7 @@ import { useI18n } from "@/shared/i18n";
 
 import { Button } from "./button";
 import { EmptyState } from "./empty-state";
+import { Reveal } from "./reveal";
 import { SkeletonCards, SkeletonRows } from "./skeleton";
 
 export const DEFAULT_PAGE_SIZE = 21;
@@ -209,7 +210,9 @@ export function PaginatedGrid<Item>({
           <SkeletonCards count={Math.min(resolvedPageSize, 6)} />
         ) : (
           items.map((item, index) => (
-            <div key={getItemKey?.(item, index) ?? index}>{renderItem(item)}</div>
+            <Reveal delayMs={Math.min(index, 8) * 40} key={getItemKey?.(item, index) ?? index}>
+              {renderItem(item)}
+            </Reveal>
           ))
         )}
       </section>
@@ -275,7 +278,9 @@ export function PaginatedList<Item>({
           <SkeletonRows count={Math.min(resolvedPageSize, 6)} />
         ) : (
           items.map((item, index) => (
-            <div key={getItemKey?.(item, index) ?? index}>{renderItem(item)}</div>
+            <Reveal delayMs={Math.min(index, 8) * 40} key={getItemKey?.(item, index) ?? index}>
+              {renderItem(item)}
+            </Reveal>
           ))
         )}
       </div>

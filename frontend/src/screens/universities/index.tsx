@@ -26,6 +26,7 @@ import { CollapsibleFilterPanel } from "@/shared/ui/collapsible-filter-panel";
 import { fieldClassName } from "@/shared/ui/field";
 import { HelpTooltip } from "@/shared/ui/help-tooltip";
 import { DEFAULT_PAGE_SIZE, PaginatedGrid } from "@/shared/ui/pagination";
+import { Reveal } from "@/shared/ui/reveal";
 import { SectionTabs } from "@/shared/ui/section-tabs";
 import { SkeletonCards } from "@/shared/ui/skeleton";
 
@@ -268,14 +269,10 @@ export function UniversitiesScreen() {
       />
 
       <section className="rounded-sm border bg-card p-6 shadow-card sm:p-9">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
-          {t("universities.list.eyebrow")}
-        </p>
+        <p className="text-eyebrow text-primary-hover">{t("universities.list.eyebrow")}</p>
         <div className="mt-3 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
           <div>
-            <h1 className="max-w-3xl text-3xl font-semibold sm:text-5xl">
-              {t("universities.list.title")}
-            </h1>
+            <h1 className="text-display max-w-3xl">{t("universities.list.title")}</h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
               {t("universities.list.description")}
             </p>
@@ -308,14 +305,16 @@ export function UniversitiesScreen() {
       ) : destinations.length > 0 ? (
         <section className="space-y-3">
           <div>
-            <h2 className="text-xl font-semibold">{t("universities.destinations.title")}</h2>
+            <h2 className="text-feature-heading">{t("universities.destinations.title")}</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {t("universities.destinations.subtitle")}
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {destinations.map((destination) => (
-              <StudyDestinationCard destination={destination} key={destination.country} />
+            {destinations.map((destination, index) => (
+              <Reveal delayMs={index * 40} key={destination.country}>
+                <StudyDestinationCard destination={destination} />
+              </Reveal>
             ))}
           </div>
         </section>

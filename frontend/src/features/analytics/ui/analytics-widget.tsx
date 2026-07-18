@@ -47,7 +47,7 @@ export function AnalyticsWidget() {
   return (
     <section aria-labelledby="dashboard-analytics">
       <div className="mb-3">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+        <p className="text-eyebrow text-primary-hover">
           {t("dashboard.analyticsWidget.eyebrow")}
         </p>
         <h2 className="mt-1 text-lg font-semibold" id="dashboard-analytics">

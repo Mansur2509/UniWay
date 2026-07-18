@@ -621,10 +621,8 @@ export function DashboardScreen() {
         <div className="grid lg:grid-cols-[1.35fr_0.65fr]">
           <div className="p-4 sm:p-5">
             <Badge>{t("dashboard.betaBadge")}</Badge>
-            <p className="mt-3 text-xs font-bold uppercase tracking-[0.18em] text-primary-hover">
-              {t("dashboard.eyebrow")}
-            </p>
-            <h1 className="mt-1.5 max-w-3xl text-xl font-semibold sm:text-3xl">
+            <p className="text-eyebrow mt-3 text-primary-hover">{t("dashboard.eyebrow")}</p>
+            <h1 className="text-display mt-1.5 max-w-3xl">
               {t("dashboard.welcome", { name: firstName })}
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
@@ -643,9 +641,7 @@ export function DashboardScreen() {
             </div>
           </div>
           <div className="border-t bg-surface p-4 lg:border-l lg:border-t-0 lg:p-5">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
-              {t("dashboard.nextAction.label")}
-            </p>
+            <p className="text-eyebrow text-muted-foreground">{t("dashboard.nextAction.label")}</p>
             <h2 className="mt-1.5 text-lg font-semibold">
               {nextWorkflowStep ? t(nextWorkflowStep.titleKey) : t("dashboard.nextAction.roadmap")}
             </h2>
@@ -693,7 +689,7 @@ export function DashboardScreen() {
 
       <section aria-labelledby="dashboard-core-tools-heading">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-primary-hover" id="dashboard-core-tools-heading">
+          <h2 className="text-eyebrow text-primary-hover" id="dashboard-core-tools-heading">
             {t("dashboard.coreTools.title")}
           </h2>
           <p className="text-xs text-muted-foreground">{t("dashboard.coreTools.description")}</p>
@@ -749,7 +745,7 @@ export function DashboardScreen() {
         <Card className="p-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+              <p className="text-eyebrow text-primary-hover">
                 {t("dashboard.profile.eyebrow")}
               </p>
               <h2 className="mt-1 text-lg font-semibold">
@@ -777,7 +773,7 @@ export function DashboardScreen() {
           <div className="mt-3 rounded-sm border bg-surface p-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+                <p className="text-eyebrow text-primary-hover">
                   {t("profileAssessment.shortTitle")}
                 </p>
                 <p className="mt-1 text-xs leading-4 text-muted-foreground">
@@ -818,7 +814,7 @@ export function DashboardScreen() {
         <Card className="p-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+              <p className="text-eyebrow text-primary-hover">
                 {t("dashboard.events.eyebrow")}
               </p>
               <h2 className="mt-1 text-lg font-semibold">
@@ -870,7 +866,7 @@ export function DashboardScreen() {
       <Card className="p-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+            <p className="text-eyebrow text-primary-hover">
               {t("dashboard.roadmapWidget.eyebrow")}
             </p>
             <h2 className="mt-1 text-lg font-semibold">{t("dashboard.roadmapWidget.title")}</h2>
@@ -946,7 +942,7 @@ export function DashboardScreen() {
         <Card className="p-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:divide-x">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+              <p className="text-eyebrow text-primary-hover">
                 {t("dashboard.applicationsWidget.title")}
               </p>
               {applications.length === 0 ? (
@@ -992,7 +988,7 @@ export function DashboardScreen() {
             </div>
 
             <div className="sm:pl-4">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+              <p className="text-eyebrow text-primary-hover">
                 {t("dashboard.essaysWidget.title")}
               </p>
               {essays.length === 0 ? (
@@ -1027,7 +1023,7 @@ export function DashboardScreen() {
         <Card className="p-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:divide-x">
             <div>
-              <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+              <p className="flex items-center gap-1.5 text-eyebrow text-primary-hover">
                 <CalendarClock aria-hidden className="size-3.5 text-accent" />
                 {t("dashboard.deadlineWidget.title")}
                 <HelpTooltip label={t("applications.help.deadlineConfidence")} />
@@ -1069,7 +1065,7 @@ export function DashboardScreen() {
             </div>
 
             <div className="sm:pl-4">
-              <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+              <p className="flex items-center gap-1 text-eyebrow text-primary-hover">
                 {t("dashboard.milestonesWidget.title")}
                 <HelpTooltip label={t("help.roadmapPriority")} />
               </p>
@@ -1126,7 +1122,7 @@ export function DashboardScreen() {
         <Card className="p-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:divide-x">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+              <p className="text-eyebrow text-primary-hover">
                 {t("dashboard.gapsWidget.title")}
               </p>
               {readiness && readiness.improvements.length > 0 ? (
@@ -1157,7 +1153,7 @@ export function DashboardScreen() {
             </div>
 
             <div className="sm:pl-4">
-              <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+              <p className="flex items-center gap-1 text-eyebrow text-primary-hover">
                 {t("dashboard.recommendationsWidget.title")}
                 <HelpTooltip label={t("help.fitSubscores")} />
               </p>
@@ -1188,7 +1184,7 @@ export function DashboardScreen() {
         <Card className="p-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:divide-x">
             <div>
-              <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+              <p className="flex items-center gap-1 text-eyebrow text-primary-hover">
                 <Target aria-hidden className="size-3.5 text-accent" />
                 {t("dashboard.prospectiveWidget.title")}
               </p>
@@ -1221,7 +1217,7 @@ export function DashboardScreen() {
             </div>
 
             <div className="sm:pl-4">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+              <p className="text-eyebrow text-primary-hover">
                 {t("dashboard.prospectiveWidget.warnings.title")}
               </p>
               {staleProspectiveCount === 0 && missingProgramProspectiveCount === 0 ? (
@@ -1264,7 +1260,7 @@ export function DashboardScreen() {
           </Card>
         )}
         <Card className="p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+          <p className="text-eyebrow text-primary-hover">
             {t("dashboard.learning.title")}
           </p>
           <h2 className="mt-1 text-lg font-semibold">
@@ -1308,7 +1304,7 @@ export function DashboardScreen() {
       <Card className="p-4">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+            <p className="text-eyebrow text-primary-hover">
               {t("dashboard.examCountdown.eyebrow")}
             </p>
             <h2 className="mt-1 text-lg font-semibold">
@@ -1365,7 +1361,7 @@ export function DashboardScreen() {
       <section aria-labelledby="dashboard-workspace">
         <div className="mb-3 flex items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+            <p className="text-eyebrow text-primary-hover">
               {t("dashboard.workspace.eyebrow")}
             </p>
             <h2 className="mt-1 text-lg font-semibold" id="dashboard-workspace">
@@ -1432,7 +1428,7 @@ export function DashboardScreen() {
         </Card>
 
         <Card className="p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+          <p className="text-eyebrow text-primary-hover">
             {t("dashboard.subscription.eyebrow")}
           </p>
           <div className="mt-2 flex items-center justify-between gap-3">

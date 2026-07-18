@@ -631,7 +631,7 @@ export function RoadmapScreen() {
               <div className="flex items-start gap-3">
                 <CalendarClock aria-hidden className="mt-0.5 size-4 shrink-0 text-accent" />
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+                  <p className="text-eyebrow text-primary-hover">
                     {t("roadmap.examPlanning.eyebrow")}
                   </p>
                   <h2 className="mt-1 text-lg font-semibold">{t("roadmap.examPlanning.title")}</h2>

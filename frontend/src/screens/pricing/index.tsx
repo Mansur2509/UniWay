@@ -83,7 +83,7 @@ export function PricingScreen() {
           </div>
         </div>
         <div className="border-l-4 border-primary bg-elevated px-5 py-4">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+          <p className="text-eyebrow text-primary-hover">
             {t("pricingPage.currentPlan")}
           </p>
           <p className="mt-1 font-serif text-2xl font-semibold">

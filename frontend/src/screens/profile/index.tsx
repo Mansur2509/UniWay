@@ -333,7 +333,7 @@ function ProfileAssessmentPanel({
     <Card className="scroll-mt-24 p-5" id="profile-assessment">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+          <p className="text-eyebrow text-primary-hover">
             {t("profileAssessment.eyebrow")}
           </p>
           <h2 className="mt-1 text-lg font-semibold">{t("profileAssessment.title")}</h2>
@@ -931,7 +931,7 @@ export function ProfileScreen() {
       <Card className="p-4">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-hover">
+            <p className="text-eyebrow text-primary-hover">
               {t("profile.navigation.eyebrow")}
             </p>
             <h2 className="mt-1 text-lg font-semibold">{t("profile.navigation.title")}</h2>

@@ -48,7 +48,7 @@ export function StudyDestinationCard({ destination }: { destination: StudyDestin
   const costLabel = costRangeLabel(destination);
 
   return (
-    <Card animate="fade-up" className="flex h-full flex-col overflow-hidden" interactive>
+    <Card className="flex h-full flex-col overflow-hidden" interactive>
       <div
         className={`-mx-4 -mt-4 mb-3 flex h-20 shrink-0 items-center justify-center bg-gradient-to-br ${headerBandClass(destination.country)}`}
       >
