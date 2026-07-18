@@ -440,6 +440,7 @@ export const ru = {
   "universities.filters.institutionType": "Тип учреждения",
   "universities.filters.all": "Все",
   "universities.filters.scholarshipAvailable": "Есть стипендия",
+  "universities.filters.scholarshipCount": "{count} на этой странице предлагают стипендии",
   "universities.filters.costStatus": "Сравнение с бюджетом",
   "universities.filters.costStatusAny": "Все (бюджет необязателен)",
   "universities.filters.costConfidence": "Уверенность в стоимости",

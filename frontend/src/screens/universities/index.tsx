@@ -1,6 +1,6 @@
 "use client";
 
-import { GraduationCap, Scale, Search, Sparkles, Star, Target, Waypoints } from "lucide-react";
+import { Award, GraduationCap, Scale, Search, Sparkles, Star, Target, Waypoints } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 
@@ -23,6 +23,7 @@ import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { CollapsibleFilterPanel } from "@/shared/ui/collapsible-filter-panel";
+import { EmptyState } from "@/shared/ui/empty-state";
 import { fieldClassName } from "@/shared/ui/field";
 import { HelpTooltip } from "@/shared/ui/help-tooltip";
 import { DEFAULT_PAGE_SIZE, PaginatedGrid } from "@/shared/ui/pagination";
@@ -805,11 +806,16 @@ export function UniversitiesScreen() {
           </section>
 
           <section className="space-y-3 border-t pt-4">
-            <h2 className="text-sm font-semibold">
-              {t("universities.filters.group.costScholarships")}
-            </h2>
+            <div className="flex items-center gap-2">
+              <span className="grid size-7 shrink-0 place-items-center rounded-sm border border-scholarship/35 bg-scholarship/10 text-scholarship">
+                <Award aria-hidden className="size-3.5" />
+              </span>
+              <h2 className="text-sm font-semibold">
+                {t("universities.filters.group.costScholarships")}
+              </h2>
+            </div>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <label className="flex min-h-10 items-center gap-2 rounded-sm border bg-surface px-3 py-2">
+              <label className="flex min-h-10 items-center gap-2 rounded-sm border border-scholarship/30 bg-scholarship/5 px-3 py-2 transition-colors hover:bg-scholarship/10">
                 <input
                   checked={filters.scholarship_available === "true"}
                   className="size-4 shrink-0"
@@ -821,7 +827,7 @@ export function UniversitiesScreen() {
                   }
                   type="checkbox"
                 />
-                <span className="text-sm font-semibold">
+                <span className="text-sm font-semibold text-scholarship">
                   {t("universities.filters.scholarshipAvailable")}
                 </span>
               </label>
@@ -992,16 +998,38 @@ export function UniversitiesScreen() {
           </Button>
         </Card>
       ) : visibleUniversities.length === 0 ? (
-        <Card>
-          <h2 className="text-xl font-semibold">{t("universities.states.emptyTitle")}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {shortlistOnly
+        <EmptyState
+          action={
+            shortlistOnly ? (
+              <Button onClick={() => setShortlistOnly(false)} size="sm" variant="secondary">
+                {t("universities.actions.backToList")}
+              </Button>
+            ) : undefined
+          }
+          description={
+            shortlistOnly
               ? t("universities.states.emptyShortlist")
-              : t("universities.states.emptyDescription")}
-          </p>
-        </Card>
+              : t("universities.states.emptyDescription")
+          }
+          icon={shortlistOnly ? Star : GraduationCap}
+          title={t("universities.states.emptyTitle")}
+        />
       ) : (
         <div className="space-y-3">
+          {shortlistOnly ? (
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-primary-hover">
+              <Star aria-hidden className="size-4 fill-current" />
+              {t("universities.actions.viewShortlist")}
+            </p>
+          ) : null}
+          {!shortlistOnly && visibleUniversities.some((item) => item.scholarship_available) ? (
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-scholarship">
+              <Award aria-hidden className="size-3.5" />
+              {t("universities.filters.scholarshipCount", {
+                count: visibleUniversities.filter((item) => item.scholarship_available).length
+              })}
+            </p>
+          ) : null}
           <p className="text-sm font-semibold text-muted-foreground">
             {t("universities.list.total", {
               count: shortlistOnly ? visibleUniversities.length : totalCount

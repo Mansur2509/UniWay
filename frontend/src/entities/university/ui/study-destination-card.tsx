@@ -96,7 +96,7 @@ export function StudyDestinationCard({ destination }: { destination: StudyDestin
       </dl>
 
       {destination.has_scholarships ? (
-        <span className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-sm border border-success/30 bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
+        <span className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-sm border border-scholarship/40 bg-scholarship/15 px-2.5 py-1 text-xs font-bold text-scholarship">
           <Award aria-hidden className="size-3.5" />
           {t("universities.destinations.scholarshipsAvailable")}
         </span>

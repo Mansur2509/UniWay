@@ -152,7 +152,7 @@ export function UniversityCard({
       {university.scholarship_available || university.application_deadline ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {university.scholarship_available ? (
-            <span className="inline-flex items-center gap-1.5 rounded-sm border border-success/30 bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
+            <span className="inline-flex items-center gap-1.5 rounded-sm border border-scholarship/40 bg-scholarship/15 px-2.5 py-1 text-xs font-bold text-scholarship">
               <Award aria-hidden className="size-3.5" />
               {t("universities.fields.scholarshipAvailable")}
             </span>
