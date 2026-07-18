@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useSpring } from "motion/react";
+import { m, useSpring } from "motion/react";
 import { type PointerEvent, type ReactNode, useEffect, useState } from "react";
 
 import { usePrefersReducedMotion } from "./use-reduced-motion";
@@ -44,13 +44,13 @@ export function TiltCard({ children, className, maxTiltDeg = 5 }: TiltCardProps)
   }
 
   return (
-    <motion.div
+    <m.div
       className={className}
       onPointerLeave={handlePointerLeave}
       onPointerMove={handlePointerMove}
       style={{ rotateX, rotateY, transformPerspective: 800 }}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }

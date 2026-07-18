@@ -33,7 +33,7 @@ export function HeroSection() {
           </div>
           <div className="mt-10 flex items-center gap-2 text-sm font-semibold text-white/70">
             <Sparkles aria-hidden className="size-4 text-accent" />
-            <CountUp className="text-white" durationMs={1200} suffix="+" target={UNIVERSITY_COUNT_DISPLAY} />
+            <CountUp className="text-white" suffix="+" target={UNIVERSITY_COUNT_DISPLAY} />
             <span>{t("landing.trust.universitiesSuffix")}</span>
           </div>
         </MotionReveal>

@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useSpring } from "motion/react";
+import { m, useSpring } from "motion/react";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { usePrefersReducedMotion } from "./use-reduced-motion";
@@ -53,8 +53,8 @@ export function ParallaxLayer({
   }
 
   return (
-    <motion.div className={className} style={{ x, y }}>
+    <m.div className={className} style={{ x, y }}>
       {children}
-    </motion.div>
+    </m.div>
   );
 }

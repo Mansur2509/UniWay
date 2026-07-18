@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -67,7 +67,7 @@ export function LandingHeader() {
 
       <AnimatePresence>
         {mobileOpen ? (
-          <motion.div
+          <m.div
             animate={{ height: "auto", opacity: 1 }}
             className="overflow-hidden border-t bg-card lg:hidden"
             exit={{ height: 0, opacity: 0 }}
@@ -100,7 +100,7 @@ export function LandingHeader() {
                 </Button>
               </div>
             </div>
-          </motion.div>
+          </m.div>
         ) : null}
       </AnimatePresence>
     </header>

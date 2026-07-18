@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useInView } from "motion/react";
+import { m, useInView } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { MOTION_DURATION, MOTION_EASE_OUT } from "@/shared/lib/motion-tokens";
@@ -54,7 +54,7 @@ export function MotionReveal({
   const visible = isInView || forceVisible;
 
   return (
-    <motion.div
+    <m.div
       animate={visible ? "visible" : "hidden"}
       className={className}
       initial="hidden"
@@ -73,6 +73,6 @@ export function MotionReveal({
       }}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }

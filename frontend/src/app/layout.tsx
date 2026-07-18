@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { AuthProvider } from "@/features/auth";
 import { I18nProvider } from "@/shared/i18n/provider";
 import { ThemeProvider } from "@/shared/theme/provider";
+import { MotionProvider } from "@/shared/ui/motion-provider";
 
 import "./globals.css";
 import { AppGate } from "./app-gate";
@@ -45,7 +46,9 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <ThemeProvider>
           <I18nProvider>
             <AuthProvider>
-              <AppGate>{children}</AppGate>
+              <MotionProvider>
+                <AppGate>{children}</AppGate>
+              </MotionProvider>
             </AuthProvider>
           </I18nProvider>
         </ThemeProvider>

@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { BookOpen, Compass, GraduationCap, Languages, ShieldCheck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -64,7 +64,7 @@ export function AuthBrandPanel() {
 
         <div className="relative mt-8 min-h-[5.5rem] max-w-md overflow-hidden rounded-sm border border-white/15 bg-white/5 p-4">
           <AnimatePresence mode="wait">
-            <motion.div
+            <m.div
               animate={{ opacity: 1 }}
               className="flex items-start gap-3"
               exit={{ opacity: 0 }}
@@ -79,7 +79,7 @@ export function AuthBrandPanel() {
                 <p className="text-sm font-semibold text-navy-foreground">{t(active.titleKey)}</p>
                 <p className="mt-1 text-xs leading-5 text-white/65">{t(active.descriptionKey)}</p>
               </div>
-            </motion.div>
+            </m.div>
           </AnimatePresence>
         </div>
       </div>
