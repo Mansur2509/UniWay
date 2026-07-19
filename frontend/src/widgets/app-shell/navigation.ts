@@ -1,6 +1,8 @@
 import {
+  Award,
   BarChart3,
   Bell,
+  Bookmark,
   BookOpenCheck,
   CalendarDays,
   CalendarPlus,
@@ -34,6 +36,8 @@ export const primaryNavigation: NavigationItem[] = [
   { href: "/events", labelKey: "navigation.eventMap", icon: Map },
   { href: "/events/my", labelKey: "navigation.myEvents", icon: Tickets },
   { href: "/universities", labelKey: "navigation.universities", icon: GraduationCap },
+  { href: "/saved", labelKey: "navigation.saved", icon: Bookmark },
+  { href: "/scholarships", labelKey: "navigation.scholarships", icon: Award },
   { href: "/roadmap", labelKey: "navigation.roadmap", icon: Route },
   { href: "/essays", labelKey: "navigation.essays", icon: ScrollText },
   { href: "/applications", labelKey: "navigation.applications", icon: ClipboardList },

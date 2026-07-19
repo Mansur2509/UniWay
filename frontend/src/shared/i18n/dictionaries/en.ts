@@ -2702,5 +2702,37 @@ export const en = {
   "universityFit.semanticSection.lastUpdated": "Last updated {date}",
   "universityFit.semanticSection.disabledNotice": "This deeper AI explanation isn't available on this deployment yet -- the deterministic fit above already reflects your full profile.",
   "universityFit.semanticSection.rateLimited": "You've reached today's AI analysis limit. Please try again tomorrow.",
-  "universityFit.semanticSection.failedNotice": "The AI explanation couldn't be generated. The deterministic fit above is unaffected."
+  "universityFit.semanticSection.failedNotice": "The AI explanation couldn't be generated. The deterministic fit above is unaffected.",
+
+  "navigation.saved": "Saved",
+
+  "saved.eyebrow": "Your shortlist",
+  "saved.title": "Saved items",
+  "saved.description": "Universities you've saved for a closer look, all in one place.",
+  "saved.states.error": "We couldn't load your saved universities.",
+  "saved.states.actionError": "Couldn't update your shortlist. Please try again.",
+  "saved.empty.title": "Nothing saved yet",
+  "saved.empty.description": "Save universities while you browse the catalog to build your shortlist here.",
+  "saved.empty.action": "Browse universities",
+  "saved.count": "{{count}} saved universities",
+  "saved.savedOn": "Saved {{date}}",
+  "saved.unsave": "Remove",
+  "saved.unsaving": "Removing…",
+  "saved.otherTypes.title": "More to save, soon",
+  "saved.otherTypes.description": "Saving events and scholarships isn't available yet. For now you can save universities from the catalog, and revisit your shortlist here.",
+
+  "navigation.scholarships": "Scholarships",
+
+  "scholarships.eyebrow": "Funding opportunities",
+  "scholarships.title": "Scholarships",
+  "scholarships.description": "Real scholarship listings, sourced directly from each university's own page.",
+  "scholarships.filters.country": "Country",
+  "scholarships.filters.allCountries": "All countries",
+  "scholarships.states.error": "We couldn't load scholarships right now.",
+  "scholarships.empty.title": "No scholarship listings match yet",
+  "scholarships.empty.description": "Try a different country, or check back as more universities are verified.",
+  "scholarships.empty.action": "Browse universities",
+  "scholarships.card.officialLink": "Official source",
+  "scholarships.disclaimer.title": "Always confirm with the official source",
+  "scholarships.disclaimer.description": "Scholarship details come directly from each university and may change. Confirm eligibility, amounts, and deadlines on the official page before applying."
 } as const;

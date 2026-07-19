@@ -16,6 +16,7 @@ import { createApplicationRequest } from "@/features/applications";
 import { addToShortlistRequest, getRecommendationsRequest } from "@/features/universities";
 import { useI18n, type LocaleCode, type TranslationKey } from "@/shared/i18n";
 import { formatDate } from "@/shared/lib/date-time";
+import { Badge, type BadgeTone } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { CollapsibleFilterPanel } from "@/shared/ui/collapsible-filter-panel";
@@ -38,34 +39,34 @@ const URGENCY_RANK: Record<Urgency, number> = {
   unknown: 6
 };
 
-const CATEGORY_BADGE_STYLES: Record<RecommendationCategory, string> = {
-  dream: "border-danger/45 bg-danger/15 text-danger",
-  reach: "border-danger/35 bg-danger/10 text-danger",
-  target: "border-accent/35 bg-accent/10 text-accent",
-  safety: "border-success/35 bg-success/10 text-success"
+const CATEGORY_TONE: Record<RecommendationCategory, BadgeTone> = {
+  dream: "danger",
+  reach: "danger",
+  target: "accent",
+  safety: "success"
 };
 
-const RISK_BADGE_STYLES: Record<RiskLevel, string> = {
-  low: "border-success/35 bg-success/10 text-success",
-  moderate: "border-warning/35 bg-warning/10 text-warning",
-  high: "border-danger/35 bg-danger/10 text-danger"
+const RISK_TONE: Record<RiskLevel, BadgeTone> = {
+  low: "success",
+  moderate: "warning",
+  high: "danger"
 };
 
-const COST_RISK_BADGE_STYLES: Record<CostRisk, string> = {
-  low: "border-success/35 bg-success/10 text-success",
-  moderate: "border-warning/35 bg-warning/10 text-warning",
-  high: "border-danger/35 bg-danger/10 text-danger",
-  unknown: "border-muted-foreground/30 bg-surface text-muted-foreground"
+const COST_RISK_TONE: Record<CostRisk, BadgeTone> = {
+  low: "success",
+  moderate: "warning",
+  high: "danger",
+  unknown: "muted"
 };
 
-const URGENCY_BADGE_STYLES: Record<Urgency, string> = {
-  overdue: "border-danger/45 bg-danger/10 text-danger",
-  critical: "border-danger/45 bg-danger/10 text-danger",
-  urgent: "border-warning/45 bg-warning/10 text-warning",
-  soon: "border-warning/35 bg-warning/10 text-warning",
-  upcoming: "border-accent/35 bg-accent/10 text-accent",
-  far: "border-muted-foreground/30 bg-surface text-muted-foreground",
-  unknown: "border-muted-foreground/30 bg-surface text-muted-foreground"
+const URGENCY_TONE: Record<Urgency, BadgeTone> = {
+  overdue: "danger",
+  critical: "danger",
+  urgent: "warning",
+  soon: "warning",
+  upcoming: "accent",
+  far: "muted",
+  unknown: "muted"
 };
 
 const PROFILE_SIGNAL_HREFS: Record<string, string> = {
@@ -80,10 +81,6 @@ const PROFILE_SIGNAL_HREFS: Record<string, string> = {
 
 function profileSignalHref(code: string) {
   return PROFILE_SIGNAL_HREFS[code] ?? "/profile";
-}
-
-function badgeClass(base: string) {
-  return `inline-flex items-center rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${base}`;
 }
 
 function costValue(item: RecommendationItem): number {
@@ -519,9 +516,9 @@ export function RecommendationsScreen() {
           return (
             <div className="space-y-2" key={category}>
               <h2 className="flex items-center gap-2 text-lg font-semibold">
-                <span className={badgeClass(CATEGORY_BADGE_STYLES[category])}>
+                <Badge tone={CATEGORY_TONE[category]}>
                   {t(`universities.fit.category.${category}` as TranslationKey)}
-                </span>
+                </Badge>
                 <span className="text-sm font-normal text-muted-foreground">({list.length})</span>
                 <HelpTooltip label={t(`recommendations.help.category.${category}` as TranslationKey)} />
               </h2>
@@ -608,16 +605,12 @@ function RecommendationCard({
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className={badgeClass(CATEGORY_BADGE_STYLES[item.category])}>
+        <Badge tone={CATEGORY_TONE[item.category]}>
           {t(`universities.fit.category.${item.category}` as TranslationKey)}
-        </span>
-        <span className="rounded-sm border bg-surface px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
-          {t(`universities.fit.confidence.${item.confidence}` as TranslationKey)}
-        </span>
+        </Badge>
+        <Badge tone="muted">{t(`universities.fit.confidence.${item.confidence}` as TranslationKey)}</Badge>
         {item.is_international ? (
-          <span className="rounded-sm border border-accent/35 bg-accent/10 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-accent">
-            {t("recommendations.internationalBadge")}
-          </span>
+          <Badge tone="accent">{t("recommendations.internationalBadge")}</Badge>
         ) : null}
       </div>
 
@@ -678,9 +671,9 @@ function RecommendationCard({
               ? `$${Number(item.estimated_total_cost_usd).toLocaleString()}`
               : t("universities.notVerifiedYet")}
           </p>
-          <span className={badgeClass(COST_RISK_BADGE_STYLES[item.cost_risk])}>
+          <Badge tone={COST_RISK_TONE[item.cost_risk]}>
             {t(`recommendations.costRisk.${item.cost_risk}` as TranslationKey)}
-          </span>
+          </Badge>
         </div>
         <div>
           <p className="font-semibold text-muted-foreground">
@@ -688,9 +681,9 @@ function RecommendationCard({
           </p>
           <p>{item.deadline ? formatDate(item.deadline, locale) : t("applications.deadlines.notVerified")}</p>
           {item.urgency !== "unknown" ? (
-            <span className={badgeClass(URGENCY_BADGE_STYLES[item.urgency])}>
+            <Badge tone={URGENCY_TONE[item.urgency]}>
               {t(`applications.urgency.${item.urgency}` as TranslationKey)}
-            </span>
+            </Badge>
           ) : null}
           {isDeadlineOverdue ? (
             <p className="mt-1 text-[0.68rem] font-semibold text-danger">
@@ -755,18 +748,18 @@ function RecommendationCard({
             {t("recommendations.card.currentFitScore", { score: item.current_academic_subscore })}
           </p>
           <div className="flex flex-wrap gap-2">
-            <span className={badgeClass(RISK_BADGE_STYLES[item.academic_risk])}>
+            <Badge tone={RISK_TONE[item.academic_risk]}>
               {t("recommendations.card.academicRisk")}:{" "}
               {t(`recommendations.riskLevel.${item.academic_risk}` as TranslationKey)}
-            </span>
-            <span className={badgeClass(RISK_BADGE_STYLES[item.profile_risk])}>
+            </Badge>
+            <Badge tone={RISK_TONE[item.profile_risk]}>
               {t("recommendations.card.profileRisk")}:{" "}
               {t(`recommendations.riskLevel.${item.profile_risk}` as TranslationKey)}
-            </span>
-            <span className={badgeClass(RISK_BADGE_STYLES[item.deadline_risk])}>
+            </Badge>
+            <Badge tone={RISK_TONE[item.deadline_risk]}>
               {t("recommendations.card.deadlineRisk")}:{" "}
               {t(`recommendations.riskLevel.${item.deadline_risk}` as TranslationKey)}
-            </span>
+            </Badge>
           </div>
           {item.missing_data.length > 0 ? (
             <div>

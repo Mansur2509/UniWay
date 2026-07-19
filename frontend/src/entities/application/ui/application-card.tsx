@@ -3,52 +3,32 @@
 import { GraduationCap } from "lucide-react";
 
 import type { ApplicationTrackerItem } from "@/entities/application";
+import { DEADLINE_STATUS_TONE, FIT_TIER_TONE, PRIORITY_TONE } from "@/entities/application/lib/tone";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { formatDate } from "@/shared/lib/date-time";
+import { Badge, type BadgeTone } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
+import { IconChip } from "@/shared/ui/icon-chip";
 
 // Mirrors urgencyForDeadline in screens/applications/index.tsx -- kept as a
 // small self-contained calc here (rather than a shared import) since this
 // card only needs a highlight for near-term deadlines, not the full
 // urgency-filter matching logic. Only returns a badge for overdue/critical/
 // urgent/soon -- anything further out stays unbadged to keep the card calm.
-function urgencyBadge(deadline: string | null): { label: string; classes: string } | null {
+function urgencyBadge(deadline: string | null): { label: string; tone: BadgeTone } | null {
   if (!deadline) return null;
   const parsed = new Date(`${deadline}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const days = Math.round((parsed.getTime() - today.getTime()) / 86_400_000);
-  if (days < 0) return { label: "overdue", classes: "border-danger/45 bg-danger/10 text-danger" };
-  if (days <= 7) return { label: "critical", classes: "border-danger/45 bg-danger/10 text-danger" };
-  if (days <= 14) return { label: "urgent", classes: "border-warning/45 bg-warning/10 text-warning" };
-  if (days <= 30) return { label: "soon", classes: "border-deadline/45 bg-deadline/10 text-deadline" };
+  if (days < 0) return { label: "overdue", tone: "danger" };
+  if (days <= 7) return { label: "critical", tone: "danger" };
+  if (days <= 14) return { label: "urgent", tone: "warning" };
+  if (days <= 30) return { label: "soon", tone: "warning" };
   return null;
 }
-
-const PRIORITY_STYLES: Record<string, string> = {
-  low: "border-muted-foreground/30 bg-surface text-muted-foreground",
-  medium: "border-accent/35 bg-accent/10 text-accent",
-  high: "border-warning/35 bg-warning/10 text-warning",
-  dream: "border-danger/35 bg-danger/10 text-danger"
-};
-
-const FIT_TIER_STYLES: Record<string, string> = {
-  reach: "border-danger/35 bg-danger/10 text-danger",
-  competitive: "border-warning/35 bg-warning/10 text-warning",
-  target: "border-accent/35 bg-accent/10 text-accent",
-  safety: "border-success/35 bg-success/10 text-success",
-  unknown: "border-muted-foreground/30 bg-surface text-muted-foreground"
-};
-
-const DEADLINE_STATUS_STYLES: Record<string, string> = {
-  verified: "border-success/35 bg-success/10 text-success",
-  estimated: "border-warning/35 bg-warning/10 text-warning",
-  not_published: "border-muted-foreground/30 bg-surface text-muted-foreground",
-  outdated: "border-danger/35 bg-danger/10 text-danger",
-  requires_review: "border-warning/35 bg-warning/10 text-warning"
-};
 
 export function ApplicationCard({
   application,
@@ -79,34 +59,27 @@ export function ApplicationCard({
       interactive
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span
-          className={`rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${PRIORITY_STYLES[application.priority]}`}
-        >
+        <Badge tone={PRIORITY_TONE[application.priority]}>
           {t(`applications.priority.${application.priority}` as TranslationKey)}
-        </span>
-        <span
-          className={`rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${FIT_TIER_STYLES[application.fit_tier]}`}
-          title={t("applications.card.fitTierHelp")}
-        >
+        </Badge>
+        <Badge tone={FIT_TIER_TONE[application.fit_tier]} title={t("applications.card.fitTierHelp")}>
           {t(`applications.fitTier.${application.fit_tier}` as TranslationKey)}
-        </span>
-        <span className="rounded-sm border bg-surface px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+        </Badge>
+        <Badge tone="muted">
           {t(`applications.round.${application.application_round}` as TranslationKey)}
-        </span>
+        </Badge>
       </div>
       <h3 className="flex items-center gap-2 text-base font-semibold break-words">
-        <GraduationCap aria-hidden className="size-4 shrink-0 text-accent" />
+        <IconChip icon={GraduationCap} size="sm" tone="accent" />
         {application.university_name}
       </h3>
       {deadline ? (
         <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           {t("applications.card.deadline", { date: formatDate(deadline, locale) })}
           {urgency ? (
-            <span
-              className={`rounded-sm border px-1.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide ${urgency.classes}`}
-            >
+            <Badge className="px-1.5 py-0.5 text-[0.6rem]" tone={urgency.tone}>
               {t(`applications.urgency.${urgency.label}` as TranslationKey)}
-            </span>
+            </Badge>
           ) : null}
         </p>
       ) : (
@@ -114,13 +87,11 @@ export function ApplicationCard({
           {t("applications.card.noDeadline")}
         </p>
       )}
-      <span
-        className={`w-fit rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${DEADLINE_STATUS_STYLES[application.official_deadline.status]}`}
-      >
+      <Badge className="w-fit" tone={DEADLINE_STATUS_TONE[application.official_deadline.status]}>
         {t(
           `applications.deadlineStatus.${application.official_deadline.status}` as TranslationKey
         )}
-      </span>
+      </Badge>
       <p className="text-xs text-muted-foreground">
         {t("applications.card.incompleteRequirements", { count: incompleteCount })}
       </p>

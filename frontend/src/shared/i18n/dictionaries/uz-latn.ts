@@ -2700,5 +2700,37 @@ export const uzLatn = {
   "universityFit.semanticSection.lastUpdated": "Oxirgi yangilanish: {date}",
   "universityFit.semanticSection.disabledNotice": "Bu chuqurroq AI tushuntirishi ushbu joylashtirishda hali mavjud emas — yuqoridagi deterministik moslik allaqachon to’liq profilingizni aks ettiradi.",
   "universityFit.semanticSection.rateLimited": "Bugungi AI tahlil chegarasiga yetdingiz. Iltimos, ertaga qayta urinib ko’ring.",
-  "universityFit.semanticSection.failedNotice": "AI tushuntirishini yaratib bo’lmadi. Bu yuqoridagi deterministik moslikka ta’sir qilmaydi."
+  "universityFit.semanticSection.failedNotice": "AI tushuntirishini yaratib bo’lmadi. Bu yuqoridagi deterministik moslikka ta’sir qilmaydi.",
+
+  "navigation.saved": "Saqlanganlar",
+
+  "saved.eyebrow": "Sizning tanlovingiz",
+  "saved.title": "Saqlangan universitetlar",
+  "saved.description": "Yaqinroq ko’rib chiqish uchun saqlagan universitetlaringiz — barchasi bir joyda.",
+  "saved.states.error": "Saqlangan universitetlaringizni yuklab bo’lmadi.",
+  "saved.states.actionError": "Tanlovingizni yangilab bo’lmadi. Qayta urinib ko’ring.",
+  "saved.empty.title": "Hozircha hech narsa saqlanmagan",
+  "saved.empty.description": "Katalogni ko’zdan kechirayotganda universitetlarni saqlab, shu yerda ro’yxat tuzing.",
+  "saved.empty.action": "Universitetlarni ko’rish",
+  "saved.count": "{{count}} ta saqlangan universitet",
+  "saved.savedOn": "Saqlangan: {{date}}",
+  "saved.unsave": "O’chirish",
+  "saved.unsaving": "O’chirilmoqda…",
+  "saved.otherTypes.title": "Ko’proq turlar — tez orada",
+  "saved.otherTypes.description": "Tadbirlar va stipendiyalarni saqlash hali mavjud emas. Hozircha katalogdan universitetlarni saqlab, shu yerga qaytishingiz mumkin.",
+
+  "navigation.scholarships": "Stipendiyalar",
+
+  "scholarships.eyebrow": "Moliyalashtirish imkoniyatlari",
+  "scholarships.title": "Stipendiyalar",
+  "scholarships.description": "Har bir universitetning o’z sahifasidan olingan haqiqiy stipendiya ma’lumotlari.",
+  "scholarships.filters.country": "Davlat",
+  "scholarships.filters.allCountries": "Barcha davlatlar",
+  "scholarships.states.error": "Stipendiyalarni yuklab bo’lmadi.",
+  "scholarships.empty.title": "Hozircha mos stipendiya topilmadi",
+  "scholarships.empty.description": "Boshqa davlatni tanlab ko’ring yoki keyinroq qayta tekshiring — ma’lumotlar doimiy tekshirilmoqda.",
+  "scholarships.empty.action": "Universitetlarni ko’rish",
+  "scholarships.card.officialLink": "Rasmiy manba",
+  "scholarships.disclaimer.title": "Har doim rasmiy manbadan tasdiqlang",
+  "scholarships.disclaimer.description": "Stipendiya ma’lumotlari to’g’ridan-to’g’ri universitet sahifasidan olinadi va o’zgarishi mumkin. Ariza berishdan oldin shartlar, miqdor va muddatlarni rasmiy sahifada tekshiring."
 } satisfies TranslationDictionary;

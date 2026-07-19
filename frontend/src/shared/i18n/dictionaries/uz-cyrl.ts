@@ -2700,5 +2700,37 @@ export const uzCyrl = {
   "universityFit.semanticSection.lastUpdated": "Охирги янгиланиш: {date}",
   "universityFit.semanticSection.disabledNotice": "Бу чуқурроқ AI тушунтириши ушбу жойлаштиришда ҳали мавжуд эмас — юқоридаги детерминистик мослик аллақачон тўлиқ профилингизни акс эттиради.",
   "universityFit.semanticSection.rateLimited": "Бугунги AI таҳлил чегарасига етдингиз. Илтимос, эртага қайта уриниб кўринг.",
-  "universityFit.semanticSection.failedNotice": "AI тушунтиришини яратиб бўлмади. Бу юқоридаги детерминистик мосликка таъсир қилмайди."
+  "universityFit.semanticSection.failedNotice": "AI тушунтиришини яратиб бўлмади. Бу юқоридаги детерминистик мосликка таъсир қилмайди.",
+
+  "navigation.saved": "Сақланганлар",
+
+  "saved.eyebrow": "Сизнинг танловингиз",
+  "saved.title": "Сақланган университетлар",
+  "saved.description": "Яқинроқ кўриб чиқиш учун сақлаган университетларингиз — барчаси бир жойда.",
+  "saved.states.error": "Сақланган университетларингизни юклаб бўлмади.",
+  "saved.states.actionError": "Танловингизни янгилаб бўлмади. Қайта уриниб кўринг.",
+  "saved.empty.title": "Ҳозирча ҳеч нарса сақланмаган",
+  "saved.empty.description": "Каталогни кўздан кечираётганда университетларни сақлаб, шу ерда рўйхат тузинг.",
+  "saved.empty.action": "Университетларни кўриш",
+  "saved.count": "{{count}} та сақланган университет",
+  "saved.savedOn": "Сақланган: {{date}}",
+  "saved.unsave": "Ўчириш",
+  "saved.unsaving": "Ўчирилмоқда…",
+  "saved.otherTypes.title": "Кўпроқ турлар — тез орада",
+  "saved.otherTypes.description": "Тадбирлар ва стипендияларни сақлаш ҳали мавжуд эмас. Ҳозирча каталогдан университетларни сақлаб, шу ерга қайтишингиз мумкин.",
+
+  "navigation.scholarships": "Стипендиялар",
+
+  "scholarships.eyebrow": "Молиялаштириш имкониятлари",
+  "scholarships.title": "Стипендиялар",
+  "scholarships.description": "Ҳар бир университетнинг ўз саҳифасидан олинган ҳақиқий стипендия маълумотлари.",
+  "scholarships.filters.country": "Давлат",
+  "scholarships.filters.allCountries": "Барча давлатлар",
+  "scholarships.states.error": "Стипендияларни юклаб бўлмади.",
+  "scholarships.empty.title": "Ҳозирча мос стипендия топилмади",
+  "scholarships.empty.description": "Бошқа давлатни танлаб кўринг ёки кейинроқ қайта текширинг — маълумотлар доимий текширилмоқда.",
+  "scholarships.empty.action": "Университетларни кўриш",
+  "scholarships.card.officialLink": "Расмий манба",
+  "scholarships.disclaimer.title": "Ҳар доим расмий манбадан тасдиқланг",
+  "scholarships.disclaimer.description": "Стипендия маълумотлари тўғридан-тўғри университет саҳифасидан олинади ва ўзгариши мумкин. Ариза беришдан олдин шартлар, миқдор ва муддатларни расмий саҳифада текширинг."
 } satisfies TranslationDictionary;

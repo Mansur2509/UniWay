@@ -16,6 +16,7 @@ import { useI18n } from "@/shared/i18n";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
+import { IconChip } from "@/shared/ui/icon-chip";
 import { Reveal } from "@/shared/ui/reveal";
 
 import { betaModules, type BetaModuleId } from "./beta-modules";
@@ -138,13 +139,15 @@ export function BetaModuleScreen({ module }: { module: BetaModuleId }) {
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-sm border bg-card shadow-card">
-        <div className="grid lg:grid-cols-[1.35fr_0.65fr]">
+      <section className="relative overflow-hidden rounded-sm border bg-card shadow-card">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-recommendation/8 via-transparent to-accent/8"
+        />
+        <div className="relative grid lg:grid-cols-[1.35fr_0.65fr]">
           <div className="p-6 sm:p-9">
             <div className="flex items-center gap-3">
-              <span className="grid size-11 shrink-0 place-items-center rounded-sm border border-recommendation/30 bg-recommendation/10 text-recommendation">
-                <ModuleIcon aria-hidden className="size-5" />
-              </span>
+              <IconChip icon={ModuleIcon} size="lg" tone="recommendation" />
               <Badge>{t(config.statusKey)}</Badge>
             </div>
             <p className="mt-5 text-eyebrow text-primary-hover">
@@ -172,9 +175,7 @@ export function BetaModuleScreen({ module }: { module: BetaModuleId }) {
           </div>
           <div className="grid place-items-center border-t bg-surface p-8 lg:border-l lg:border-t-0">
             <div className="w-full max-w-xs rounded-sm border bg-elevated/70 p-6">
-              <span className="grid size-11 shrink-0 place-items-center rounded-sm border border-recommendation/30 bg-recommendation/10 text-recommendation">
-                <ModuleIcon aria-hidden className="size-5" />
-              </span>
+              <IconChip icon={ModuleIcon} size="lg" tone="recommendation" />
               <p className="mt-6 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
                 {t("beta.nextPlanned")}
               </p>
@@ -199,9 +200,7 @@ export function BetaModuleScreen({ module }: { module: BetaModuleId }) {
             return (
               <Reveal delayMs={index * 60} key={feature.titleKey}>
                 <Card className="hover:border-recommendation/45" interactive>
-                  <span className="grid size-9 shrink-0 place-items-center rounded-sm border border-recommendation/30 bg-recommendation/10 text-recommendation">
-                    <Icon aria-hidden className="size-4" />
-                  </span>
+                  <IconChip icon={Icon} tone="recommendation" />
                   <h3 className="mt-4 text-lg font-semibold">{t(feature.titleKey)}</h3>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
                     {t(feature.detailKey)}

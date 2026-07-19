@@ -16,6 +16,7 @@ import {
   type RecommendationsStatus,
   type TestScoresStatus
 } from "@/entities/application";
+import { DEADLINE_STATUS_TONE, PRIORITY_TONE } from "@/entities/application/lib/tone";
 import type { RoadmapTask } from "@/entities/roadmap";
 import type { SuggestedItem } from "@/entities/suggestion";
 import type { SavedUniversity } from "@/entities/university";
@@ -45,6 +46,7 @@ import { getShortlistRequest } from "@/features/universities";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { formatDate } from "@/shared/lib/date-time";
 import { useUnsavedChangesGuard } from "@/shared/lib/use-unsaved-changes-guard";
+import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { CollapsibleFilterPanel } from "@/shared/ui/collapsible-filter-panel";
@@ -52,6 +54,7 @@ import { EmptyState } from "@/shared/ui/empty-state";
 import { fieldClassName } from "@/shared/ui/field";
 import { HelpTooltip } from "@/shared/ui/help-tooltip";
 import { AppIcon } from "@/shared/ui/icon";
+import { IconChip } from "@/shared/ui/icon-chip";
 import { LoadingNotice } from "@/shared/ui/loading-notice";
 import { PaginationControls } from "@/shared/ui/pagination";
 import { Reveal } from "@/shared/ui/reveal";
@@ -480,18 +483,25 @@ export function ApplicationsScreen() {
         ]}
       />
 
-      <section className="rounded-sm border bg-card p-6 shadow-card sm:p-9">
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-          <div>
-            <p className="text-eyebrow text-primary-hover">
-              {t("applications.list.eyebrow")}
-            </p>
-            <h1 className="text-display mt-2 max-w-3xl">
-              {t("applications.list.title")}
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-              {t("applications.list.description")}
-            </p>
+      <section className="relative overflow-hidden rounded-sm border bg-card p-6 shadow-card sm:p-9">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/8 via-transparent to-accent/8"
+        />
+        <div className="relative flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+          <div className="flex min-w-0 items-start gap-3">
+            <IconChip className="mt-1" icon={ClipboardList} size="lg" tone="primary" />
+            <div>
+              <p className="text-eyebrow text-primary-hover">
+                {t("applications.list.eyebrow")}
+              </p>
+              <h1 className="text-display mt-2 max-w-3xl">
+                {t("applications.list.title")}
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+                {t("applications.list.description")}
+              </p>
+            </div>
           </div>
           <Button onClick={() => setIsFormOpen(true)} type="button">
             <Plus aria-hidden className="mr-2 size-4" />
@@ -567,9 +577,7 @@ export function ApplicationsScreen() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
                 <h2 className="text-sm font-semibold">{t("applications.filters.title")}</h2>
-                <span className="rounded-sm border bg-surface px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {t("applications.filters.autoApply")}
-                </span>
+                <Badge tone="muted">{t("applications.filters.autoApply")}</Badge>
               </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -737,11 +745,11 @@ export function ApplicationsScreen() {
                     : t("applications.officialDeadline.noExactDate")}
                 </p>
               </div>
-              <span className="rounded-sm border bg-elevated px-2 py-1 text-xs font-semibold">
+              <Badge tone={DEADLINE_STATUS_TONE[selected.official_deadline.status]}>
                 {t(
                   `applications.deadlineStatus.${selected.official_deadline.status}` as TranslationKey
                 )}
-              </span>
+              </Badge>
             </div>
             {selected.official_deadline.status === "outdated" &&
             selected.official_deadline.source_date ? (
@@ -1005,12 +1013,12 @@ export function ApplicationsScreen() {
                   >
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="rounded-sm border bg-elevated px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <Badge tone="muted">
                           {t(`applications.milestoneCategory.${milestone.category}` as TranslationKey)}
-                        </span>
-                        <span className="rounded-sm border bg-elevated px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                        </Badge>
+                        <Badge tone={PRIORITY_TONE[milestone.priority]}>
                           {t(`applications.priority.${milestone.priority}` as TranslationKey)}
-                        </span>
+                        </Badge>
                       </div>
                       <p className="mt-1 font-semibold">{milestone.title}</p>
                       {milestone.notes ? (

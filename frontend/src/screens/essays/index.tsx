@@ -18,6 +18,7 @@ import {
   ESSAY_PRIORITIES,
   ESSAY_STATUSES,
   EssayCard,
+  type AIEssayScoreConfidence,
   type AIEssayScoreErrorKind,
   type AIEssayScoreReason,
   type AIEssayScoreReport,
@@ -55,9 +56,10 @@ import { ApiError } from "@/shared/api/client";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { formatDate } from "@/shared/lib/date-time";
 import { useUnsavedChangesGuard } from "@/shared/lib/use-unsaved-changes-guard";
-import { Badge } from "@/shared/ui/badge";
+import { Badge, type BadgeTone } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
+import { IconChip } from "@/shared/ui/icon-chip";
 import { CollapsibleFilterPanel } from "@/shared/ui/collapsible-filter-panel";
 import { CollapsiblePanel } from "@/shared/ui/collapsible-panel";
 import { EmptyState } from "@/shared/ui/empty-state";
@@ -77,11 +79,17 @@ function scoreCardStorageKey(essayId: number) {
 
 type Translate = ReturnType<typeof useI18n>["t"];
 
-function scoreToneClasses(score: number) {
-  if (score >= 75) return "border-success/40 bg-success/10 text-success";
-  if (score >= 50) return "border-warning/40 bg-warning/10 text-warning";
-  return "border-danger/40 bg-danger/10 text-danger";
+function scoreTone(score: number): BadgeTone {
+  if (score >= 75) return "success";
+  if (score >= 50) return "warning";
+  return "danger";
 }
+
+const CONFIDENCE_TONE: Record<AIEssayScoreConfidence, BadgeTone> = {
+  high: "success",
+  medium: "warning",
+  low: "muted"
+};
 
 function groupEssays(essays: EssayWorkspace[], t: Translate) {
   const groups = new Map<string, { key: string; label: string; items: EssayWorkspace[] }>();
@@ -678,12 +686,19 @@ export function EssaysScreen() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-sm border bg-card p-6 shadow-card sm:p-9">
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+      <section className="relative overflow-hidden rounded-sm border bg-card p-6 shadow-card sm:p-9">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-recommendation/8 via-transparent to-accent/8"
+        />
+        <div className="relative flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
           <div>
-            <p className="text-eyebrow text-primary-hover">
-              {t("essays.list.eyebrow")}
-            </p>
+            <div className="flex items-center gap-3">
+              <IconChip icon={FilePenLine} tone="recommendation" />
+              <p className="text-eyebrow text-primary-hover">
+                {t("essays.list.eyebrow")}
+              </p>
+            </div>
             <h1 className="text-display mt-2 max-w-3xl">
               {t("essays.list.title")}
             </h1>
@@ -1238,11 +1253,9 @@ export function EssaysScreen() {
                       t("essays.score.notReviewedYet")
                     ) : (
                       <span className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`rounded-sm border px-2 py-0.5 font-semibold ${scoreToneClasses(latestScore.overall_essay_readiness)}`}
-                        >
+                        <Badge tone={scoreTone(latestScore.overall_essay_readiness)}>
                           {t("essays.score.overall", { score: latestScore.overall_essay_readiness })}
-                        </span>
+                        </Badge>
                         {scoreRequestFailureCode ||
                         (scoreNotice &&
                           (scoreNotice.reason === "ai_unavailable" ||
@@ -1277,14 +1290,12 @@ export function EssaysScreen() {
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`rounded-sm border px-3 py-1 text-sm font-semibold ${scoreToneClasses(latestScore.overall_essay_readiness)}`}
-                        >
+                        <Badge className="px-3 py-1 text-sm" tone={scoreTone(latestScore.overall_essay_readiness)}>
                           {t("essays.score.overall", {
                             score: latestScore.overall_essay_readiness
                           })}
-                        </span>
-                        <Badge className="text-xs">
+                        </Badge>
+                        <Badge tone={CONFIDENCE_TONE[latestScore.confidence]}>
                           {t(`essays.confidence.${latestScore.confidence}` as TranslationKey)}
                         </Badge>
                         <ReportButton targetId={latestScore.id} targetType="essay_review" />

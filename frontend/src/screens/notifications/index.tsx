@@ -37,28 +37,22 @@ import {
 } from "@/features/notifications";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { formatDateTime } from "@/shared/lib/date-time";
-import { Badge } from "@/shared/ui/badge";
+import { Badge, type BadgeTone } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { AppIcon } from "@/shared/ui/icon";
+import { IconChip } from "@/shared/ui/icon-chip";
 import { LoadingNotice } from "@/shared/ui/loading-notice";
 import { DEFAULT_PAGE_SIZE, PaginatedList } from "@/shared/ui/pagination";
 
 const STATUS_FILTERS: Array<NotificationStatus | "all"> = ["all", "unread", "read", "archived"];
 
-const PRIORITY_STYLES: Record<Notification["priority"], string> = {
-  low: "border-muted-foreground/30 bg-surface text-muted-foreground",
-  normal: "border-accent/35 bg-accent/10 text-accent",
-  high: "border-warning/35 bg-warning/10 text-warning",
-  urgent: "border-danger/35 bg-danger/10 text-danger"
-};
-
-const PRIORITY_ICON_CHIP_STYLES: Record<Notification["priority"], string> = {
-  low: "border-muted-foreground/30 bg-surface text-muted-foreground",
-  normal: "border-accent/35 bg-accent/10 text-accent",
-  high: "border-warning/35 bg-warning/10 text-warning",
-  urgent: "border-danger/35 bg-danger/10 text-danger"
+const PRIORITY_TONE: Record<Notification["priority"], BadgeTone> = {
+  low: "muted",
+  normal: "accent",
+  high: "warning",
+  urgent: "danger"
 };
 
 // Full literal class strings (not dynamically concatenated) so Tailwind's
@@ -192,17 +186,23 @@ export function NotificationsScreen() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-sm border bg-card p-6 shadow-card sm:p-9">
-        <div className="flex items-center gap-2 text-primary-hover">
-          <AppIcon icon={BellRing} size="md" />
-          <p className="text-eyebrow">
-            {t("notifications.page.eyebrow")}
-          </p>
+      <section className="relative overflow-hidden rounded-sm border bg-card p-6 shadow-card sm:p-9">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/8 via-transparent to-info/8"
+        />
+        <div className="relative flex min-w-0 items-start gap-3">
+          <IconChip icon={BellRing} size="lg" tone="primary" />
+          <div>
+            <p className="text-eyebrow text-primary-hover">
+              {t("notifications.page.eyebrow")}
+            </p>
+            <h1 className="text-display mt-2">{t("notifications.page.title")}</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+              {t("notifications.page.description")}
+            </p>
+          </div>
         </div>
-        <h1 className="text-display mt-2">{t("notifications.page.title")}</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-          {t("notifications.page.description")}
-        </p>
       </section>
 
       <section>
@@ -268,16 +268,14 @@ export function NotificationsScreen() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`grid size-8 shrink-0 place-items-center rounded-sm border ${PRIORITY_ICON_CHIP_STYLES[notification.priority]}`}
-                      >
-                        <AppIcon icon={NOTIFICATION_ICONS[notification.notification_type]} />
-                      </span>
-                      <span
-                        className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${PRIORITY_STYLES[notification.priority]}`}
-                      >
+                      <IconChip
+                        icon={NOTIFICATION_ICONS[notification.notification_type]}
+                        size="sm"
+                        tone={PRIORITY_TONE[notification.priority]}
+                      />
+                      <Badge tone={PRIORITY_TONE[notification.priority]}>
                         {t(`notifications.priority.${notification.priority}` as TranslationKey)}
-                      </span>
+                      </Badge>
                       {notification.status === "unread" ? (
                         <Badge className="text-[0.65rem]">{t("notifications.statusFilter.unread")}</Badge>
                       ) : null}

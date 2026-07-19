@@ -5,25 +5,19 @@ import { Plus, Trash2, X, type LucideIcon } from "lucide-react";
 
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { useUnsavedChangesGuard } from "@/shared/lib/use-unsaved-changes-guard";
+import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { fieldClassName } from "@/shared/ui/field";
 import { AppIcon } from "@/shared/ui/icon";
+import { IconChip } from "@/shared/ui/icon-chip";
 import { IconButton } from "@/shared/ui/icon-button";
 import { Reveal } from "@/shared/ui/reveal";
 import { SkeletonRows } from "@/shared/ui/skeleton";
 import { UnsavedChangesDialog } from "@/shared/ui/unsaved-changes-dialog";
 
 export type ProfileItemTone = "info" | "success" | "accent" | "recommendation" | "event";
-
-const TONE_ICON_CLASSES: Record<ProfileItemTone, string> = {
-  info: "border-info/30 bg-info/10 text-info",
-  success: "border-success/30 bg-success/10 text-success",
-  accent: "border-accent/30 bg-accent/10 text-accent",
-  recommendation: "border-recommendation/30 bg-recommendation/10 text-recommendation",
-  event: "border-event/30 bg-event/10 text-event"
-};
 
 const TONE_HOVER_CLASSES: Record<ProfileItemTone, string> = {
   info: "hover:border-info/45",
@@ -175,9 +169,7 @@ export function ProfileItemSection<T extends { id: number }>({
     return (
       <Card className="p-4" id={id}>
         <div className="flex items-center gap-3">
-          <span className={`grid size-9 shrink-0 place-items-center rounded-sm border ${TONE_ICON_CLASSES[tone]}`}>
-            <AppIcon icon={icon} />
-          </span>
+          <IconChip icon={icon} tone={tone} />
           <h3 className="text-lg font-semibold">{t(title)}</h3>
         </div>
         <div className="mt-4 space-y-2">
@@ -191,24 +183,12 @@ export function ProfileItemSection<T extends { id: number }>({
     <Card className="scroll-mt-24 p-4" id={id}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <span
-            className={`mt-0.5 grid size-9 shrink-0 place-items-center rounded-sm border ${TONE_ICON_CLASSES[tone]}`}
-          >
-            <AppIcon icon={icon} />
-          </span>
+          <IconChip className="mt-0.5" icon={icon} tone={tone} />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-lg font-semibold">{t(title)}</h3>
               {statusLabel ? (
-                <span
-                  className={`rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${
-                    statusTone === "complete"
-                      ? "border-success/35 bg-success/10 text-success"
-                      : "border-warning/35 bg-warning/10 text-warning"
-                  }`}
-                >
-                  {statusLabel}
-                </span>
+                <Badge tone={statusTone === "complete" ? "success" : "warning"}>{statusLabel}</Badge>
               ) : null}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">{t(description)}</p>

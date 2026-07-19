@@ -431,13 +431,29 @@ class UniversityCatalogTests(APITestCase):
         self.assertEqual(item["slug"], heavy.slug)
         self.assertTrue(item["is_shortlisted"])
         self.assertEqual(item["majors_list"], [f"Major {index}" for index in range(8)])
+        # The list card intentionally exposes a compact `scholarships` list
+        # (name/summary/deadline/link) so catalog-adjacent surfaces like the
+        # Scholarships hub can render real listings without a per-university
+        # detail fetch -- everything else nested/long-text stays list-only.
+        self.assertEqual(
+            item["scholarships"],
+            [
+                {
+                    "id": scholarship.id,
+                    "name": "Detail Scholarship",
+                    "summary": "Scholarship detail text.",
+                    "official_url": "https://example.com/scholarship",
+                    "deadline": None,
+                }
+                for scholarship in [UniversityScholarship.objects.get(university=heavy)]
+            ],
+        )
         excluded_fields = {
             "programs",
             "program_display_names",
             "subject_rankings",
             "program_matching",
             "requirements",
-            "scholarships",
             "data_sources",
             "field_verifications",
             "budget_comparison",

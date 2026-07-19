@@ -1,12 +1,13 @@
 "use client";
 
-import { Check, ShieldCheck } from "lucide-react";
+import { Check, Shapes, ShieldCheck } from "lucide-react";
 
 import type { SubscriptionPlan } from "@/entities/subscription";
 import { useAuth } from "@/features/auth";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { Badge } from "@/shared/ui/badge";
 import { Card } from "@/shared/ui/card";
+import { IconChip } from "@/shared/ui/icon-chip";
 import { Reveal } from "@/shared/ui/reveal";
 
 const plans: Array<{
@@ -59,37 +60,46 @@ export function PricingScreen() {
 
   return (
     <div className="space-y-7">
-      <section className="grid gap-6 rounded-sm border bg-card p-6 shadow-card sm:p-9 lg:grid-cols-[1fr_auto] lg:items-end">
-        <div>
-          <Badge>{t("pricingPage.previewBadge")}</Badge>
-          <p className="mt-5 text-eyebrow text-primary-hover">
-            {t("pricingPage.eyebrow")}
-          </p>
-          <h1 className="text-display mt-2 max-w-4xl">
-            {t("pricingPage.title")}
-          </h1>
-          <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
-            {t("pricingPage.description")}
-          </p>
-          <div className="mt-5 grid gap-2 text-sm font-semibold text-muted-foreground sm:grid-cols-3">
-            <p className="rounded-sm border bg-elevated px-3 py-2">
-              {t("pricingPage.betaAccess")}
+      <section className="relative overflow-hidden rounded-sm border bg-card p-6 shadow-card sm:p-9">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/8 via-transparent to-accent/8"
+        />
+        <div className="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div className="flex min-w-0 items-start gap-3">
+            <IconChip className="mt-1" icon={Shapes} size="lg" tone="primary" />
+            <div>
+              <Badge>{t("pricingPage.previewBadge")}</Badge>
+              <p className="mt-5 text-eyebrow text-primary-hover">
+                {t("pricingPage.eyebrow")}
+              </p>
+              <h1 className="text-display mt-2 max-w-4xl">
+                {t("pricingPage.title")}
+              </h1>
+              <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
+                {t("pricingPage.description")}
+              </p>
+              <div className="mt-5 grid gap-2 text-sm font-semibold text-muted-foreground sm:grid-cols-3">
+                <p className="rounded-sm border bg-elevated px-3 py-2">
+                  {t("pricingPage.betaAccess")}
+                </p>
+                <p className="rounded-sm border bg-elevated px-3 py-2">
+                  {t("pricingPage.paidInactive")}
+                </p>
+                <p className="rounded-sm border bg-elevated px-3 py-2">
+                  {t("pricingPage.limitsMayChange")}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="border-l-4 border-primary bg-elevated px-5 py-4">
+            <p className="text-eyebrow text-primary-hover">
+              {t("pricingPage.currentPlan")}
             </p>
-            <p className="rounded-sm border bg-elevated px-3 py-2">
-              {t("pricingPage.paidInactive")}
-            </p>
-            <p className="rounded-sm border bg-elevated px-3 py-2">
-              {t("pricingPage.limitsMayChange")}
+            <p className="mt-1 font-serif text-2xl font-semibold">
+              {t(`plans.${user?.subscription.tier ?? "free"}` as TranslationKey)}
             </p>
           </div>
-        </div>
-        <div className="border-l-4 border-primary bg-elevated px-5 py-4">
-          <p className="text-eyebrow text-primary-hover">
-            {t("pricingPage.currentPlan")}
-          </p>
-          <p className="mt-1 font-serif text-2xl font-semibold">
-            {t(`plans.${user?.subscription.tier ?? "free"}` as TranslationKey)}
-          </p>
         </div>
       </section>
 
@@ -115,7 +125,7 @@ export function PricingScreen() {
                   <p className="text-eyebrow text-muted-foreground">
                     {t(`plans.${plan.id}` as TranslationKey)}
                   </p>
-                  <Badge className={isCurrent ? "border-success/35 bg-success/10 text-success" : undefined}>
+                  <Badge tone={isCurrent ? "success" : "primary"}>
                     {isCurrent ? t("pricingPage.active") : t(plan.statusKey)}
                   </Badge>
                 </div>

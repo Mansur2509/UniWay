@@ -123,6 +123,7 @@ class UniversityListSerializer(UniversityShortlistMixin, serializers.ModelSerial
 
     is_shortlisted = serializers.SerializerMethodField()
     majors_list = serializers.SerializerMethodField()
+    scholarships = UniversityScholarshipSerializer(many=True, read_only=True)
 
     class Meta:
         model = University
@@ -157,6 +158,7 @@ class UniversityListSerializer(UniversityShortlistMixin, serializers.ModelSerial
             "currency_conversion_confidence",
             "application_deadline",
             "scholarship_available",
+            "scholarships",
             "qs_ranking",
             "qs_ranking_year",
             "global_rank",

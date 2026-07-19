@@ -94,17 +94,18 @@ import { Card } from "@/shared/ui/card";
 import { fieldClassName } from "@/shared/ui/field";
 import { HelpTooltip } from "@/shared/ui/help-tooltip";
 import { AppIcon } from "@/shared/ui/icon";
+import { IconChip } from "@/shared/ui/icon-chip";
 import { LoadingNotice } from "@/shared/ui/loading-notice";
 import { ProgressRing } from "@/shared/ui/progress-ring";
 import { Reveal } from "@/shared/ui/reveal";
 import { UnsavedChangesDialog } from "@/shared/ui/unsaved-changes-dialog";
 
-const SECTION_TONE_CLASSES: Record<ProfileItemTone, string> = {
-  info: "border-info/30 bg-info/10 text-info",
-  success: "border-success/30 bg-success/10 text-success",
-  accent: "border-accent/30 bg-accent/10 text-accent",
-  recommendation: "border-recommendation/30 bg-recommendation/10 text-recommendation",
-  event: "border-event/30 bg-event/10 text-event"
+const SECTION_TOP_BAR_CLASSES: Record<ProfileItemTone, string> = {
+  info: "bg-info",
+  success: "bg-success",
+  accent: "bg-accent",
+  recommendation: "bg-recommendation",
+  event: "bg-event"
 };
 
 const TONE_HOVER_CLASSES: Record<ProfileItemTone, string> = {
@@ -328,13 +329,10 @@ function ProfileSection({
   children: ReactNode;
 }) {
   return (
-    <Card className="scroll-mt-24 p-5" id={id}>
+    <Card className="relative scroll-mt-24 overflow-hidden p-5" id={id}>
+      <span aria-hidden className={`absolute inset-x-0 top-0 h-1 ${SECTION_TOP_BAR_CLASSES[tone]}`} />
       <div className="flex items-start gap-3">
-        <span
-          className={`mt-0.5 grid size-9 shrink-0 place-items-center rounded-sm border ${SECTION_TONE_CLASSES[tone]}`}
-        >
-          <AppIcon icon={icon} />
-        </span>
+        <IconChip className="mt-0.5" icon={icon} tone={tone} />
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{title}</h2>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
@@ -429,13 +427,9 @@ function ProfileAssessmentPanel({
                 {t(`profileAssessment.confidence.${assessment.confidence}` as TranslationKey)}
               </Badge>
               {assessment.is_stale ? (
-                <Badge className="border-warning/35 bg-warning/10 text-warning">
-                  {t("profileAssessment.stale")}
-                </Badge>
+                <Badge tone="warning">{t("profileAssessment.stale")}</Badge>
               ) : (
-                <Badge className="border-success/35 bg-success/10 text-success">
-                  {t("profileAssessment.current")}
-                </Badge>
+                <Badge tone="success">{t("profileAssessment.current")}</Badge>
               )}
             </div>
             <p className="mt-3 text-xs leading-5 text-muted-foreground">
@@ -949,15 +943,19 @@ export function ProfileScreen() {
 
   return (
     <form className="mx-auto max-w-6xl space-y-4" onSubmit={handleSubmit}>
-      <section className="grid gap-4 rounded-sm border bg-card p-5 shadow-card lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start">
-        <div>
+      <section className="relative grid gap-4 overflow-hidden rounded-sm border bg-card p-5 shadow-card lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/8 via-transparent to-accent/8"
+        />
+        <div className="relative">
           <Badge>{t("profile.eyebrow")}</Badge>
           <h1 className="text-display mt-3">{t("profile.title")}</h1>
           <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
             {t("profile.description")}
           </p>
         </div>
-        <div className="flex items-center gap-4 border bg-elevated/55 p-4">
+        <div className="relative flex items-center gap-4 rounded-sm border bg-elevated/55 p-4">
           <ProgressRing
             label={t("a11y.profileCompletion", { percentage: completion.percentage })}
             percentage={completion.percentage}
@@ -1003,30 +1001,20 @@ export function ProfileScreen() {
           {structuredSections.map((section, index) => (
             <Reveal delayMs={Math.min(index, 8) * 30} key={section.id}>
               <a
-                className={`flex items-center justify-between gap-3 rounded-sm border bg-elevated/35 px-3 py-2 text-xs transition-colors hover:bg-elevated ${TONE_HOVER_CLASSES[section.tone]}`}
+                className={`flex flex-col gap-2 rounded-sm border bg-elevated/35 px-3 py-2 text-xs transition-colors hover:bg-elevated sm:flex-row sm:items-center sm:justify-between ${TONE_HOVER_CLASSES[section.tone]}`}
                 href={`#${section.id}`}
               >
-                <span className="flex min-w-0 items-center gap-2 font-semibold">
-                  <span
-                    className={`grid size-6 shrink-0 place-items-center rounded-sm border ${SECTION_TONE_CLASSES[section.tone]}`}
-                  >
-                    <AppIcon icon={section.icon} size="xs" />
-                  </span>
+                <span className="flex min-w-0 items-center gap-2 font-semibold sm:flex-1">
+                  <IconChip icon={section.icon} size="sm" tone={section.tone} />
                   <span className="truncate">{t(section.title)}</span>
                 </span>
-                <span className="flex shrink-0 items-center gap-1.5">
+                <span className="flex min-w-0 flex-wrap items-center gap-1.5 sm:shrink-0 sm:justify-end">
                   <span className="text-muted-foreground">
                     {t("profile.navigation.itemCount", { count: section.count })}
                   </span>
-                  <span
-                    className={`rounded-sm border px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-wide ${
-                      section.count > 0
-                        ? "border-success/35 bg-success/10 text-success"
-                        : "border-warning/35 bg-warning/10 text-warning"
-                    }`}
-                  >
+                  <Badge className="px-1.5 py-0.5 text-[0.62rem]" tone={section.count > 0 ? "success" : "warning"}>
                     {sectionStatusLabel(section.count)}
-                  </span>
+                  </Badge>
                 </span>
               </a>
             </Reveal>

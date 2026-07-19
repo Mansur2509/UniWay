@@ -13,12 +13,14 @@ import type {
   TimelineSuggestedDate,
   Urgency
 } from "@/entities/application";
+import { CONFIDENCE_TONE, URGENCY_TONE } from "@/entities/application/lib/tone";
 import type { EssayWorkspace } from "@/entities/essay";
 import { getApplicationTimelineRequest } from "@/features/applications";
 import { getEssaysRequest, updateEssayRequest } from "@/features/essays";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { formatDate } from "@/shared/lib/date-time";
 import { useSlowLoad } from "@/shared/lib/use-slow-load";
+import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { fieldClassName } from "@/shared/ui/field";
 import { HelpTooltip } from "@/shared/ui/help-tooltip";
@@ -47,44 +49,22 @@ function isCompletedEvent(status?: string): boolean {
   return status ? COMPLETED_STATUSES.has(status.toLowerCase()) : false;
 }
 
-const URGENCY_STYLES: Record<Urgency, string> = {
-  overdue: "border-danger/45 bg-danger/10 text-danger",
-  critical: "border-danger/45 bg-danger/10 text-danger",
-  urgent: "border-warning/45 bg-warning/10 text-warning",
-  soon: "border-warning/35 bg-warning/10 text-warning",
-  upcoming: "border-accent/35 bg-accent/10 text-accent",
-  far: "border-muted-foreground/30 bg-surface text-muted-foreground",
-  unknown: "border-muted-foreground/30 bg-surface text-muted-foreground"
-};
-
-const CONFIDENCE_STYLES: Record<DateConfidence, string> = {
-  verified: "border-success/35 bg-success/10 text-success",
-  partial: "border-accent/35 bg-accent/10 text-accent",
-  user_provided: "border-accent/30 bg-surface text-accent",
-  estimated: "border-muted-foreground/30 bg-surface text-muted-foreground",
-  missing: "border-warning/40 bg-warning/10 text-warning"
-};
-
-function badgeClass(base: string) {
-  return `inline-flex items-center rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${base}`;
-}
-
 function UrgencyBadge({ urgency }: { urgency: Urgency }) {
   const { t } = useI18n();
   if (urgency === "unknown") return null;
   return (
-    <span className={badgeClass(URGENCY_STYLES[urgency])}>
+    <Badge className="px-2 py-0.5 text-[0.65rem]" tone={URGENCY_TONE[urgency]}>
       {t(`applications.urgency.${urgency}` as TranslationKey)}
-    </span>
+    </Badge>
   );
 }
 
 function ConfidenceBadge({ confidence }: { confidence: DateConfidence }) {
   const { t } = useI18n();
   return (
-    <span className={badgeClass(CONFIDENCE_STYLES[confidence])}>
+    <Badge className="px-2 py-0.5 text-[0.65rem]" tone={CONFIDENCE_TONE[confidence]}>
       {t(`applications.confidence.${confidence}` as TranslationKey)}
-    </span>
+    </Badge>
   );
 }
 
@@ -218,9 +198,9 @@ function ExamRow({ exam }: { exam: TimelineExam }) {
           <HelpTooltip label={t("help.examDateSource")} />
         </span>
         {exam.severity ? (
-          <span className={badgeClass(CONFIDENCE_STYLES.estimated)}>
+          <Badge className="px-2 py-0.5 text-[0.65rem]" tone={CONFIDENCE_TONE.estimated}>
             {t(`applications.examSeverity.${exam.severity}` as TranslationKey)}
-          </span>
+          </Badge>
         ) : null}
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">

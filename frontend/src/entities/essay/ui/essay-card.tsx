@@ -5,32 +5,34 @@ import { ExternalLink, FileText } from "lucide-react";
 import type { EssayWorkspace } from "@/entities/essay";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { formatDate } from "@/shared/lib/date-time";
+import { Badge, type BadgeTone } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
+import { IconChip } from "@/shared/ui/icon-chip";
 
-const STATUS_STYLES: Record<string, string> = {
-  suggested: "border-primary/35 bg-primary/10 text-primary",
-  planned: "border-accent/35 bg-accent/10 text-accent",
-  not_started: "border-muted-foreground/30 bg-surface text-muted-foreground",
-  drafting: "border-accent/35 bg-accent/10 text-accent",
-  needs_revision: "border-warning/35 bg-warning/10 text-warning",
-  reviewed: "border-accent/35 bg-accent/10 text-accent",
-  ready: "border-success/35 bg-success/10 text-success",
-  submitted: "border-navy/35 bg-navy/10 text-navy",
-  skipped: "border-muted-foreground/30 bg-surface text-muted-foreground"
+const STATUS_TONE: Record<string, BadgeTone> = {
+  suggested: "primary",
+  planned: "accent",
+  not_started: "muted",
+  drafting: "accent",
+  needs_revision: "warning",
+  reviewed: "accent",
+  ready: "success",
+  submitted: "info",
+  skipped: "muted"
 };
 
-const VERIFICATION_STYLES: Record<string, string> = {
-  verified: "border-success/35 bg-success/10 text-success",
-  needs_verification: "border-warning/35 bg-warning/10 text-warning",
-  missing: "border-muted-foreground/30 bg-surface text-muted-foreground"
+const VERIFICATION_TONE: Record<string, BadgeTone> = {
+  verified: "success",
+  needs_verification: "warning",
+  missing: "muted"
 };
 
-const PRIORITY_STYLES: Record<string, string> = {
-  low: "border-muted-foreground/30 bg-surface text-muted-foreground",
-  medium: "border-accent/35 bg-accent/10 text-accent",
-  high: "border-warning/35 bg-warning/10 text-warning",
-  urgent: "border-danger/35 bg-danger/10 text-danger"
+const PRIORITY_TONE: Record<string, BadgeTone> = {
+  low: "muted",
+  medium: "accent",
+  high: "warning",
+  urgent: "danger"
 };
 
 export function EssayCard({
@@ -50,29 +52,19 @@ export function EssayCard({
       interactive
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-sm border bg-surface px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
-          {t(`essays.type.${essay.essay_type}` as TranslationKey)}
-        </span>
-        <span
-          className={`rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${STATUS_STYLES[essay.status]}`}
-        >
-          {t(`essays.status.${essay.status}` as TranslationKey)}
-        </span>
-        <span
-          className={`rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${VERIFICATION_STYLES[essay.prompt_verification_status]}`}
-        >
+        <Badge tone="muted">{t(`essays.type.${essay.essay_type}` as TranslationKey)}</Badge>
+        <Badge tone={STATUS_TONE[essay.status]}>{t(`essays.status.${essay.status}` as TranslationKey)}</Badge>
+        <Badge tone={VERIFICATION_TONE[essay.prompt_verification_status]}>
           {t(`essays.verification.${essay.prompt_verification_status}` as TranslationKey)}
-        </span>
+        </Badge>
         {essay.priority !== "low" ? (
-          <span
-            className={`rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${PRIORITY_STYLES[essay.priority]}`}
-          >
+          <Badge tone={PRIORITY_TONE[essay.priority]}>
             {t(`essays.priority.${essay.priority}` as TranslationKey)}
-          </span>
+          </Badge>
         ) : null}
       </div>
       <h3 className="flex items-center gap-2 text-base font-semibold">
-        <FileText aria-hidden className="size-4 shrink-0 text-accent" />
+        <IconChip icon={FileText} size="sm" tone="recommendation" />
         {essay.title}
       </h3>
       {essay.university_name ? (

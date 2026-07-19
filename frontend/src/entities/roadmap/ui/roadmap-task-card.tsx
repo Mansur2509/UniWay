@@ -7,15 +7,16 @@ import { useMemo, useState } from "react";
 import type { RoadmapTask } from "@/entities/roadmap";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { formatDate } from "@/shared/lib/date-time";
+import { Badge, type BadgeTone } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { HelpTooltip } from "@/shared/ui/help-tooltip";
 
-const PRIORITY_STYLES: Record<string, string> = {
-  low: "border-muted-foreground/30 bg-surface text-muted-foreground",
-  medium: "border-accent/35 bg-accent/10 text-accent",
-  high: "border-warning/35 bg-warning/10 text-warning",
-  urgent: "border-danger/35 bg-danger/10 text-danger"
+const PRIORITY_TONE: Record<string, BadgeTone> = {
+  low: "muted",
+  medium: "accent",
+  high: "warning",
+  urgent: "danger"
 };
 
 export function RoadmapTaskCard({
@@ -62,34 +63,18 @@ export function RoadmapTaskCard({
   return (
     <Card className="flex h-full flex-col gap-2 p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-sm border bg-surface px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
-          {t(`roadmap.category.${task.category}` as TranslationKey)}
-        </span>
-        <span className="rounded-sm border bg-surface px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
-          {t(`roadmap.task.kind.${task.task_kind}` as TranslationKey)}
-        </span>
-        <span className="rounded-sm border bg-surface px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
-          {t(`roadmap.source.${task.source_type}` as TranslationKey)}
-        </span>
-        <span
-          className={`inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${PRIORITY_STYLES[task.priority]}`}
-        >
+        <Badge tone="muted">{t(`roadmap.category.${task.category}` as TranslationKey)}</Badge>
+        <Badge tone="muted">{t(`roadmap.task.kind.${task.task_kind}` as TranslationKey)}</Badge>
+        <Badge tone="muted">{t(`roadmap.source.${task.source_type}` as TranslationKey)}</Badge>
+        <Badge className="gap-1" tone={PRIORITY_TONE[task.priority]}>
           {t(`roadmap.priority.${task.priority}` as TranslationKey)}
           <HelpTooltip label={t("help.roadmapPriority")} />
-        </span>
-        <span className="rounded-sm border bg-surface px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
-          {t(`roadmap.effort.${task.estimated_effort}` as TranslationKey)}
-        </span>
+        </Badge>
+        <Badge tone="muted">{t(`roadmap.effort.${task.estimated_effort}` as TranslationKey)}</Badge>
         {task.status === "completed" ? (
-          <span className="rounded-sm border border-success/35 bg-success/10 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-success">
-            {t("roadmap.status.completed")}
-          </span>
+          <Badge tone="success">{t("roadmap.status.completed")}</Badge>
         ) : null}
-        {task.status === "skipped" ? (
-          <span className="rounded-sm border bg-surface px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
-            {t("roadmap.status.skipped")}
-          </span>
-        ) : null}
+        {task.status === "skipped" ? <Badge tone="muted">{t("roadmap.status.skipped")}</Badge> : null}
       </div>
 
       <h3 className="text-base font-semibold">{task.title}</h3>

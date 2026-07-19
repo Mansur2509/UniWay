@@ -3,28 +3,15 @@
 import { Archive, GraduationCap, RotateCcw } from "lucide-react";
 
 import type { ApplicationTrackerItem } from "@/entities/application";
+import { DEADLINE_STATUS_TONE, FIT_TIER_TONE, PRIORITY_TONE } from "@/entities/application/lib/tone";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { formatDate } from "@/shared/lib/date-time";
-import { AppIcon } from "@/shared/ui/icon";
-import { IconButton } from "@/shared/ui/icon-button";
+import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
-
-const FIT_TIER_STYLES: Record<string, string> = {
-  reach: "border-danger/35 bg-danger/10 text-danger",
-  competitive: "border-warning/35 bg-warning/10 text-warning",
-  target: "border-accent/35 bg-accent/10 text-accent",
-  safety: "border-success/35 bg-success/10 text-success",
-  unknown: "border-muted-foreground/30 bg-surface text-muted-foreground"
-};
-
-const DEADLINE_STATUS_STYLES: Record<string, string> = {
-  verified: "border-success/35 bg-success/10 text-success",
-  estimated: "border-warning/35 bg-warning/10 text-warning",
-  not_published: "border-muted-foreground/30 bg-surface text-muted-foreground",
-  outdated: "border-danger/35 bg-danger/10 text-danger",
-  requires_review: "border-warning/35 bg-warning/10 text-warning"
-};
+import { IconButton } from "@/shared/ui/icon-button";
+import { IconChip } from "@/shared/ui/icon-chip";
+import { AppIcon } from "@/shared/ui/icon";
 
 export function ProspectiveTargetCard({
   isArchived = false,
@@ -49,17 +36,15 @@ export function ProspectiveTargetCard({
     <Card className="flex min-w-0 flex-col gap-2 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={`rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${FIT_TIER_STYLES[target.fit_tier]}`}
-          >
+          <Badge tone={FIT_TIER_TONE[target.fit_tier]}>
             {t(`applications.fitTier.${target.fit_tier}` as TranslationKey)}
-          </span>
-          <span className="rounded-sm border bg-surface px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+          </Badge>
+          <Badge tone="muted">
             {t(`applications.round.${target.application_round}` as TranslationKey)}
-          </span>
-          <span className="rounded-sm border bg-surface px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+          </Badge>
+          <Badge tone={PRIORITY_TONE[target.priority]}>
             {t(`applications.priority.${target.priority}` as TranslationKey)}
-          </span>
+          </Badge>
         </div>
         {isArchived ? (
           <IconButton
@@ -75,17 +60,15 @@ export function ProspectiveTargetCard({
         )}
       </div>
       <h3 className="flex items-center gap-2 text-base font-semibold break-words">
-        <AppIcon decorative icon={GraduationCap} className="text-accent" size="sm" />
+        <IconChip icon={GraduationCap} size="sm" tone="accent" />
         {target.university_name}
       </h3>
       {target.target_program_name ? (
         <p className="text-xs text-muted-foreground">{target.target_program_name}</p>
       ) : null}
-      <span
-        className={`w-fit rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${DEADLINE_STATUS_STYLES[officialDeadline.status]}`}
-      >
+      <Badge className="w-fit" tone={DEADLINE_STATUS_TONE[officialDeadline.status]}>
         {t(`applications.deadlineStatus.${officialDeadline.status}` as TranslationKey)}
-      </span>
+      </Badge>
       {hasOfficialDate && officialDeadline.date ? (
         <p className="text-xs text-muted-foreground">
           {t("prospective.card.officialDeadline", {

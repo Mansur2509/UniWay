@@ -133,18 +133,18 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="scrollbar-quiet min-w-0 flex-1 lg:h-dvh lg:overflow-y-auto">
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-surface px-4 sm:px-6 lg:px-8">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary-hover">
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 overflow-hidden border-b bg-surface px-4 sm:px-6 lg:px-8">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-bold uppercase tracking-[0.16em] text-primary-hover">
               {t("shell.academicWorkspace")}
             </p>
-            <p className="text-sm text-muted-foreground">{t("shell.nextMove")}</p>
+            <p className="truncate text-sm text-muted-foreground">{t("shell.nextMove")}</p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="block lg:hidden">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <div className="block shrink-0 lg:hidden">
               <LanguageSwitcher compact />
             </div>
-            <SupportLink className="lg:hidden" />
+            <SupportLink className="hidden sm:inline-flex lg:hidden" />
             <button
               aria-label={t("a11y.logout")}
               className="hidden items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground sm:flex lg:hidden"
@@ -157,7 +157,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <ThemeToggleButton />
             <Link
               aria-label={t("navigation.settings")}
-              className="grid size-9 place-items-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="hidden size-9 place-items-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:grid"
               href="/settings"
               title={t("navigation.settings")}
             >
@@ -166,7 +166,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <NotificationBell />
             <div
               aria-label={t("shell.userAvatar")}
-              className="grid size-9 place-items-center rounded-sm border border-primary/25 bg-primary/10 text-sm font-bold text-primary-hover"
+              className="hidden size-9 place-items-center rounded-sm border border-primary/25 bg-primary/10 text-sm font-bold text-primary-hover sm:grid"
             >
               {initials}
             </div>
@@ -175,7 +175,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <nav
           aria-label={t("shell.compactNavigation")}
-          className="flex gap-2 overflow-x-auto border-b bg-background px-4 py-2 lg:hidden"
+          className="flex max-w-full gap-2 overflow-x-auto overscroll-x-contain border-b bg-background px-4 py-2 lg:hidden"
         >
           {[...primaryNavigation, ...roleNavigation].map((item) => (
             <NavLink compactHorizontal item={item} key={item.href} />

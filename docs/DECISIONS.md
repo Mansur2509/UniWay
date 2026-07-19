@@ -539,3 +539,21 @@ and strategy remain contextual rather than bloating the main sidebar; AP remains
 inside Exams; no placeholder Settings or analytics routes are created to satisfy
 an icon checklist. Text continues to carry meaning, so no status relies on an
 icon or color alone.
+
+## ADR-050: Saved and Scholarships hubs must stay real-data-only
+
+- **Status:** Accepted
+- **Date:** 2026-07-19
+
+The Stage 3 visual sweep adds first-class Saved Items and Scholarships surfaces,
+but they do not invent saved opportunity types, award amounts, deadlines,
+eligibility, or partner data. The Saved hub currently reflects the student's
+real university shortlist and labels event/scholarship saving as unavailable
+until those saved-object models exist. The Scholarships hub reads compact public
+`UniversityScholarship` records from the university API and links back to
+official sources when present.
+
+Public list responses may expose scholarship `id`, `name`, `summary`,
+`official_url`, and `deadline` because those are user-facing fields. Import
+audit, row logs, skipped cells, admin notes, system-only scores, and AI-only
+context remain out of public serializers.

@@ -2700,5 +2700,37 @@ export const ru = {
   "universityFit.semanticSection.lastUpdated": "Обновлено {date}",
   "universityFit.semanticSection.disabledNotice": "Более глубокое объяснение от ИИ пока недоступно в этой версии — приведённая выше детерминированная оценка уже учитывает весь ваш профиль.",
   "universityFit.semanticSection.rateLimited": "Вы достигли сегодняшнего лимита анализа ИИ. Пожалуйста, попробуйте завтра.",
-  "universityFit.semanticSection.failedNotice": "Не удалось сформировать объяснение от ИИ. Это не влияет на детерминированную оценку выше."
+  "universityFit.semanticSection.failedNotice": "Не удалось сформировать объяснение от ИИ. Это не влияет на детерминированную оценку выше.",
+
+  "navigation.saved": "Сохранённое",
+
+  "saved.eyebrow": "Ваш список избранного",
+  "saved.title": "Сохранённые вузы",
+  "saved.description": "Университеты, которые вы сохранили, чтобы рассмотреть внимательнее — все в одном месте.",
+  "saved.states.error": "Не удалось загрузить сохранённые университеты.",
+  "saved.states.actionError": "Не удалось обновить список избранного. Попробуйте ещё раз.",
+  "saved.empty.title": "Пока ничего не сохранено",
+  "saved.empty.description": "Сохраняйте университеты во время просмотра каталога, чтобы собрать список здесь.",
+  "saved.empty.action": "Смотреть университеты",
+  "saved.count": "{{count}} сохранённых университетов",
+  "saved.savedOn": "Сохранено {{date}}",
+  "saved.unsave": "Удалить",
+  "saved.unsaving": "Удаление…",
+  "saved.otherTypes.title": "Больше типов — скоро",
+  "saved.otherTypes.description": "Сохранение мероприятий и стипендий пока недоступно. Сейчас вы можете сохранять университеты из каталога и возвращаться к ним здесь.",
+
+  "navigation.scholarships": "Стипендии",
+
+  "scholarships.eyebrow": "Возможности финансирования",
+  "scholarships.title": "Стипендии",
+  "scholarships.description": "Реальные стипендии, взятые напрямую со страниц самих университетов.",
+  "scholarships.filters.country": "Страна",
+  "scholarships.filters.allCountries": "Все страны",
+  "scholarships.states.error": "Не удалось загрузить стипендии.",
+  "scholarships.empty.title": "Пока нет подходящих стипендий",
+  "scholarships.empty.description": "Попробуйте выбрать другую страну или загляните позже — данные постоянно проверяются.",
+  "scholarships.empty.action": "Смотреть университеты",
+  "scholarships.card.officialLink": "Официальный источник",
+  "scholarships.disclaimer.title": "Всегда сверяйтесь с официальным источником",
+  "scholarships.disclaimer.description": "Данные о стипендиях берутся напрямую с сайта университета и могут меняться. Перед подачей заявки проверьте условия, суммы и сроки на официальной странице."
 } satisfies TranslationDictionary;

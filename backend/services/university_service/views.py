@@ -340,7 +340,9 @@ class UniversityViewSet(ModelViewSet):
 
     def get_queryset(self):
         if self.action == "list":
-            queryset = University.objects.only(*UNIVERSITY_LIST_ONLY_FIELDS)
+            queryset = University.objects.only(*UNIVERSITY_LIST_ONLY_FIELDS).prefetch_related(
+                "scholarships"
+            )
         else:
             rankings_with_program = UniversitySubjectRanking.objects.select_related("program")
             queryset = University.objects.prefetch_related(

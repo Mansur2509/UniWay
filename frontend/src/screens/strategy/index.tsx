@@ -7,6 +7,7 @@ import type { RecommendationCategory } from "@/entities/recommendation";
 import type { ApplicationStrategyResponse, StrategySchool } from "@/entities/strategy";
 import { getApplicationStrategyRequest } from "@/features/universities";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
+import { Badge, type BadgeTone } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { CollapsibleFilterPanel } from "@/shared/ui/collapsible-filter-panel";
@@ -15,22 +16,18 @@ import { HelpTooltip } from "@/shared/ui/help-tooltip";
 import { LoadingNotice } from "@/shared/ui/loading-notice";
 import { SectionTabs } from "@/shared/ui/section-tabs";
 
-const CATEGORY_BADGE_STYLES: Record<RecommendationCategory, string> = {
-  dream: "border-danger/45 bg-danger/15 text-danger",
-  reach: "border-danger/35 bg-danger/10 text-danger",
-  target: "border-accent/35 bg-accent/10 text-accent",
-  safety: "border-success/35 bg-success/10 text-success"
+const CATEGORY_TONE: Record<RecommendationCategory, BadgeTone> = {
+  dream: "danger",
+  reach: "danger",
+  target: "accent",
+  safety: "success"
 };
 
-const ROUND_CONFIDENCE_STYLES: Record<string, string> = {
-  verified: "border-success/35 bg-success/10 text-success",
-  estimated: "border-warning/35 bg-warning/10 text-warning",
-  unverified: "border-muted-foreground/30 bg-surface text-muted-foreground"
+const ROUND_CONFIDENCE_TONE: Record<string, BadgeTone> = {
+  verified: "success",
+  estimated: "warning",
+  unverified: "muted"
 };
-
-function badgeClass(base: string) {
-  return `inline-flex items-center rounded-sm border px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${base}`;
-}
 
 type GroupMode = "category" | "round" | "country" | "major_cluster";
 
@@ -258,14 +255,12 @@ export function StrategyScreen() {
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className={badgeClass(CATEGORY_BADGE_STYLES[school.category])}>
+                      <Badge tone={CATEGORY_TONE[school.category]}>
                         {t(`universities.fit.category.${school.category}` as TranslationKey)}
-                      </span>
-                      <span
-                        className={badgeClass(ROUND_CONFIDENCE_STYLES[school.round_confidence])}
-                      >
+                      </Badge>
+                      <Badge tone={ROUND_CONFIDENCE_TONE[school.round_confidence]}>
                         {t(`strategy.round.${school.round_bucket}` as TranslationKey)}
-                      </span>
+                      </Badge>
                       <HelpTooltip label={t("help.strategyRound")} />
                     </div>
                   </div>

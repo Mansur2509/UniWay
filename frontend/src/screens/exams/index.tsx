@@ -18,16 +18,24 @@ import { getProfileRequest, updateProfileRequest } from "@/features/profile";
 import { createExamPlanRoadmapTaskRequest } from "@/features/roadmap";
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { formatDate } from "@/shared/lib/date-time";
-import { Badge } from "@/shared/ui/badge";
+import { Badge, type BadgeTone } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { fieldClassName } from "@/shared/ui/field";
 import { AppIcon } from "@/shared/ui/icon";
+import { IconChip } from "@/shared/ui/icon-chip";
 import { LoadingNotice } from "@/shared/ui/loading-notice";
 import { Reveal } from "@/shared/ui/reveal";
 
 const PAGE_SIZE = 200;
+
+const DATE_STATUS_TONE: Record<OfficialExamDate["date_status"], BadgeTone> = {
+  verified: "success",
+  requires_review: "warning",
+  outdated: "danger",
+  not_published: "muted"
+};
 
 type ApPlanRow = {
   id: string;
@@ -68,7 +76,7 @@ function ExamDateRow({ item, tone }: { item: OfficialExamDate; tone: "info" | "r
             {item.test_time ? ` / ${item.test_time}` : ""}
           </p>
         </div>
-        <Badge className="text-xs">
+        <Badge tone={DATE_STATUS_TONE[item.date_status]}>
           {t(`exams.dateStatus.${item.date_status}` as TranslationKey)}
         </Badge>
       </div>
@@ -403,11 +411,15 @@ export function ExamsScreen() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-sm border bg-card p-6 shadow-card sm:p-8">
-        <p className="text-eyebrow text-primary-hover">
+      <section className="relative overflow-hidden rounded-sm border bg-card p-6 shadow-card sm:p-8">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-info/8 via-transparent to-recommendation/8"
+        />
+        <p className="text-eyebrow relative text-primary-hover">
           {t("exams.eyebrow")}
         </p>
-        <div className="mt-3 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+        <div className="relative mt-3 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
           <div>
             <h1 className="text-display max-w-3xl">
               {t("exams.title")}
@@ -649,9 +661,7 @@ export function ExamsScreen() {
       <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
         <Card animate="fade-up" className="p-4">
           <div className="flex items-center gap-2">
-            <span className="grid size-8 shrink-0 place-items-center rounded-sm border border-info/30 bg-info/10 text-info">
-              <CalendarClock aria-hidden className="size-4" />
-            </span>
+            <IconChip icon={CalendarClock} tone="info" />
             <h2 className="text-lg font-semibold">{t("exams.sat.title")}</h2>
           </div>
           {satDates.length === 0 ? (
@@ -673,9 +683,7 @@ export function ExamsScreen() {
 
         <Card animate="fade-up" animationDelayMs={60} className="p-4">
           <div className="flex items-center gap-2">
-            <span className="grid size-8 shrink-0 place-items-center rounded-sm border border-recommendation/30 bg-recommendation/10 text-recommendation">
-              <GraduationCap aria-hidden className="size-4" />
-            </span>
+            <IconChip icon={GraduationCap} tone="recommendation" />
             <h2 className="text-lg font-semibold">{t("exams.ap.title")}</h2>
           </div>
           {apExamDates.length === 0 ? (
