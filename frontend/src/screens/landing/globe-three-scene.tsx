@@ -1,0 +1,385 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import * as THREE from "three";
+
+import { usePrefersReducedMotion } from "@/shared/ui/use-reduced-motion";
+
+export type GlobeSceneMarker = {
+  id: string;
+  label: string;
+  lat: number;
+  lon: number;
+};
+
+type GlobeThreeSceneProps = {
+  activeId: string;
+  ariaLabel: string;
+  fallbackLabel: string;
+  markers: GlobeSceneMarker[];
+  onSelect: (id: string) => void;
+  renderedLabel: string;
+};
+
+function latLonToVector3(lat: number, lon: number, radius: number) {
+  const phi = THREE.MathUtils.degToRad(90 - lat);
+  const theta = THREE.MathUtils.degToRad(lon + 180);
+
+  return new THREE.Vector3(
+    -radius * Math.sin(phi) * Math.cos(theta),
+    radius * Math.cos(phi),
+    radius * Math.sin(phi) * Math.sin(theta)
+  );
+}
+
+function canUseWebGl() {
+  try {
+    const canvas = document.createElement("canvas");
+    return Boolean(canvas.getContext("webgl2") ?? canvas.getContext("webgl"));
+  } catch {
+    return false;
+  }
+}
+
+export function GlobeThreeScene({
+  activeId,
+  ariaLabel,
+  fallbackLabel,
+  markers,
+  onSelect,
+  renderedLabel
+}: GlobeThreeSceneProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const markerMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
+  const selectedIdRef = useRef(activeId);
+  const onSelectRef = useRef(onSelect);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const [status, setStatus] = useState<"loading" | "ready" | "fallback">("loading");
+
+  useEffect(() => {
+    selectedIdRef.current = activeId;
+    markerMeshesRef.current.forEach((mesh, id) => {
+      const selected = id === activeId;
+      mesh.scale.setScalar(selected ? 1.55 : 1);
+      const material = mesh.material;
+      if (material instanceof THREE.MeshStandardMaterial) {
+        material.color.set(selected ? "#d8a340" : "#f8f3e8");
+        material.emissive.set(selected ? "#7a0b22" : "#153c6a");
+        material.emissiveIntensity = selected ? 0.38 : 0.16;
+      }
+    });
+  }, [activeId]);
+
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
+
+  useEffect(() => {
+    const canvasElement = canvasRef.current;
+    if (!canvasElement || !canUseWebGl()) {
+      setStatus("fallback");
+      return;
+    }
+    const canvasNode: HTMLCanvasElement = canvasElement;
+
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        alpha: true,
+        antialias: true,
+        canvas: canvasNode,
+        powerPreference: "low-power"
+      });
+    } catch {
+      setStatus("fallback");
+      return;
+    }
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+    camera.position.set(0, 0.32, 7.5);
+
+    const root = new THREE.Group();
+    root.rotation.x = THREE.MathUtils.degToRad(-12);
+    root.rotation.y = THREE.MathUtils.degToRad(24);
+    scene.add(root);
+
+    const atmosphere = new THREE.Mesh(
+      new THREE.SphereGeometry(2.34, 64, 32),
+      new THREE.MeshBasicMaterial({
+        color: "#3c8dce",
+        opacity: 0.14,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      })
+    );
+    root.add(atmosphere);
+
+    const globe = new THREE.Mesh(
+      new THREE.SphereGeometry(2.12, 96, 48),
+      new THREE.MeshStandardMaterial({
+        color: "#11243c",
+        metalness: 0.06,
+        roughness: 0.62
+      })
+    );
+    root.add(globe);
+
+    const wire = new THREE.LineSegments(
+      new THREE.WireframeGeometry(new THREE.SphereGeometry(2.135, 32, 18)),
+      new THREE.LineBasicMaterial({
+        color: "#f8f3e8",
+        opacity: 0.16,
+        transparent: true
+      })
+    );
+    root.add(wire);
+
+    const land = new THREE.Group();
+    [
+      { lat: 42, lon: -95, scale: [0.5, 0.12, 0.22], rotate: 0.2 },
+      { lat: 52, lon: -3, scale: [0.26, 0.07, 0.12], rotate: -0.3 },
+      { lat: 45, lon: 11, scale: [0.24, 0.07, 0.12], rotate: 0.35 },
+      { lat: 36, lon: 128, scale: [0.28, 0.07, 0.12], rotate: -0.18 },
+      { lat: 1.3, lon: 104, scale: [0.2, 0.05, 0.1], rotate: 0.1 },
+      { lat: 54, lon: -106, scale: [0.42, 0.1, 0.18], rotate: -0.2 }
+    ].forEach((shape) => {
+      const position = latLonToVector3(shape.lat, shape.lon, 2.155);
+      const patch = new THREE.Mesh(
+        new THREE.SphereGeometry(0.42, 20, 10),
+        new THREE.MeshStandardMaterial({
+          color: "#1d5d7a",
+          opacity: 0.58,
+          transparent: true,
+          roughness: 0.7
+        })
+      );
+      patch.position.copy(position);
+      patch.lookAt(0, 0, 0);
+      patch.rotateZ(shape.rotate);
+      patch.scale.set(shape.scale[0], shape.scale[1], shape.scale[2]);
+      land.add(patch);
+    });
+    root.add(land);
+
+    const markerGeometry = new THREE.SphereGeometry(0.075, 18, 12);
+    const markerMeshes = new Map<string, THREE.Mesh>();
+    markers.forEach((marker) => {
+      const selected = marker.id === selectedIdRef.current;
+      const markerMesh = new THREE.Mesh(
+        markerGeometry,
+        new THREE.MeshStandardMaterial({
+          color: selected ? "#d8a340" : "#f8f3e8",
+          emissive: selected ? "#7a0b22" : "#153c6a",
+          emissiveIntensity: selected ? 0.38 : 0.16,
+          metalness: 0.12,
+          roughness: 0.28
+        })
+      );
+      markerMesh.position.copy(latLonToVector3(marker.lat, marker.lon, 2.32));
+      markerMesh.scale.setScalar(selected ? 1.55 : 1);
+      markerMesh.userData = { id: marker.id };
+      root.add(markerMesh);
+      markerMeshes.set(marker.id, markerMesh);
+    });
+    markerMeshesRef.current = markerMeshes;
+
+    const selectedRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.18, 0.008, 8, 36),
+      new THREE.MeshBasicMaterial({ color: "#d8a340", opacity: 0.8, transparent: true })
+    );
+    root.add(selectedRing);
+
+    const ambient = new THREE.AmbientLight("#f8f3e8", 0.8);
+    const key = new THREE.DirectionalLight("#ffffff", 2.35);
+    key.position.set(-2.8, 3.4, 5.8);
+    const rim = new THREE.DirectionalLight("#4e9bd4", 1.45);
+    rim.position.set(3.8, -0.6, -2.2);
+    scene.add(ambient, key, rim);
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const drag = {
+      active: false,
+      lastX: 0,
+      lastY: 0,
+      moved: false,
+      velocityX: 0,
+      velocityY: 0
+    };
+    let frameId = 0;
+    let readyReported = false;
+    let visible = true;
+    let tabVisible = !document.hidden;
+    let lastFrame = 0;
+
+    function syncSelectedRing() {
+      const selected = markerMeshes.get(selectedIdRef.current);
+      if (!selected) return;
+      selectedRing.visible = true;
+      selectedRing.position.copy(selected.position);
+      selectedRing.lookAt(camera.position);
+    }
+
+    function setRendererSize() {
+      const rect = canvasNode.getBoundingClientRect();
+      const width = Math.max(1, Math.floor(rect.width));
+      const height = Math.max(1, Math.floor(rect.height));
+      const navigatorWithHints = navigator as Navigator & { deviceMemory?: number };
+      const lowPower =
+        navigatorWithHints.deviceMemory !== undefined && navigatorWithHints.deviceMemory <= 4;
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, lowPower || width < 720 ? 1.25 : 1.75);
+      renderer.setPixelRatio(pixelRatio);
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    }
+
+    function renderFrame(now: number) {
+      frameId = window.requestAnimationFrame(renderFrame);
+      if (!visible || !tabVisible) return;
+      if (now - lastFrame < (prefersReducedMotion ? 500 : 32)) return;
+      lastFrame = now;
+
+      if (!prefersReducedMotion) {
+        if (!drag.active) {
+          root.rotation.y += drag.velocityX;
+          root.rotation.x += drag.velocityY;
+          drag.velocityX *= 0.94;
+          drag.velocityY *= 0.92;
+          if (Math.abs(drag.velocityX) < 0.0015) {
+            root.rotation.y += 0.0024;
+          }
+        }
+        root.rotation.x = THREE.MathUtils.clamp(root.rotation.x, -0.72, 0.38);
+      }
+
+      atmosphere.rotation.y = root.rotation.y * 0.72;
+      land.rotation.y = Math.sin(now * 0.00018) * 0.02;
+      syncSelectedRing();
+      renderer.render(scene, camera);
+      if (!readyReported) {
+        readyReported = true;
+        setStatus("ready");
+      }
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (prefersReducedMotion) return;
+      canvasNode.setPointerCapture(event.pointerId);
+      drag.active = true;
+      drag.moved = false;
+      drag.lastX = event.clientX;
+      drag.lastY = event.clientY;
+      drag.velocityX = 0;
+      drag.velocityY = 0;
+    }
+
+    function handlePointerMove(event: PointerEvent) {
+      if (!drag.active || prefersReducedMotion) return;
+      const deltaX = event.clientX - drag.lastX;
+      const deltaY = event.clientY - drag.lastY;
+      drag.lastX = event.clientX;
+      drag.lastY = event.clientY;
+      drag.moved = drag.moved || Math.abs(deltaX) + Math.abs(deltaY) > 5;
+      const rotateY = deltaX * 0.006;
+      const rotateX = deltaY * 0.004;
+      root.rotation.y += rotateY;
+      root.rotation.x = THREE.MathUtils.clamp(root.rotation.x + rotateX, -0.72, 0.38);
+      drag.velocityX = rotateY;
+      drag.velocityY = rotateX;
+    }
+
+    function selectMarkerFromPointer(event: PointerEvent) {
+      const rect = canvasNode.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects([...markerMeshes.values()]);
+      const id = hits[0]?.object.userData.id;
+      if (typeof id === "string") onSelectRef.current(id);
+    }
+
+    function handlePointerUp(event: PointerEvent) {
+      if (canvasNode.hasPointerCapture(event.pointerId)) {
+        canvasNode.releasePointerCapture(event.pointerId);
+      }
+      const wasDrag = drag.moved;
+      drag.active = false;
+      if (!wasDrag) selectMarkerFromPointer(event);
+    }
+
+    function handleVisibilityChange() {
+      tabVisible = !document.hidden;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        visible = entry?.isIntersecting ?? true;
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(canvasNode);
+
+    const resizeObserver = new ResizeObserver(setRendererSize);
+    resizeObserver.observe(canvasNode);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    canvasNode.addEventListener("pointerdown", handlePointerDown);
+    canvasNode.addEventListener("pointermove", handlePointerMove);
+    canvasNode.addEventListener("pointerup", handlePointerUp);
+    canvasNode.addEventListener("pointercancel", handlePointerUp);
+
+    setRendererSize();
+    syncSelectedRing();
+    frameId = window.requestAnimationFrame(renderFrame);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      observer.disconnect();
+      resizeObserver.disconnect();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      canvasNode.removeEventListener("pointerdown", handlePointerDown);
+      canvasNode.removeEventListener("pointermove", handlePointerMove);
+      canvasNode.removeEventListener("pointerup", handlePointerUp);
+      canvasNode.removeEventListener("pointercancel", handlePointerUp);
+      markerGeometry.dispose();
+      markerMeshes.forEach((mesh) => {
+        if (mesh.material instanceof THREE.Material) mesh.material.dispose();
+      });
+      scene.traverse((object) => {
+        if (object instanceof THREE.Mesh) {
+          object.geometry.dispose();
+          if (Array.isArray(object.material)) {
+            object.material.forEach((material) => material.dispose());
+          } else {
+            object.material.dispose();
+          }
+        }
+      });
+      renderer.dispose();
+      markerMeshesRef.current = new Map();
+    };
+  }, [markers, prefersReducedMotion]);
+
+  return (
+    <div className="absolute inset-0">
+      {status === "fallback" ? (
+        <div className="grid h-full place-items-center px-6 text-center text-sm font-semibold text-white/75">
+          {fallbackLabel}
+        </div>
+      ) : null}
+      {status === "loading" ? (
+        <div className="pointer-events-none absolute inset-0 grid place-items-center text-xs font-bold uppercase tracking-[0.16em] text-white/55">
+          {renderedLabel}
+        </div>
+      ) : null}
+      <canvas
+        aria-label={ariaLabel}
+        className={`size-full touch-none ${status === "fallback" ? "pointer-events-none opacity-0" : ""}`}
+        data-globe-render-status={status}
+        ref={canvasRef}
+      />
+    </div>
+  );
+}

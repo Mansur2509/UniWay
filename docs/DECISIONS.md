@@ -557,3 +557,22 @@ Public list responses may expose scholarship `id`, `name`, `summary`,
 `official_url`, and `deadline` because those are user-facing fields. Import
 audit, row logs, skipped cells, admin notes, system-only scores, and AI-only
 context remain out of public serializers.
+
+## ADR-051: Landing uses a single lazy hybrid 3D globe
+
+- **Status:** Accepted
+- **Date:** 2026-07-19
+
+The public landing page now uses Three.js only for the Global Path globe. The
+scene is dynamically imported with SSR disabled for that scene alone, while the
+hero, features, partners, organizer scene, forms, and product UI remain normal
+React/DOM/CSS. This keeps the first paint focused on campaign content and avoids
+turning ordinary product surfaces into WebGL.
+
+The globe uses static destination aggregates already represented by the catalog
+coverage, not full university records and not fabricated counts. It has a
+styled CSS/SVG fallback under the canvas so country controls and truthful
+destination copy remain available when WebGL is unavailable. Rendering is
+reduced off-screen or in hidden tabs, uses a capped pixel ratio, throttles frame
+work, supports pointer drag/touch marker selection, and respects reduced-motion
+users through a slower static-feeling render path.

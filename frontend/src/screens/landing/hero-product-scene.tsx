@@ -24,7 +24,7 @@ export function HeroProductScene() {
   const { t } = useI18n();
 
   return (
-    <div className="landing-poster-frame relative mx-auto min-h-[34rem] w-full max-w-[28rem] sm:min-h-[42rem] sm:max-w-[44rem] lg:min-h-[48rem] lg:max-w-[52rem]">
+    <div className="landing-poster-frame relative mx-auto min-h-[27rem] w-full max-w-[25rem] sm:min-h-[34rem] sm:max-w-[38rem] lg:min-h-[37rem] lg:max-w-[46rem] xl:min-h-[40rem]">
       <div
         aria-hidden
         className="absolute -left-8 top-10 h-[78%] w-[62%] -rotate-6 bg-primary shadow-2xl shadow-black/30"
@@ -38,24 +38,24 @@ export function HeroProductScene() {
         className="absolute left-8 top-20 h-[70%] w-[76%] border border-white/20"
       />
 
-      <TiltCard className="absolute inset-x-4 top-10 z-20 sm:inset-x-10 lg:top-12" maxTiltDeg={6}>
+      <TiltCard className="absolute inset-x-5 top-7 z-20 sm:inset-x-10 lg:top-8" maxTiltDeg={6}>
         <div className="landing-poster-object animate-[landing-poster-enter_700ms_cubic-bezier(0.16,1,0.3,1)_both]">
-          <div className="landing-poster-paper relative min-h-[29rem] overflow-hidden border border-border bg-surface p-5 text-foreground sm:min-h-[36rem] sm:p-7 lg:min-h-[39rem]">
+          <div className="landing-poster-paper relative min-h-[24rem] overflow-hidden border border-border bg-surface p-4 text-foreground sm:min-h-[31rem] sm:p-6 lg:min-h-[33rem]">
             <span
               aria-hidden
               className="absolute -right-5 top-5 text-display-condensed text-[7rem] leading-none text-primary/[0.08] sm:text-[10rem]"
             >
               UNI
             </span>
-            <div className="relative z-10 flex items-center justify-between gap-4 border-b border-foreground/15 pb-5">
+            <div className="relative z-10 flex items-center justify-between gap-4 border-b border-foreground/15 pb-4">
               <div>
                 <p className="text-eyebrow text-primary">{t("landing.hero.sceneCommand")}</p>
-                <h3 className="mt-2 max-w-sm font-serif text-2xl font-semibold leading-tight sm:text-4xl">
+                <h3 className="mt-2 max-w-sm font-serif text-xl font-semibold leading-tight sm:text-3xl lg:text-4xl">
                   {t("landing.hero.sceneNextMoveTitle")}
                 </h3>
               </div>
-              <div className="grid size-16 shrink-0 place-items-center border border-success/35 bg-success/15 text-success">
-                <ShieldCheck aria-hidden className="size-8" />
+              <div className="grid size-14 shrink-0 place-items-center border border-success/35 bg-success/15 text-success sm:size-16">
+                <ShieldCheck aria-hidden className="size-7 sm:size-8" />
               </div>
             </div>
 
@@ -79,15 +79,14 @@ export function HeroProductScene() {
                   <Search aria-hidden className="size-5 text-info" />
                   <p className="text-sm font-semibold">{t("landing.hero.sceneSearch")}</p>
                 </div>
-                <div className="mt-4 space-y-2" aria-hidden>
-                  <span className="block h-3 w-full bg-muted" />
-                  <span className="block h-3 w-4/5 bg-muted" />
-                  <span className="block h-9 border border-info/25 bg-info/10" />
+                <div className="mt-4 space-y-2 text-[0.66rem] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                  <span className="block border border-info/25 bg-info/10 px-2 py-1">{t("landing.hero.sceneShortlist")}</span>
+                  <span className="block border border-accent/25 bg-accent/10 px-2 py-1">{t("landing.hero.sceneDeadline")}</span>
                 </div>
               </div>
             </div>
 
-            <div className="relative z-10 mt-4 grid gap-4 sm:grid-cols-3">
+            <div className="relative z-10 mt-4 grid gap-3 sm:grid-cols-3">
               <div className="border bg-card p-4">
                 <NotebookPen aria-hidden className="size-6 text-recommendation" />
                 <p className="mt-4 text-sm font-semibold">{t("landing.hero.sceneEssays")}</p>
@@ -102,18 +101,14 @@ export function HeroProductScene() {
               </div>
             </div>
 
-            <div className="relative z-10 mt-5 border border-success/30 bg-success/10 p-4">
+            <div className="relative z-10 mt-4 border border-success/30 bg-success/10 p-4">
               <div className="flex items-center gap-3">
                 <CheckCircle2 aria-hidden className="size-5 text-success" />
                 <p className="text-sm font-semibold">{t("landing.hero.sceneVerified")}</p>
               </div>
-              <div className="mt-4 grid grid-cols-5 gap-2" aria-hidden>
-                {Array.from({ length: 10 }).map((_, index) => (
-                  <span
-                    className={index % 3 === 0 ? "h-2 bg-success/45" : "h-2 bg-foreground/15"}
-                    key={index}
-                  />
-                ))}
+              <div className="mt-4 grid grid-cols-2 gap-2 text-[0.66rem] font-bold uppercase tracking-[0.12em] text-success">
+                <span className="border border-success/25 bg-surface/70 px-2 py-1">{t("landing.hero.sceneSources")}</span>
+                <span className="border border-success/25 bg-surface/70 px-2 py-1">{t("landing.hero.sceneFit")}</span>
               </div>
             </div>
           </div>
@@ -121,7 +116,7 @@ export function HeroProductScene() {
       </TiltCard>
 
       <ParallaxLayer
-        className="absolute -left-1 top-24 z-30 w-36 -rotate-[13deg] sm:left-0 sm:top-28 sm:w-44"
+        className="absolute -left-1 top-20 z-30 w-32 -rotate-[13deg] sm:left-0 sm:top-24 sm:w-44"
         depth={0.38}
       >
         <div className="border border-white/20 bg-navy p-4 text-white shadow-2xl shadow-black/35">
@@ -132,7 +127,7 @@ export function HeroProductScene() {
 
       <ParallaxLayer
         axis="y"
-        className="absolute right-0 top-4 z-30 w-44 rotate-[9deg] sm:right-3 sm:w-56"
+        className="absolute right-0 top-2 z-30 w-40 rotate-[9deg] sm:right-3 sm:w-56"
         depth={0.28}
       >
         <div className="border border-accent/35 bg-accent p-4 text-accent-foreground shadow-2xl shadow-accent/25">
@@ -147,16 +142,16 @@ export function HeroProductScene() {
       </ParallaxLayer>
 
       <ParallaxLayer
-        className="absolute bottom-5 left-4 z-30 hidden w-52 -rotate-[8deg] border bg-card p-4 text-foreground shadow-2xl sm:block"
+        className="absolute bottom-4 left-4 z-30 hidden w-52 -rotate-[8deg] border bg-card p-4 text-foreground shadow-2xl sm:block"
         depth={0.5}
       >
         <div className="flex items-center gap-3">
           <MapPinned aria-hidden className="size-6 text-event" />
           <FileText aria-hidden className="size-6 text-primary" />
         </div>
-        <div className="mt-5 space-y-2" aria-hidden>
-          <span className="block h-2 bg-muted" />
-          <span className="block h-2 w-3/4 bg-muted" />
+        <div className="mt-5 grid gap-2 text-[0.65rem] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+          <span className="border bg-surface px-2 py-1">{t("landing.hero.sceneMap")}</span>
+          <span className="w-fit border bg-surface px-2 py-1">{t("landing.hero.sceneProof")}</span>
         </div>
       </ParallaxLayer>
     </div>

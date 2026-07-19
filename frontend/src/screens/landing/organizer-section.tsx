@@ -22,7 +22,7 @@ export function OrganizerSection() {
   const { t } = useI18n();
 
   return (
-    <section className="relative overflow-hidden bg-navy py-20 text-navy-foreground sm:py-24 lg:py-28" id="organizers">
+    <section className="relative overflow-hidden bg-navy py-20 text-navy-foreground sm:py-24 lg:py-28" id="organizers" tabIndex={-1}>
       <div
         aria-hidden
         className="absolute inset-0 bg-[linear-gradient(100deg,hsl(var(--navy))_0_58%,hsl(var(--event))_58%_72%,hsl(var(--navy))_72%_100%)]"

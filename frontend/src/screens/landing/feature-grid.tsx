@@ -153,14 +153,20 @@ function FeatureIcon({ icon: Icon, tone }: { icon: LucideIcon; tone: FeatureTone
 }
 
 function SearchVisual({ large }: { large: boolean }) {
+  const { t } = useI18n();
+
   return (
     <div className="relative mt-7 min-h-64 overflow-hidden border bg-navy p-4 text-white">
       <div className="absolute inset-0 bg-[linear-gradient(135deg,hsl(var(--info)/0.28),transparent_42%),linear-gradient(35deg,hsl(var(--primary)/0.22),transparent_55%)]" />
       <div className="relative z-10 max-w-md border border-white/20 bg-white/[0.08] p-3 backdrop-blur">
         <div className="flex items-center gap-3 bg-white p-3 text-foreground">
           <Search aria-hidden className="size-5 text-info" />
-          <span className="h-3 w-44 bg-muted" />
-          <span className="ml-auto h-8 w-20 bg-primary/20" />
+          <span className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+            {t("landing.features.visual.searchQuery")}
+          </span>
+          <span className="ml-auto border border-primary/25 bg-primary/10 px-2 py-1 text-xs font-bold text-primary">
+            {t("landing.features.visual.sourceTag")}
+          </span>
         </div>
       </div>
       <div className="relative z-10 mt-5 grid gap-3 sm:grid-cols-3">
@@ -173,9 +179,9 @@ function SearchVisual({ large }: { large: boolean }) {
             key={label}
           >
             <p className="text-display-condensed-sm text-4xl leading-none text-accent">{label}</p>
-            <div className="mt-5 space-y-2" aria-hidden>
-              <span className="block h-2 bg-white/30" />
-              <span className="block h-2 w-2/3 bg-white/20" />
+            <div className="mt-5 flex flex-wrap gap-2 text-[0.62rem] font-bold uppercase tracking-[0.12em] text-white/75">
+              <span className="border border-white/20 bg-white/10 px-2 py-1">{t("landing.features.visual.cost")}</span>
+              <span className="border border-white/20 bg-white/10 px-2 py-1">{t("landing.features.visual.deadline")}</span>
             </div>
           </div>
         ))}
@@ -205,7 +211,7 @@ function RecommendationVisual() {
             <div key={labelKey}>
               <div className="flex items-center justify-between text-xs font-semibold text-white/70">
                 <span>{t(labelKey as TranslationKey)}</span>
-                <span aria-hidden>{index === 0 ? "78" : index === 1 ? "84" : "✓"}</span>
+                <span aria-hidden>{index === 0 ? "78" : index === 1 ? "84" : t("landing.features.visual.verified")}</span>
               </div>
               <span className="mt-2 block h-3 bg-white/15">
                 <span
@@ -231,10 +237,9 @@ function ApplicationVisual() {
       <div className="border bg-primary p-5 text-primary-foreground shadow-2xl shadow-primary/25">
         <FolderKanban aria-hidden className="size-9" />
         <p className="mt-8 text-display-condensed-sm text-5xl leading-none">{t("landing.hero.sceneNextMove")}</p>
-        <div className="mt-4 space-y-2" aria-hidden>
-          <span className="block h-2 bg-white/45" />
-          <span className="block h-2 w-2/3 bg-white/30" />
-        </div>
+        <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-white/70">
+          {t("landing.features.visual.pipeline")}
+        </p>
       </div>
       <div className="grid gap-3">
         {[
@@ -247,7 +252,9 @@ function ApplicationVisual() {
               <CheckCircle2 aria-hidden className="size-5" />
             </span>
             <span className="text-sm font-semibold">{t(labelKey as TranslationKey)}</span>
-            <span className="ml-auto h-2 w-20 bg-muted" />
+            <span className="ml-auto border bg-surface px-2 py-1 text-[0.62rem] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              {index + 1}
+            </span>
           </div>
         ))}
       </div>
@@ -267,9 +274,18 @@ function OrganizerVisual() {
             {t("landing.organizer.liveLabel")}
           </span>
         </div>
-        <div className="mt-5 grid grid-cols-3 gap-2" aria-hidden>
-          {Array.from({ length: 9 }).map((_, index) => (
-            <span className={cn("h-10 border", index % 2 === 0 ? "bg-event/15" : "bg-info/15")} key={index} />
+        <div className="mt-5 grid grid-cols-3 gap-2 text-center text-[0.62rem] font-bold uppercase tracking-[0.12em]">
+          {[
+            "landing.features.visual.rsvp",
+            "landing.features.visual.check",
+            "landing.features.visual.qr",
+            "landing.features.visual.csv",
+            "landing.features.visual.waitlist",
+            "landing.features.visual.live"
+          ].map((labelKey, index) => (
+            <span className={cn("border px-2 py-3", index % 2 === 0 ? "bg-event/15 text-event" : "bg-info/15 text-info")} key={labelKey}>
+              {t(labelKey as TranslationKey)}
+            </span>
           ))}
         </div>
       </div>
@@ -286,12 +302,18 @@ function OrganizerVisual() {
 }
 
 function CompactVisual({ visual, tone }: { visual: FeatureVisual; tone: FeatureTone }) {
+  const { t } = useI18n();
+
   if (visual === "event") {
     return (
       <div className="mt-6 min-h-36 overflow-hidden border bg-navy p-3 text-white">
         <div className="relative h-28">
-          <span className="absolute left-4 top-5 size-20 border border-info/25 bg-info/15" />
-          <span className="absolute right-5 top-8 size-16 border border-event/30 bg-event/20" />
+          <span className="absolute left-4 top-5 flex size-20 items-center justify-center border border-info/25 bg-info/15 text-[0.62rem] font-bold uppercase tracking-[0.12em] text-info">
+            {t("landing.features.visual.map")}
+          </span>
+          <span className="absolute right-5 top-8 flex size-16 items-center justify-center border border-event/30 bg-event/20 text-[0.62rem] font-bold uppercase tracking-[0.12em] text-event">
+            {t("landing.features.visual.rsvp")}
+          </span>
           <MapPinned aria-hidden className="absolute left-1/2 top-1/2 size-10 -translate-x-1/2 -translate-y-1/2 text-event" />
         </div>
       </div>
@@ -303,10 +325,12 @@ function CompactVisual({ visual, tone }: { visual: FeatureVisual; tone: FeatureT
       <div className="mt-6 border bg-card p-4">
         <div className="flex items-start gap-3">
           <FileSearch aria-hidden className="size-7 text-recommendation" />
-          <div className="flex-1 space-y-2" aria-hidden>
-            <span className="block h-2 bg-muted" />
-            <span className="block h-2 w-3/4 bg-muted" />
-            <span className="block h-10 border-l-4 border-recommendation bg-recommendation/10" />
+          <div className="flex-1 space-y-2 text-[0.65rem] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+            <span className="block border bg-surface px-2 py-1">{t("landing.features.visual.prompt")}</span>
+            <span className="block w-fit border bg-surface px-2 py-1">{t("landing.features.visual.structure")}</span>
+            <span className="block border-l-4 border-recommendation bg-recommendation/10 px-2 py-2 text-recommendation">
+              {t("landing.features.visual.evidenceNote")}
+            </span>
           </div>
         </div>
       </div>
@@ -328,10 +352,19 @@ function CompactVisual({ visual, tone }: { visual: FeatureVisual; tone: FeatureT
   if (visual === "profile") {
     return (
       <div className="mt-6 space-y-3">
-        {["bg-success", "bg-info", "bg-primary"].map((className, index) => (
-          <span className="block h-3 bg-muted" key={className}>
-            <span className={cn("block h-3", className, index === 0 ? "w-[84%]" : index === 1 ? "w-[68%]" : "w-[52%]")} />
-          </span>
+        {[
+          ["landing.features.visual.activities", "bg-success", "w-[84%]"],
+          ["landing.features.visual.research", "bg-info", "w-[68%]"],
+          ["landing.features.visual.letters", "bg-primary", "w-[52%]"]
+        ].map(([label, className, width]) => (
+          <div className="space-y-1" key={label}>
+            <span className="text-[0.62rem] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              {t(label as TranslationKey)}
+            </span>
+            <span className="block h-3 bg-muted">
+              <span className={cn("block h-3", className, width)} />
+            </span>
+          </div>
         ))}
       </div>
     );
@@ -340,10 +373,10 @@ function CompactVisual({ visual, tone }: { visual: FeatureVisual; tone: FeatureT
   return (
     <div className={cn("mt-6 border p-4", TONE_CLASSES[tone])}>
       <BookOpenCheck aria-hidden className="size-8" />
-      <div className="mt-5 grid grid-cols-2 gap-2" aria-hidden>
-        <span className="h-9 border bg-card/60" />
-        <span className="h-9 border bg-card/60" />
-        <span className="col-span-2 h-9 border bg-card/60" />
+      <div className="mt-5 grid grid-cols-2 gap-2 text-center text-[0.62rem] font-bold uppercase tracking-[0.12em]">
+        <span className="border bg-card/60 px-2 py-3">{t("landing.features.visual.cs")}</span>
+        <span className="border bg-card/60 px-2 py-3">{t("landing.features.visual.econ")}</span>
+        <span className="col-span-2 border bg-card/60 px-2 py-3">{t("landing.features.visual.evidenceFit")}</span>
       </div>
     </div>
   );
@@ -361,7 +394,7 @@ export function FeatureGrid() {
   const { t } = useI18n();
 
   return (
-    <section className="relative overflow-hidden bg-background py-20 sm:py-24 lg:py-28" id="features">
+    <section className="relative overflow-hidden bg-background py-20 sm:py-24 lg:py-28" id="features" tabIndex={-1}>
       <div
         aria-hidden
         className="absolute inset-x-0 top-0 h-24 bg-[linear-gradient(180deg,hsl(var(--surface)),transparent)]"

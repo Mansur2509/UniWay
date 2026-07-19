@@ -19,7 +19,7 @@ export function HowItWorks() {
   const { t } = useI18n();
 
   return (
-    <section className="relative overflow-hidden bg-surface py-16 sm:py-20" id="how-it-works">
+    <section className="relative overflow-hidden bg-surface py-16 sm:py-20" id="how-it-works" tabIndex={-1}>
       <div
         aria-hidden
         className="absolute inset-x-0 top-24 h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent"

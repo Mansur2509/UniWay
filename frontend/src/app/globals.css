@@ -115,7 +115,13 @@
 }
 
 html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5.25rem;
   background: hsl(var(--background));
+}
+
+section[tabindex="-1"]:focus {
+  outline: none;
 }
 
 body {

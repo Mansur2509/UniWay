@@ -8,7 +8,7 @@ export function LanguagesSection() {
   const { t } = useI18n();
 
   return (
-    <section className="bg-surface py-16" id="languages">
+    <section className="bg-surface py-16" id="languages" tabIndex={-1}>
       <div className="mx-auto w-full max-w-[84rem] px-4 sm:px-6 lg:px-8">
         <div className="max-w-2xl">
           <p className="text-eyebrow text-primary-hover">{t("landing.languages.eyebrow")}</p>
