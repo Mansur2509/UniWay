@@ -1,6 +1,6 @@
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
-import { Inter, Source_Serif_4 } from "next/font/google";
+import { Inter, Oswald, Source_Serif_4 } from "next/font/google";
 import type { ReactNode } from "react";
 
 import { AuthProvider } from "@/features/auth";
@@ -24,6 +24,13 @@ const sourceSerif = Source_Serif_4({
   weight: ["500", "600", "700"]
 });
 
+const oswald = Oswald({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-display-condensed",
+  display: "swap",
+  weight: ["500", "600", "700"]
+});
+
 const shouldRenderVercelAnalytics = Boolean(process.env.VERCEL_ENV);
 
 export const metadata: Metadata = {
@@ -43,7 +50,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html className={`${inter.variable} ${sourceSerif.variable}`} lang="en" suppressHydrationWarning>
+    <html className={`${inter.variable} ${sourceSerif.variable} ${oswald.variable}`} lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider>
           <I18nProvider>

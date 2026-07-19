@@ -26,17 +26,17 @@ export function LandingHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-30 border-b bg-card/90 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-[84rem] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-30 border-b bg-card/95 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-[104rem] items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-10">
         <Link className="flex items-center gap-2.5" href="/">
           <BrandMark className="size-8 shrink-0 overflow-hidden rounded-sm" />
-          <span className="font-serif text-lg font-semibold tracking-tight">UniWay</span>
+          <span className="font-serif text-xl font-semibold tracking-tight">UniWay</span>
         </Link>
 
-        <nav aria-label={t("shell.primaryNavigation")} className="hidden items-center gap-5 xl:flex">
+        <nav aria-label={t("shell.primaryNavigation")} className="hidden items-center gap-7 xl:flex">
           {NAV_LINKS.map((link) => (
             <a
-              className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
+              className="text-sm font-bold uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-foreground"
               href={link.href}
               key={link.href}
             >

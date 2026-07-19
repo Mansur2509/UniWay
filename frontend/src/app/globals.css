@@ -150,23 +150,102 @@ h3 {
 }
 
 .text-display-condensed {
-  font-family: "Arial Narrow", "Roboto Condensed", "Helvetica Neue Condensed", var(--font-inter), ui-sans-serif, system-ui,
-    sans-serif;
-  font-size: clamp(2.75rem, 1.85rem + 5.2vw, 6.8rem);
+  font-family: var(--font-display-condensed), "Arial Narrow", "Roboto Condensed", "Helvetica Neue Condensed",
+    var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(3.85rem, 2.05rem + 7.25vw, 9.75rem);
   font-weight: 700;
   letter-spacing: 0;
-  line-height: 0.92;
+  line-height: 0.84;
   text-wrap: balance;
 }
 
 .text-display-condensed-sm {
-  font-family: "Arial Narrow", "Roboto Condensed", "Helvetica Neue Condensed", var(--font-inter), ui-sans-serif, system-ui,
-    sans-serif;
-  font-size: clamp(2rem, 1.45rem + 2.8vw, 4.15rem);
+  font-family: var(--font-display-condensed), "Arial Narrow", "Roboto Condensed", "Helvetica Neue Condensed",
+    var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(2.45rem, 1.5rem + 3.75vw, 5.8rem);
   font-weight: 700;
   letter-spacing: 0;
-  line-height: 0.96;
+  line-height: 0.88;
   text-wrap: balance;
+}
+
+.landing-poster-frame {
+  transform-style: preserve-3d;
+  perspective: 1200px;
+}
+
+.landing-poster-object {
+  transform: rotateX(6deg) rotateY(-10deg) rotateZ(1deg);
+  transform-style: preserve-3d;
+}
+
+.landing-poster-paper {
+  box-shadow:
+    0 34px 80px hsl(var(--navy) / 0.34),
+    0 3px 0 hsl(var(--border)),
+    22px 28px 0 hsl(var(--accent) / 0.24),
+    -24px -18px 0 hsl(var(--info) / 0.18);
+}
+
+.landing-feature-icon {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 hsl(var(--surface) / 0.45),
+    0 18px 34px hsl(var(--navy) / 0.16);
+}
+
+.landing-feature-icon::before {
+  position: absolute;
+  inset: 9px;
+  z-index: -1;
+  border: 1px solid hsl(var(--foreground) / 0.1);
+  background: hsl(var(--surface) / 0.7);
+  content: "";
+}
+
+.landing-globe-stage {
+  --globe-rotate-x: -14deg;
+  --globe-rotate-y: 18deg;
+  perspective: 1200px;
+}
+
+.landing-globe-sphere {
+  transform: rotateX(var(--globe-rotate-x)) rotateY(var(--globe-rotate-y));
+  transform-style: preserve-3d;
+  box-shadow:
+    inset -34px -34px 72px hsl(var(--navy) / 0.58),
+    inset 22px 22px 58px hsl(var(--info) / 0.2),
+    0 46px 110px hsl(var(--navy) / 0.46);
+}
+
+.landing-globe-sphere::before,
+.landing-globe-sphere::after {
+  position: absolute;
+  inset: 9%;
+  border-radius: 9999px;
+  content: "";
+  pointer-events: none;
+}
+
+.landing-globe-sphere::before {
+  border: 1px solid hsl(var(--navy-foreground) / 0.13);
+  background:
+    linear-gradient(90deg, transparent 48%, hsl(var(--navy-foreground) / 0.13) 49%, transparent 51%),
+    repeating-linear-gradient(0deg, transparent 0 37px, hsl(var(--navy-foreground) / 0.1) 38px 39px);
+  transform: translateZ(26px);
+}
+
+.landing-globe-sphere::after {
+  background: radial-gradient(circle at 30% 25%, hsl(var(--navy-foreground) / 0.32), transparent 18%),
+    linear-gradient(115deg, transparent 18%, hsl(var(--navy) / 0.36) 70%);
+  mix-blend-mode: screen;
+  transform: translateZ(42px);
+}
+
+.landing-globe-marker {
+  transform: translate3d(-50%, -50%, 64px);
 }
 
 /* Narrower, denser display type for a secondary feature header inside a
@@ -397,6 +476,36 @@ textarea::placeholder {
   50% {
     opacity: 1;
     transform: scale(1.12);
+  }
+}
+
+@keyframes landing-poster-enter {
+  from {
+    opacity: 0;
+    transform: translateY(24px) rotateX(10deg) rotateY(-18deg) rotateZ(3deg) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotateX(6deg) rotateY(-10deg) rotateZ(1deg) scale(1);
+  }
+}
+
+@keyframes landing-document-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 48px) rotate(-8deg);
+  }
+  50% {
+    transform: translate3d(8px, -12px, 58px) rotate(-5deg);
+  }
+}
+
+@keyframes landing-globe-spin {
+  from {
+    --globe-rotate-y: 0deg;
+  }
+  to {
+    --globe-rotate-y: 360deg;
   }
 }
 
