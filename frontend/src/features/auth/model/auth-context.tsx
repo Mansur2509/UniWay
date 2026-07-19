@@ -22,7 +22,7 @@ import {
   subscribeToAuthInvalid
 } from "@/shared/lib/auth-storage";
 import { invalidateCacheByPrefix } from "@/shared/lib/request-cache";
-import { clearSessionHint, setSessionHint } from "@/shared/lib/session-hint";
+import { clearSessionHint, hasSessionHint, setSessionHint } from "@/shared/lib/session-hint";
 
 import {
   getCurrentUserRequest,
@@ -59,6 +59,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     setStatus("checking");
+    const storedTokens = authStorage.get();
+    if (!storedTokens && !hasSessionHint()) {
+      setUser(null);
+      setStatus("unauthenticated");
+      return null;
+    }
+
     try {
       const currentUser = await getCurrentUserRequest();
       setUser(currentUser);

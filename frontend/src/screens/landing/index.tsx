@@ -1,11 +1,13 @@
 import { FeatureGrid } from "./feature-grid";
 import { FinalCta } from "./final-cta";
+import { GlobeSection } from "./globe-section";
 import { HeroSection } from "./hero-section";
 import { HowItWorks } from "./how-it-works";
 import { LandingFooter } from "./landing-footer";
 import { LandingHeader } from "./landing-header";
 import { LanguagesSection } from "./languages-section";
 import { OrganizerSection } from "./organizer-section";
+import { PartnersSection } from "./partners-section";
 import { ProductShowcase } from "./product-showcase";
 import { TrustSection } from "./trust-section";
 import { UniversityMarquee } from "./university-marquee";
@@ -16,9 +18,11 @@ export function LandingScreen() {
       <LandingHeader />
       <HeroSection />
       <TrustSection />
+      <GlobeSection />
       <UniversityMarquee />
       <FeatureGrid />
       <HowItWorks />
+      <PartnersSection />
       <OrganizerSection />
       <ProductShowcase />
       <LanguagesSection />

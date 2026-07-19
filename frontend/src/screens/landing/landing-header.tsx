@@ -14,7 +14,9 @@ import { ThemeToggleButton } from "@/shared/ui/theme-selector";
 
 const NAV_LINKS = [
   { href: "#features", key: "landing.nav.features" as const },
+  { href: "#global-path", key: "landing.nav.globalPath" as const },
   { href: "#how-it-works", key: "landing.nav.howItWorks" as const },
+  { href: "#partners", key: "landing.nav.partners" as const },
   { href: "#organizers", key: "landing.nav.organizers" as const },
   { href: "#languages", key: "landing.nav.languages" as const }
 ];
@@ -31,7 +33,7 @@ export function LandingHeader() {
           <span className="font-serif text-lg font-semibold tracking-tight">UniWay</span>
         </Link>
 
-        <nav aria-label={t("shell.primaryNavigation")} className="hidden items-center gap-6 lg:flex">
+        <nav aria-label={t("shell.primaryNavigation")} className="hidden items-center gap-5 xl:flex">
           {NAV_LINKS.map((link) => (
             <a
               className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
@@ -43,7 +45,7 @@ export function LandingHeader() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 lg:flex">
+        <div className="hidden items-center gap-2 xl:flex">
           <LanguageSwitcher compact />
           <ThemeToggleButton />
           <Button asChild size="sm" variant="ghost">
@@ -57,7 +59,7 @@ export function LandingHeader() {
         <button
           aria-expanded={mobileOpen}
           aria-label={t(mobileOpen ? "landing.nav.closeMenu" : "landing.nav.openMenu")}
-          className="grid size-10 place-items-center rounded-sm text-muted-foreground hover:bg-muted lg:hidden"
+          className="grid size-10 place-items-center rounded-sm text-muted-foreground hover:bg-muted xl:hidden"
           onClick={() => setMobileOpen((open) => !open)}
           type="button"
         >
@@ -69,7 +71,7 @@ export function LandingHeader() {
         {mobileOpen ? (
           <m.div
             animate={{ height: "auto", opacity: 1 }}
-            className="overflow-hidden border-t bg-card lg:hidden"
+            className="overflow-hidden border-t bg-card xl:hidden"
             exit={{ height: 0, opacity: 0 }}
             initial={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}

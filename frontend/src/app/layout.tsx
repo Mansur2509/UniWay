@@ -24,6 +24,8 @@ const sourceSerif = Source_Serif_4({
   weight: ["500", "600", "700"]
 });
 
+const shouldRenderVercelAnalytics = Boolean(process.env.VERCEL_ENV);
+
 export const metadata: Metadata = {
   title: {
     default: "UniWay",
@@ -52,7 +54,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
             </AuthProvider>
           </I18nProvider>
         </ThemeProvider>
-        <Analytics />
+        {shouldRenderVercelAnalytics ? <Analytics /> : null}
       </body>
     </html>
   );
