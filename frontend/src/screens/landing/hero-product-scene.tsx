@@ -24,7 +24,7 @@ export function HeroProductScene() {
   const { t } = useI18n();
 
   return (
-    <div className="landing-poster-frame relative mx-auto min-h-[27rem] w-full max-w-[25rem] sm:min-h-[34rem] sm:max-w-[38rem] lg:min-h-[37rem] lg:max-w-[46rem] xl:min-h-[40rem]">
+    <div className="landing-poster-frame relative mx-auto min-h-[27rem] w-full max-w-[25rem] sm:min-h-[34rem] sm:max-w-[38rem] lg:min-h-[30rem] lg:max-w-[40rem] xl:min-h-[32rem] xl:max-w-[42rem]">
       <div
         aria-hidden
         className="absolute -left-8 top-10 h-[78%] w-[62%] -rotate-6 bg-primary shadow-2xl shadow-black/30"
@@ -40,17 +40,17 @@ export function HeroProductScene() {
 
       <TiltCard className="absolute inset-x-5 top-7 z-20 sm:inset-x-10 lg:top-8" maxTiltDeg={6}>
         <div className="landing-poster-object animate-[landing-poster-enter_700ms_cubic-bezier(0.16,1,0.3,1)_both]">
-          <div className="landing-poster-paper relative min-h-[24rem] overflow-hidden border border-border bg-surface p-4 text-foreground sm:min-h-[31rem] sm:p-6 lg:min-h-[33rem]">
+          <div className="landing-poster-paper relative min-h-[24rem] overflow-hidden border border-border bg-surface p-4 text-foreground sm:min-h-[31rem] sm:p-6 lg:min-h-[27rem]">
             <span
               aria-hidden
-              className="absolute -right-5 top-5 text-display-condensed text-[7rem] leading-none text-primary/[0.08] sm:text-[10rem]"
+              className="absolute -right-5 top-5 text-display-condensed text-[6rem] leading-none text-primary/[0.08] sm:text-[8rem]"
             >
               UNI
             </span>
             <div className="relative z-10 flex items-center justify-between gap-4 border-b border-foreground/15 pb-4">
               <div>
                 <p className="text-eyebrow text-primary">{t("landing.hero.sceneCommand")}</p>
-                <h3 className="mt-2 max-w-sm font-serif text-xl font-semibold leading-tight sm:text-3xl lg:text-4xl">
+                <h3 className="mt-2 max-w-sm font-serif text-xl font-semibold leading-tight sm:text-3xl lg:text-3xl">
                   {t("landing.hero.sceneNextMoveTitle")}
                 </h3>
               </div>
@@ -59,7 +59,7 @@ export function HeroProductScene() {
               </div>
             </div>
 
-            <div className="relative z-10 mt-6 grid gap-4 sm:grid-cols-[1.08fr_0.92fr]">
+            <div className="relative z-10 mt-5 grid gap-3 sm:grid-cols-[1.08fr_0.92fr]">
               <div className="border border-primary/30 bg-primary/10 p-4">
                 <div className="flex items-center justify-between">
                   <div className="grid size-12 place-items-center bg-primary text-primary-foreground">
@@ -86,7 +86,7 @@ export function HeroProductScene() {
               </div>
             </div>
 
-            <div className="relative z-10 mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="relative z-10 mt-3 grid gap-3 sm:grid-cols-3">
               <div className="border bg-card p-4">
                 <NotebookPen aria-hidden className="size-6 text-recommendation" />
                 <p className="mt-4 text-sm font-semibold">{t("landing.hero.sceneEssays")}</p>
@@ -101,7 +101,7 @@ export function HeroProductScene() {
               </div>
             </div>
 
-            <div className="relative z-10 mt-4 border border-success/30 bg-success/10 p-4">
+            <div className="relative z-10 mt-3 border border-success/30 bg-success/10 p-4">
               <div className="flex items-center gap-3">
                 <CheckCircle2 aria-hidden className="size-5 text-success" />
                 <p className="text-sm font-semibold">{t("landing.hero.sceneVerified")}</p>

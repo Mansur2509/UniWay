@@ -15,7 +15,7 @@ export function HeroSection() {
   const { t } = useI18n();
 
   return (
-    <section className="relative isolate min-h-[calc(100svh-4.5rem)] overflow-hidden bg-navy text-navy-foreground">
+    <section className="relative isolate min-h-[calc(100svh-4.5rem)] overflow-hidden bg-navy text-navy-foreground lg:h-[calc(100svh-4.5rem)] lg:min-h-[40rem]">
       <div
         aria-hidden
         className="absolute inset-0 -z-10 bg-[linear-gradient(100deg,hsl(var(--navy))_0_54%,hsl(var(--primary-hover))_54%_71%,hsl(var(--info))_71%_100%)] opacity-95"
@@ -29,20 +29,20 @@ export function HeroSection() {
         className="absolute inset-x-0 bottom-0 -z-10 h-44 bg-gradient-to-b from-transparent to-background"
       />
 
-      <div className="mx-auto grid w-full max-w-[98rem] gap-8 px-4 py-10 sm:px-6 sm:py-14 lg:grid-cols-[0.88fr_1.12fr] lg:items-center lg:px-10 lg:py-8 xl:py-10">
+      <div className="mx-auto grid h-full w-full max-w-[98rem] gap-8 px-4 py-10 sm:px-6 sm:py-14 lg:grid-cols-[0.84fr_1.16fr] lg:items-center lg:gap-5 lg:px-10 lg:py-5 xl:py-6">
         <MotionReveal>
           <p className="text-eyebrow inline-flex border border-accent/45 bg-accent/15 px-3 py-2 text-accent">
             {t("landing.hero.eyebrow")}
           </p>
-          <h1 className="text-display-condensed mt-6 max-w-5xl text-navy-foreground">
+          <h1 className="text-landing-hero mt-4 max-w-4xl text-navy-foreground">
             <span className="block">{t("landing.hero.titleLead")}</span>
             <span className="block text-accent">{t("landing.hero.titleAccent")}</span>
             <span className="block">{t("landing.hero.titleTail")}</span>
           </h1>
-          <p className="mt-6 max-w-2xl text-base leading-7 text-white/[0.82] sm:text-lg lg:text-xl lg:leading-8">
+          <p className="mt-4 max-w-2xl text-base leading-7 text-white/[0.82] sm:text-lg lg:text-lg lg:leading-7">
             {t("landing.hero.subtitle")}
           </p>
-          <div className="mt-8 flex flex-wrap items-center gap-4">
+          <div className="mt-5 flex flex-wrap items-center gap-3">
             <Button asChild className="min-h-14 px-7 text-base shadow-2xl shadow-black/25">
               <Link href="/register">
                 {t("landing.hero.primaryCta")}
@@ -53,7 +53,7 @@ export function HeroSection() {
               <Link href="/login">{t("landing.hero.secondaryCta")}</Link>
             </Button>
           </div>
-          <div className="mt-8 grid max-w-3xl gap-3 text-sm font-semibold text-white/[0.82] sm:grid-cols-[auto_auto] sm:items-center">
+          <div className="mt-5 grid max-w-3xl gap-3 text-sm font-semibold text-white/[0.82] sm:grid-cols-[auto_auto] sm:items-center">
             <div className="flex items-center gap-3 border border-white/15 bg-white/[0.08] px-4 py-3">
               <Sparkles aria-hidden className="size-5 text-accent" />
               <CountUp className="text-display-condensed-sm text-3xl leading-none text-white" suffix="+" target={UNIVERSITY_COUNT_DISPLAY} />

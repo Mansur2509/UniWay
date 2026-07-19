@@ -165,6 +165,16 @@ h3 {
   text-wrap: balance;
 }
 
+.text-landing-hero {
+  font-family: var(--font-display-condensed), "Arial Narrow", "Roboto Condensed", "Helvetica Neue Condensed",
+    var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(3.45rem, 4.8vw, 6.35rem);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 0.88;
+  text-wrap: balance;
+}
+
 .text-display-condensed-sm {
   font-family: var(--font-display-condensed), "Arial Narrow", "Roboto Condensed", "Helvetica Neue Condensed",
     var(--font-inter), ui-sans-serif, system-ui, sans-serif;

@@ -25,7 +25,7 @@ const NAV_LINKS = [
 export function LandingHeader() {
   const { t } = useI18n();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [activeId, setActiveId] = useState(NAV_LINKS[0].id);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const manualNavUntilRef = useRef(0);
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -49,7 +49,7 @@ export function LandingHeader() {
         if (Date.now() < manualNavUntilRef.current) return;
         const headerOffset = 96;
         const viewportProbe = window.scrollY + headerOffset + window.innerHeight * 0.18;
-        let currentId = NAV_LINKS[0].id;
+        let currentId: string | null = null;
 
         for (const link of NAV_LINKS) {
           const section = document.getElementById(link.id);
