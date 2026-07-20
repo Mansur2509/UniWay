@@ -50,7 +50,7 @@ export const landingUzCyrl = {
   "landing.features.organizerTools.description": "Мослаштирилган рўйхатдан ўтиш шакллари, тасдиқлаш ва рўйхатга олиш ёрдамида қабул тадбирларини ўтказинг.",
 
   "landing.howItWorks.eyebrow": "UniWay қандай ишлайди",
-  "landing.howItWorks.title": "Тўрт қадам, битта аниқ йўналиш.",
+  "landing.howItWorks.title": "Беш қадам, битта аниқ йўналиш.",
   "landing.howItWorks.step1.title": "Профилингизни яратинг",
   "landing.howItWorks.step1.description": "UniWay қаерда турганингизни тушуниши учун ўқиш, фаолият, мукофотлар ва мақсадларингизни қўшинг.",
   "landing.howItWorks.step2.title": "Университетлар ва имкониятларни ўрганинг",

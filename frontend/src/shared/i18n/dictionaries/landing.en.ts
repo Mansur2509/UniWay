@@ -136,7 +136,7 @@ export const landingEn = {
   "landing.features.visual.evidenceFit": "Evidence fit",
 
   "landing.howItWorks.eyebrow": "How UniWay works",
-  "landing.howItWorks.title": "Four steps, one clear direction.",
+  "landing.howItWorks.title": "Five steps, one clear direction.",
   "landing.howItWorks.step1.title": "Build your profile",
   "landing.howItWorks.step1.description": "Add your academics, activities, honors, and goals so UniWay understands where you stand.",
   "landing.howItWorks.step2.title": "Discover universities and opportunities",

@@ -16,11 +16,14 @@ import {
   UsersRound
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { m, useScroll, useTransform } from "motion/react";
+import { useRef } from "react";
 
 import { useI18n, type TranslationKey } from "@/shared/i18n";
 import { cn } from "@/shared/lib/cn";
 import { Card } from "@/shared/ui/card";
 import { MotionReveal } from "@/shared/ui/motion-reveal";
+import { usePrefersReducedMotion } from "@/shared/ui/use-reduced-motion";
 
 type FeatureTone = "success" | "recommendation" | "info" | "accent" | "event" | "primary";
 type FeatureVisual =
@@ -174,7 +177,7 @@ function SearchVisual({ large }: { large: boolean }) {
           <div
             className={cn(
               "min-h-28 border border-white/20 bg-white/[0.1] p-4 shadow-2xl backdrop-blur",
-              index === 1 && large ? "translate-y-8" : ""
+              index === 1 && large ? "sm:mt-7" : ""
             )}
             key={label}
           >
@@ -392,9 +395,22 @@ function FeatureVisual({ visual, scale, tone }: { visual: FeatureVisual; scale: 
 
 export function FeatureGrid() {
   const { t } = useI18n();
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start 82%", "end 28%"]
+  });
+  const sectionRuleScale = useTransform(scrollYProgress, [0, 1], [0.06, 1]);
+  const sectionRuleOpacity = useTransform(scrollYProgress, [0, 0.18, 1], [0.25, 1, 0.88]);
 
   return (
-    <section className="relative overflow-hidden bg-background py-20 sm:py-24 lg:py-28" id="features" tabIndex={-1}>
+    <section
+      className="relative scroll-mt-24 overflow-hidden bg-background py-20 sm:py-24 lg:py-28"
+      id="features"
+      ref={sectionRef}
+      tabIndex={-1}
+    >
       <div
         aria-hidden
         className="absolute inset-x-0 top-0 h-24 bg-[linear-gradient(180deg,hsl(var(--surface)),transparent)]"
@@ -410,17 +426,25 @@ export function FeatureGrid() {
           </p>
         </div>
 
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:auto-rows-[15rem]">
+        <div className="relative mt-12 border-t border-border pt-8">
+          <m.div
+            aria-hidden
+            className="absolute left-0 top-0 h-1 origin-left bg-gradient-to-r from-primary via-accent to-info"
+            style={prefersReducedMotion ? undefined : { opacity: sectionRuleOpacity, scaleX: sectionRuleScale }}
+          />
+          <div className="grid items-stretch gap-5 sm:grid-cols-2 lg:auto-rows-[minmax(22rem,_auto)] lg:grid-cols-4">
           {FEATURES.map((feature, index) => {
             const scale = feature.scale ?? "compact";
             return (
               <MotionReveal className={feature.className} delayMs={index * 45} key={feature.titleKey}>
                 <Card
                   className={cn(
-                    "group relative h-full overflow-hidden border bg-gradient-to-br p-6 transition-transform hover:-translate-y-1 hover:shadow-2xl",
+                    "group relative h-full min-h-[22rem] overflow-hidden border bg-gradient-to-br p-6 transition-[transform,box-shadow,border-color] hover:-translate-y-1 hover:shadow-2xl",
                     SURFACE_CLASSES[feature.tone],
                     scale === "large" ? "p-7" : "",
-                    scale === "compact" ? "min-h-[19rem]" : ""
+                    scale === "compact" ? "min-h-[20rem]" : "",
+                    scale === "tall" || scale === "large" ? "lg:min-h-[45rem]" : "",
+                    scale === "wide" ? "lg:min-h-[22rem]" : ""
                   )}
                   interactive
                 >
@@ -447,6 +471,7 @@ export function FeatureGrid() {
               </MotionReveal>
             );
           })}
+          </div>
         </div>
       </div>
     </section>

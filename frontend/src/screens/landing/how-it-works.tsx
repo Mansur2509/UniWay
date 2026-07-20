@@ -70,7 +70,7 @@ export function HowItWorks() {
 
   return (
     <section
-      className="relative overflow-hidden bg-surface py-16 sm:py-20 lg:py-24"
+      className="relative scroll-mt-24 overflow-hidden bg-surface py-16 sm:py-20 lg:py-24"
       id="how-it-works"
       ref={sectionRef}
       tabIndex={-1}
@@ -97,52 +97,57 @@ export function HowItWorks() {
               className="absolute left-8 top-1/2 hidden h-1 origin-left -translate-y-1/2 bg-gradient-to-r from-primary via-accent to-info lg:block"
               style={prefersReducedMotion ? undefined : { scaleX: pathScale }}
             />
-            <m.div
-              className="grid gap-5 md:grid-cols-2 xl:grid-cols-5"
-            >
+            <m.div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
               {STEPS.map((step, index) => {
                 const Icon = step.icon;
                 const active = activeIndex === index || prefersReducedMotion;
                 return (
-                  <Card
-                    className={cn(
-                      "relative min-h-72 overflow-hidden p-5 transition-[box-shadow,border-color,background-color]",
-                      active ? "border-primary/45 bg-card shadow-2xl shadow-primary/10" : "bg-card/80"
-                    )}
+                  <m.div
+                    className="h-full"
+                    initial={prefersReducedMotion ? false : { clipPath: "inset(0 0 12% 0)", opacity: 0 }}
                     key={step.titleKey}
+                    transition={{ delay: index * 0.06, duration: 0.42, ease: [0.16, 1, 0.3, 1] }}
+                    viewport={{ margin: "-80px", once: true }}
+                    whileInView={prefersReducedMotion ? undefined : { clipPath: "inset(0 0 0% 0)", opacity: 1 }}
                   >
-                    <div aria-hidden className="absolute -right-16 -top-16 size-40 rounded-full bg-primary/10 blur-2xl" />
-                    <div className="relative flex h-full flex-col">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className={cn("grid size-14 place-items-center border", TONE_CLASSES[step.tone])}>
-                          <Icon aria-hidden className="size-7" />
+                    <Card
+                      className={cn(
+                        "relative h-full min-h-72 overflow-hidden p-5 transition-[box-shadow,border-color,background-color]",
+                        active ? "border-primary/45 bg-card shadow-2xl shadow-primary/10" : "bg-card/80"
+                      )}
+                    >
+                      <div aria-hidden className="absolute -right-16 -top-16 size-40 rounded-full bg-primary/10 blur-2xl" />
+                      <div className="relative flex h-full flex-col">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className={cn("grid size-14 place-items-center border", TONE_CLASSES[step.tone])}>
+                            <Icon aria-hidden className="size-7" />
+                          </div>
+                          <m.span
+                            className="text-display-condensed-sm text-6xl leading-none text-border"
+                            style={prefersReducedMotion ? undefined : { rotate: progressRotate }}
+                          >
+                            {String(index + 1).padStart(2, "0")}
+                          </m.span>
                         </div>
-                        <m.span
-                          className="text-display-condensed-sm text-6xl leading-none text-border"
-                          style={prefersReducedMotion ? undefined : { rotate: progressRotate }}
-                        >
-                          {String(index + 1).padStart(2, "0")}
-                        </m.span>
-                      </div>
-                      <h3 className="mt-8 font-serif text-2xl font-semibold leading-tight">{t(step.titleKey)}</h3>
-                      <p className="mt-4 text-sm leading-6 text-muted-foreground">{t(step.descriptionKey)}</p>
-                      <div className="mt-auto pt-8">
-                        <div className="grid grid-cols-[auto_1fr] items-center gap-3">
-                          <span className={cn("grid size-10 place-items-center border", TONE_CLASSES[step.tone])}>
-                            <FolderKanban aria-hidden className="size-5" />
-                          </span>
-                          <span className="h-2 bg-muted">
-                            <span
-                              className={cn(
-                                "block h-2",
-                                index <= activeIndex || prefersReducedMotion ? "w-full bg-primary" : "w-1/3 bg-border"
-                              )}
-                            />
-                          </span>
+                        <h3 className="mt-8 font-serif text-2xl font-semibold leading-tight">{t(step.titleKey)}</h3>
+                        <p className="mt-4 text-sm leading-6 text-muted-foreground">{t(step.descriptionKey)}</p>
+                        <div className="mt-auto pt-8">
+                          <div className="grid grid-cols-[auto_1fr] items-center gap-3">
+                            <span className={cn("grid size-10 place-items-center border", TONE_CLASSES[step.tone])}>
+                              <FolderKanban aria-hidden className="size-5" />
+                            </span>
+                            <span className="h-2 bg-muted">
+                              <m.span
+                                animate={{ scaleX: index <= activeIndex || prefersReducedMotion ? 1 : 0.34 }}
+                                className="block h-2 origin-left bg-primary"
+                                transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+                              />
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </Card>
+                    </Card>
+                  </m.div>
                 );
               })}
             </m.div>

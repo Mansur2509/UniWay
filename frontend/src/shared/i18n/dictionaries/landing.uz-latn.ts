@@ -50,7 +50,7 @@ export const landingUzLatn = {
   "landing.features.organizerTools.description": "Moslashtirilgan ro'yxatdan o'tish shakllari, tasdiqlash va ro'yxatga olish yordamida qabul tadbirlarini o'tkazing.",
 
   "landing.howItWorks.eyebrow": "UniWay qanday ishlaydi",
-  "landing.howItWorks.title": "To'rt qadam, bitta aniq yo'nalish.",
+  "landing.howItWorks.title": "Besh qadam, bitta aniq yo'nalish.",
   "landing.howItWorks.step1.title": "Profilingizni yarating",
   "landing.howItWorks.step1.description": "UniWay qayerda turganingizni tushunishi uchun o'qish, faoliyat, mukofotlar va maqsadlaringizni qo'shing.",
   "landing.howItWorks.step2.title": "Universitetlar va imkoniyatlarni o'rganing",

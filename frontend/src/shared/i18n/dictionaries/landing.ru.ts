@@ -50,7 +50,7 @@ export const landingRu = {
   "landing.features.organizerTools.description": "Проводите мероприятия по поступлению с помощью настраиваемых форм регистрации, одобрений и регистрации участников.",
 
   "landing.howItWorks.eyebrow": "Как работает UniWay",
-  "landing.howItWorks.title": "Четыре шага — одно ясное направление.",
+  "landing.howItWorks.title": "Пять шагов — одно ясное направление.",
   "landing.howItWorks.step1.title": "Создайте свой профиль",
   "landing.howItWorks.step1.description": "Добавьте информацию об учёбе, деятельности, наградах и целях, чтобы UniWay понимал, на каком вы этапе.",
   "landing.howItWorks.step2.title": "Изучайте университеты и возможности",
