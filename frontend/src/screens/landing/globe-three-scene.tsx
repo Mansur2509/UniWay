@@ -50,6 +50,37 @@ type GlobeOutline = {
   points: LatLon[];
 };
 
+type TopologyArc = Array<readonly [number, number]>;
+
+type WorldTopologyTransform = {
+  scale: readonly [number, number];
+  translate: readonly [number, number];
+};
+
+type WorldPolygonGeometry = {
+  arcs: number[][];
+  type: "Polygon";
+};
+
+type WorldMultiPolygonGeometry = {
+  arcs: number[][][];
+  type: "MultiPolygon";
+};
+
+type WorldGeometry = WorldPolygonGeometry | WorldMultiPolygonGeometry;
+
+type WorldTopology = {
+  arcs: TopologyArc[];
+  objects?: {
+    countries?: {
+      geometries: WorldGeometry[];
+      type: "GeometryCollection";
+    };
+  };
+  transform?: WorldTopologyTransform;
+  type: "Topology";
+};
+
 const GLOBE_OUTLINES: GlobeOutline[] = [
   {
     closed: true,
@@ -210,6 +241,112 @@ function createGlobeOutline(outline: GlobeOutline, radius: number) {
   );
 }
 
+function createFallbackBorderGroup(radius: number) {
+  const group = new THREE.Group();
+  GLOBE_OUTLINES.forEach((outline) => {
+    group.add(createGlobeOutline(outline, radius));
+  });
+  return group;
+}
+
+function decodeTopologyArcs(topology: WorldTopology) {
+  const transform = topology.transform;
+  if (!transform) return [];
+
+  return topology.arcs.map((arc) => {
+    let x = 0;
+    let y = 0;
+    return arc.map(([deltaX, deltaY]) => {
+      x += deltaX;
+      y += deltaY;
+      const lon = transform.translate[0] + x * transform.scale[0];
+      const lat = transform.translate[1] + y * transform.scale[1];
+      return [lat, lon] as const;
+    });
+  });
+}
+
+function resolveTopologyArc(decodedArcs: LatLon[][], arcIndex: number) {
+  const arc = decodedArcs[arcIndex >= 0 ? arcIndex : ~arcIndex] ?? [];
+  return arcIndex >= 0 ? arc : [...arc].reverse();
+}
+
+function stitchTopologyRing(decodedArcs: LatLon[][], ringArcs: number[]) {
+  const ring: LatLon[] = [];
+  ringArcs.forEach((arcIndex) => {
+    const arc = resolveTopologyArc(decodedArcs, arcIndex);
+    arc.forEach((point, pointIndex) => {
+      if (ring.length > 0 && pointIndex === 0) return;
+      ring.push(point);
+    });
+  });
+  return ring;
+}
+
+function appendRingSegments(positions: number[], ring: LatLon[], radius: number) {
+  if (ring.length < 2) return;
+
+  ring.forEach((point, index) => {
+    const next = index === ring.length - 1 ? ring[0] : ring[index + 1];
+    if (!next || Math.abs(point[1] - next[1]) > 180) return;
+
+    const from = latLonToVector3(point[0], point[1], radius);
+    const to = latLonToVector3(next[0], next[1], radius);
+    positions.push(from.x, from.y, from.z, to.x, to.y, to.z);
+  });
+}
+
+function createCountryBorderLines(topology: WorldTopology, radius: number) {
+  const countries = topology.objects?.countries?.geometries;
+  if (!countries?.length) return null;
+
+  const decodedArcs = decodeTopologyArcs(topology);
+  if (!decodedArcs.length) return null;
+
+  const positions: number[] = [];
+  countries.forEach((geometry) => {
+    if (geometry.type === "Polygon") {
+      geometry.arcs.forEach((ringArcs) => {
+        appendRingSegments(positions, stitchTopologyRing(decodedArcs, ringArcs), radius);
+      });
+      return;
+    }
+
+    geometry.arcs.forEach((polygon) => {
+      polygon.forEach((ringArcs) => {
+        appendRingSegments(positions, stitchTopologyRing(decodedArcs, ringArcs), radius);
+      });
+    });
+  });
+
+  if (!positions.length) return null;
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return new THREE.LineSegments(
+    geometry,
+    new THREE.LineBasicMaterial({
+      color: "#f8f3e8",
+      depthWrite: false,
+      opacity: 0.28,
+      transparent: true
+    })
+  );
+}
+
+function disposeObject3D(object: THREE.Object3D) {
+  object.traverse((child) => {
+    if (child instanceof THREE.Mesh || child instanceof THREE.Line) {
+      child.geometry.dispose();
+      if (Array.isArray(child.material)) {
+        child.material.forEach((material) => material.dispose());
+      } else {
+        child.material.dispose();
+      }
+    }
+  });
+}
+
 export function GlobeThreeScene({
   activeId,
   ariaLabel,
@@ -341,11 +478,8 @@ export function GlobeThreeScene({
     });
     root.add(land);
 
-    const borderGroup = new THREE.Group();
-    GLOBE_OUTLINES.forEach((outline) => {
-      borderGroup.add(createGlobeOutline(outline, 2.182));
-    });
-    root.add(borderGroup);
+    const fallbackBorderGroup = createFallbackBorderGroup(2.182);
+    root.add(fallbackBorderGroup);
 
     const markerGeometry = new THREE.SphereGeometry(0.075, 18, 12);
     const markerMeshes = new Map<string, THREE.Mesh>();
@@ -397,6 +531,28 @@ export function GlobeThreeScene({
     let visible = true;
     let tabVisible = !document.hidden;
     let lastFrame = 0;
+    let disposed = false;
+
+    async function loadCountryBorders() {
+      try {
+        const response = await fetch("/data/countries-110m.json", { cache: "force-cache" });
+        if (!response.ok) return;
+        const topology = (await response.json()) as WorldTopology;
+        const countryBorders = createCountryBorderLines(topology, 2.19);
+        if (!countryBorders || disposed) {
+          countryBorders?.geometry.dispose();
+          if (countryBorders?.material instanceof THREE.Material) {
+            countryBorders.material.dispose();
+          }
+          return;
+        }
+        root.remove(fallbackBorderGroup);
+        disposeObject3D(fallbackBorderGroup);
+        root.add(countryBorders);
+      } catch {
+        // Keep the handcrafted fallback contours when the local atlas cannot be loaded.
+      }
+    }
 
     function shortestAngleTo(current: number, target: number) {
       return Math.atan2(Math.sin(target - current), Math.cos(target - current));
@@ -528,8 +684,10 @@ export function GlobeThreeScene({
     setRendererSize();
     syncSelectedRing();
     frameId = window.requestAnimationFrame(renderFrame);
+    void loadCountryBorders();
 
     return () => {
+      disposed = true;
       window.cancelAnimationFrame(frameId);
       observer.disconnect();
       resizeObserver.disconnect();
@@ -542,24 +700,7 @@ export function GlobeThreeScene({
       markerMeshes.forEach((mesh) => {
         if (mesh.material instanceof THREE.Material) mesh.material.dispose();
       });
-      scene.traverse((object) => {
-        if (object instanceof THREE.Mesh) {
-          object.geometry.dispose();
-          if (Array.isArray(object.material)) {
-            object.material.forEach((material) => material.dispose());
-          } else {
-            object.material.dispose();
-          }
-        }
-        if (object instanceof THREE.Line) {
-          object.geometry.dispose();
-          if (Array.isArray(object.material)) {
-            object.material.forEach((material) => material.dispose());
-          } else {
-            object.material.dispose();
-          }
-        }
-      });
+      disposeObject3D(scene);
       renderer.dispose();
       markerMeshesRef.current = new Map();
     };
