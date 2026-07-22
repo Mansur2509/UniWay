@@ -32,7 +32,7 @@ export function HeroProductScene() {
   const { t } = useI18n();
 
   return (
-    <div className="landing-hero-stage relative mx-auto min-h-[27rem] w-full max-w-[25rem] overflow-visible sm:min-h-[34rem] sm:max-w-[38rem] lg:min-h-[30rem] lg:max-w-[40rem] xl:min-h-[32rem] xl:max-w-[42rem]">
+    <div className="landing-hero-stage relative mx-auto min-h-[27rem] w-full max-w-[25rem] overflow-visible sm:min-h-[34rem] sm:max-w-[38rem] lg:min-h-[30rem] lg:max-w-[46rem] xl:min-h-[32rem] xl:max-w-[46rem]">
       <div
         aria-hidden
         className={`absolute -left-8 top-10 ${HERO_LAYERS.atmosphere} h-[78%] w-[62%] -rotate-6 bg-primary shadow-2xl shadow-black/30`}
